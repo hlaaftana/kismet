@@ -1,7 +1,5 @@
 package hlaaftana.kismet;
 
-import hlaaftana.karmafields.relics.Collections;
-
 import java.util.HashMap;
 import java.util.Map;
 
