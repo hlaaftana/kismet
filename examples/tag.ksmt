@@ -1,0 +1,53 @@
+"tag command demonstrated with a custom command concept i want to make"
+
+"\\u is a little different in kismet than in java/groovy to allow for UTF-8 characters above \\uFFFF"
+"\\u can also be proceeded by one of xXdDoObB to allow for different bases than hexadecimal."
+"xX is hex, dD is decimal, oO is octal, bB is binary."
+
+defn strip_mentions content [replace content "@" "@\u{200b}"]
+
+"however 0x or 0b literals aren't in kismet. instead you can use the (hex), (binary) and (octal) macros"
+"like [hex 6f27], [octal 77231], [binary 1001010110110]."
+
+"also to note: the results of those macros will be BigIntegers like numbers normally do in kismet"
+"there are the (int8), (int16), (int32), (int64), (float32), (float64), (char) functions to turn"
+"BigIntegers and BigDecimals to java primitives. you can use (integer) or (float) to turn them back."
+
+"defcmd will be a macro already defined when this script is run"
+
+defcmd tag {
+    "split_args is also a predefined function that calls Arguments.parseArgs in my bot"
+    := args [split_args arguments 3]
+
+    "if_else is like ternary in java, except you couldnt put statements in ternary in java"
+    "size and length are aliases"
+    "respond will also be predefined"
+
+    if_else [< [size args] 2] [respond "Too few arguments"] {
+        := opt args[0]
+        := name args[1]
+
+        "if_chain is like if/else if chains in java and groovy. it evaluates pairs of cond/expr pairs"
+        "until it reaches a last expression which doesn't have to exist that will evaluate when none of the other"
+        "conditions evaluated"
+
+        if_chain [is? opt "set"] {
+            "unless, unless_else, unless_chain and until are also in the kismet library to honor Perl and Ruby"
+            "= also works in the spirit of modifying properties as you can see here"
+
+            unless [has_key guild_data "tags"] [= guild_data.tags [map]]
+            put guild_data.tags name [map "content" args[2] "author" message.author.idLong]
+            respond "Successful"
+
+        } [is? opt "author"] {
+            "sprintf works like String.format in java"
+
+            respond [sprintf "Author for tag %s is %d" name [get guild_data.tags name "author"]]
+        } [respond [if_else [and [has_key? guild_data "tags"]
+                                 [has_key? guild_data.tags opt]]
+            [strip_mentions [get guild_data.tags opt "content"]] "Invalid tag"]]
+
+        "(get) has a nice chain thingy, where it keeps getting through the arguments"
+        "also notice how we called the strip_mentions from earlier"
+    }
+}

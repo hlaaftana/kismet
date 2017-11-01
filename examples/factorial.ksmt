@@ -1,0 +1,49 @@
+"i think functional programming comes naturally in a lisp-y (f x y z)-like-calls environment"
+"or maybe i thought it was cool so i added it"
+defn functional {
+    "kismet is dynamic so this would work when called after permutation is defined"
+    defn factorial n [permutation n n]
+    "[next i] is equal to [+ i 1] if i is a number"
+    defn permutation n r [product [range [next [- n r]] n]]
+    "div is integer division, / is normal division"
+    defn combination n r [div [permutation n r] [factorial r]]
+}
+
+"imperative facilities still exist because this language is written in Groovy,"
+"a language based on Java which is a language based on C and C++ (based on C) "
+"which are all imperative. the main purpose of this entire language is/was safe"
+"and nice scripting everyone can use on my bot, \"was\" meaning i dont use the "
+"bot much anymore"
+defn imperative {
+    "not going to rewrite the entire function. look at permutation"
+    defn factorial n [permutation n n]
+
+    defn permutation n r {
+        := x 1
+        := i [next [- n r]]
+        "[until a ...] is equal to [while [not a] ...], a little idiom i took from perl and ruby (also unless)"
+        until [> i n] {
+            "i kind of don't want to add operators like *= because of the existence"
+            "of operators like := and ::= which might confuse the user"
+            = x [* x i]
+            "[increment i] is the same as [= i [next i]]"
+            increment i
+        }
+        "final return value"
+        x
+    }
+
+    "with_result is hard to describe in words and i could have used it in permutation,"
+    "but chose not to to show off imperative first"
+    defn combination n r [with_result x 1 {
+        := i 0
+        while [< i r] {
+            "kismet uses java BigIntegers and BigDecimals by default"
+            "normal division with / always returns a BigDecimal (Float in Kismet) like in Groovy"
+            "in kismet, BigInteger => Integer, BigDecimal => Float, byte => Int8, short => Int16,"
+            "char => Character, int => Int32, long => Int64, float => Float32, double => Float64"
+            = x [/ [* x [- n i]] [- r i]]
+            increment i
+        }
+    }]
+}

@@ -16,7 +16,7 @@ class KismetMacro extends Macro {
 	}
 
 	KismetObject doCall(Block s, KismetObject<Expression>... args){
-		Block c = b.inner().anonymousClone()
+		Block c = b.inner.anonymousClone()
 		for (int it = 0; it < args.length; ++it) {
 			c.context.directSet('$'.concat(String.valueOf(it)), args[it])
 		}
@@ -37,6 +37,6 @@ class GroovyMacro extends Macro {
 	}
 
 	KismetObject doCall(Block c, KismetObject<Expression>... expressions){
-		Kismet.model(expressions.length != 0 ? x.call(c, convert ? expressions*.inner() as Expression[] : expressions) : x.call(c))
+		Kismet.model(expressions.length != 0 ? x.call(c, convert ? expressions*.inner as Expression[] : expressions) : x.call(c))
 	}
 }

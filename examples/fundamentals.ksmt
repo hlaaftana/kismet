@@ -1,0 +1,47 @@
+"this string is the value of this expression. every expression has a value. there are multiple types of expressions:"
+
+"block: contains multiple sequential expressions. surrounded by {} except at the top level of every script"
+"the last value in a block (which is what we're in right now) is the return value of the block"
+
+"string: surrounded by double quotes or single quotes. contains text."
+
+"number: just numbers. can be one of 1, 1.0, 1e9, 1.0e9 and so on. info about negative numbers if you scroll down"
+
+"atom: a string value surrounded by () unless it has no spaces.
+"its value is its name searched in the 'context' which is where the variables are stored. so if you type"
+a
+"you get the variable with the name 'a'. also if you do"
+a.b
+"you get the property 'b' of variable 'a', and if you do"
+a[0]
+"you get the 0th element of variable 'a'."
+"atoms can have characters like []{}(\"' if they dont start with them, so the following will parse correctly:"
+isn't? 1 3
+
+"call: contains 1 value expression and multiple argument expressions. surrounded by [] except at the top level with a newline"
+"the value is called with the argument expressions. in the top level, if you write:"
+a b c
+"it parses the same as [a b c] where a b c are all atoms. some cases where this doesn't happen are:"
+a
+"parses as (a) which is an atom"
+a b c
+d
+"parses as 2 expressions, [a b c] and (d). if it were written like this:"
+[a b c
+d]
+"it would parse as [a b c d]"
+
+"you can define variables with :="
+:= a 0
+is? a 0
+
+"you can set defined variables with ="
+= a 1
+is? a 1
+
+"you can define variables which aren't defined and set them otherwise with ::="
+::= a 2
+is? a 2
+
+::= b 1
+is? b 1
