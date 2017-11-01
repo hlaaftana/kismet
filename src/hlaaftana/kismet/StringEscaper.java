@@ -48,7 +48,7 @@ public class StringEscaper {
 					} else throw new IllegalArgumentException("Unknown unicode character base for character " + c);
 					continue;
 				} else {
-					if (c == 'u') u = new StringBuilder();
+					if (c == 'u') { u = new StringBuilder(); continue; }
 					else {
 						String esc = "\\" + c;
 						if (from.containsKey(esc)) builder.append(from.get(esc));

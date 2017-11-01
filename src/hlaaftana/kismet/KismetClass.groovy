@@ -13,10 +13,10 @@ class KismetClass implements KismetCallable {
 	@CompileDynamic
 	@SuppressWarnings('all')
 	static void dynamicInstantiator() {
-		defaultGetter = func { KismetObject... a -> ((KismetObject) a[0]).inner()[a[1].inner()] }
-		defaultSetter = func { KismetObject... a -> a[0].inner()[a[1].inner()] = a[2] }
+		defaultGetter = func { KismetObject... a -> ((KismetObject) a[0]).inner[a[1].inner] }
+		defaultSetter = func { KismetObject... a -> a[0].inner[a[1].inner] = a[2] }
 		defaultCaller = func { KismetObject... a ->
-			a.size() > 1 ? a[0].inner()(a.drop(1) as KismetObject[]) : a[0].inner()()
+			a.length > 1 ? a[0].inner(a.drop(1) as KismetObject[]) : a[0].inner()
 		}
 	}
 
@@ -26,13 +26,14 @@ class KismetClass implements KismetCallable {
 	String name = 'anonymous_'.concat(instances.size().toString())
 	KismetCallable getter = defaultGetter, setter = defaultSetter,
 	               caller = defaultCaller, constructor = defaultConstructor
+	List<KismetClass> parents = []
 	Map<KismetClass, KismetCallable> converters = [:]
 
 	KismetClass() {
 		instances.add this
 	}
 
-	KismetClass(Class orig, String name) {
+	KismetClass(Class orig = KismetObject, String name) {
 		this()
 		this.orig = orig
 		this.name = name
@@ -59,6 +60,11 @@ class KismetClass implements KismetCallable {
 		a
 	}
 
+	boolean isInstance(KismetObject x) {
+		if (orig == KismetObject) x.kclass.inner == this || parents.any { it.isInstance(x) }
+		else orig.isInstance(x.inner)
+	}
+
 	String toString(){ "class($name)" }
 
 	protected static GroovyFunction func(Closure a){ new GroovyFunction(false, a) }
@@ -68,12 +74,13 @@ class KismetClass implements KismetCallable {
 class MetaKismetClass extends KismetClass {
 	{
 		name = 'Class'
+		orig = KismetClass
 		constructor = func { KismetObject... a -> a[0].@inner = new KismetClass() }
 	}
 
 	KismetObject<KismetClass> getObject() {
 		def x = new KismetObject<KismetClass>(this)
-		x.@class_ = x
+		x.@kclass = x
 		x
 	}
 }

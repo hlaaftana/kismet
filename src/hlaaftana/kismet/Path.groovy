@@ -8,30 +8,30 @@ import hlaaftana.kismet.parser.StringExpression
 @CompileStatic
 class Path {
 	String raw
-	List<PathExpr> parsedExpressions = []
+	List<PathExpression> expressions = []
 
-	Path(List<PathExpr> exprs) { parsedExpressions = exprs }
+	Path(List<PathExpression> exprs) { expressions = exprs }
 
 	Path(String aaa){
 		raw = aaa
 		StringBuilder latest = new StringBuilder()
-		int last = 0
+		boolean escaped = false
 		boolean type = true
-		for (int it in aaa.codePoints().toArray()) {
+		for (c in aaa.chars) {
 			int len = latest.length()
-			if (it == 46 || it == 91) {
+			if (!escaped && (c == '.' || c == '[')) {
 				String x = latest.toString()
 				latest = new StringBuilder()
-				parsedExpressions.add(type ? new PropertyPathExpr(x) : new SubscriptPathExpr(x))
-				type = it == 46
+				expressions.add(type ? new PropertyPathExpression(x) : new SubscriptPathExpression(x))
+				type = c == '.'
 			} else {
-				if (last == 94) latest.deleteCharAt(len - 1)
-				if (0 != len || it != 93) latest.appendCodePoint it
+				if (escaped) latest.append('\\')
+				if (0 != len || c != ']' || c != '\\') latest.append(c)
 			}
-			last = it
+			escaped = c == '\\'
 		}
 		String x = latest.toString()
-		parsedExpressions.add(type ? new PropertyPathExpr(x) : new SubscriptPathExpr(x))
+		expressions.add(type ? new PropertyPathExpression(x) : new SubscriptPathExpression(x))
 	}
 
 	static Path parse(String aaa){ new Path(aaa) }
@@ -39,19 +39,19 @@ class Path {
 	String toString() { raw }
 
 	def apply(thing){
-		for (it in parsedExpressions) thing = it.act(thing)
+		for (it in expressions) thing = it.act(thing)
 		thing
 	}
 
-	Tuple2<PathExpr, Path> dropLastAndLast() {
-		List x = new ArrayList(parsedExpressions)
-		[x.pop(), new Path(x)] as Tuple2<PathExpr, Path>
+	Tuple2<PathExpression, Path> dropLastAndLast() {
+		List x = new ArrayList(expressions)
+		[x.pop(), new Path(x)] as Tuple2<PathExpression, Path>
 	}
 
-	static abstract class PathExpr {
+	static abstract class PathExpression {
 		String raw
 
-		PathExpr(String raw) {
+		PathExpression(String raw) {
 			this.raw = raw
 		}
 
@@ -59,7 +59,7 @@ class Path {
 	}
 
 	@InheritConstructors
-	static class PropertyPathExpr extends PathExpr {
+	static class PropertyPathExpression extends PathExpression {
 		@CompileDynamic
 		def act(thing) {
 			raw ? (raw.startsWith('*') ?
@@ -69,10 +69,10 @@ class Path {
 		}
 	}
 
-	static class SubscriptPathExpr extends PathExpr {
+	static class SubscriptPathExpression extends PathExpression {
 		def value
 
-		SubscriptPathExpr(String r) {
+		SubscriptPathExpression(String r) {
 			super(r)
 			value = r.isInteger() ? r as int : new StringExpression(r).value
 		}

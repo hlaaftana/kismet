@@ -4,7 +4,20 @@ import groovy.transform.CompileStatic
 import groovy.transform.Memoized
 import hlaaftana.kismet.*
 
-@CompileStatic abstract class Expression { abstract KismetObject evaluate(Block c) }
+@CompileStatic abstract class Expression {
+	abstract KismetObject evaluate(Block c)
+
+	static String repr(Expression expr) {
+		if (expr instanceof AtomExpression) '(' +
+				((AtomExpression) expr).text.replace(')', '\\)') + ')'
+		else if (expr instanceof StringExpression) StringEscaper.escapeSoda(((StringExpression) expr).value)
+		else if (expr instanceof NumberExpression) ((NumberExpression) expr).value.toString()
+		else if (expr instanceof CallExpression) "call[${((CallExpression) expr).collect(this.&repr).join(', ')}]"
+		else if (expr instanceof BlockExpression) 'block{' +
+			((BlockExpression) expr).content.collect { '  '.concat(repr(it)) }.join('\r\n') + '}'
+		else throw new IllegalArgumentException('Unknown expression type ' + expr.class)
+	}
+}
 
 @CompileStatic class AtomExpression extends Expression {
 	String text
@@ -41,9 +54,16 @@ import hlaaftana.kismet.*
 
 	KismetObject evaluate(Block c) {
 		KismetObject obj = value.evaluate(c)
-		if (obj.inner() instanceof Macro)
-			((Macro) obj.inner()).doCall(c, arguments.collect(Kismet.&model) as KismetObject[])
+		if (obj.inner instanceof Macro)
+			((Macro) obj.inner).doCall(c, arguments.collect(Kismet.&model) as KismetObject[])
 		else obj.call(arguments*.evaluate(c) as KismetObject[])
+	}
+
+	List<Expression> getExpressions() {
+		List<Expression> x = new ArrayList<>()
+		x.add(value)
+		x.addAll(arguments)
+		x
 	}
 }
 
@@ -257,7 +277,7 @@ class ExprTest {
 			case BlockExpression: println 'Block:'; for (e in ((BlockExpression) expr).content) printTree(e, indent + 2); break
 			case CallExpression: println 'Call:'; printTree(((CallExpression) expr).value, indent + 2)
 				for (e in ((CallExpression) expr).arguments) printTree(e, indent + 2); break
-			case AtomExpression: println "Atom: ${((AtomExpression) expr).path.raw}"; break
+			case AtomExpression: println "Atom: ${((AtomExpression) expr).text}"; break
 			case LiteralExpression: println "${expr.class.simpleName - "Expression"}: ${((LiteralExpression) expr).value}"
 		}
 	}
