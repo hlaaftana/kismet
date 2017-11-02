@@ -131,7 +131,11 @@ defn fibonacci_nth n {
     }
 }
 
-"fibonacci that explicitly checks if number is positive:"
-defn fibonacci_nth [n [positive]] {
-    if_else [or [zero? n] [one? n]] 1 [* [fibonacci_nth [- n 1]] [fibonacci_nth [- n 2]]]
+"fibonacci that explicitly checks if number is 0 or positive:"
+defn fibonacci_nth [n [natural]] {
+    if_else [< n 2] 1 {
+        := f [fibonacci_nth [- n 1]]
+        := s [fibonacci_nth [- n 2]]
+        + f s
+    }
 }

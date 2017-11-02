@@ -1,6 +1,5 @@
 join [collect [range 1 100]
-              [fn n [if_chain
-              [divisible_by? n 15] "FizzBuzz"
-              [divisible_by? n 3] "Fizz"
-              [divisible_by? n 5] "Buzz"
-              n]]] "\n"
+              [fn n [if_chain [divisible_by? n 15] "FizzBuzz"
+                              [divisible_by? n 3] "Fizz"
+                              [divisible_by? n 5] "Buzz"
+                              n]]] "\n"
