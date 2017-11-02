@@ -1,7 +1,6 @@
 package hlaaftana.kismet.parser
 
 import groovy.transform.CompileStatic
-import groovy.transform.Memoized
 import hlaaftana.kismet.*
 
 @CompileStatic abstract class Expression {
@@ -12,7 +11,8 @@ import hlaaftana.kismet.*
 				((AtomExpression) expr).text.replace(')', '\\)') + ')'
 		else if (expr instanceof StringExpression) StringEscaper.escapeSoda(((StringExpression) expr).value)
 		else if (expr instanceof NumberExpression) ((NumberExpression) expr).value.toString()
-		else if (expr instanceof CallExpression) "call[${((CallExpression) expr).collect(this.&repr).join(', ')}]"
+		else if (expr instanceof CallExpression)
+			"call[${((CallExpression) expr).expressions.collect(this.&repr).join(', ')}]"
 		else if (expr instanceof BlockExpression) 'block{' +
 			((BlockExpression) expr).content.collect { '  '.concat(repr(it)) }.join('\r\n') + '}'
 		else throw new IllegalArgumentException('Unknown expression type ' + expr.class)
@@ -21,10 +21,14 @@ import hlaaftana.kismet.*
 
 @CompileStatic class AtomExpression extends Expression {
 	String text
+	Path path
 
-	AtomExpression(String t) { text = t }
+	AtomExpression(String t) { text = t; path = Path.parse(t) }
 
-	@Memoized Path getPath() { Path.parse(text) }
+	void setText(String t) {
+		this.@text = t
+		path = Path.parse(t)
+	}
 
 	KismetObject evaluate(Block c) {
 		Kismet.model path.apply(c.context)
@@ -54,8 +58,8 @@ import hlaaftana.kismet.*
 
 	KismetObject evaluate(Block c) {
 		KismetObject obj = value.evaluate(c)
-		if (obj.inner instanceof Macro)
-			((Macro) obj.inner).doCall(c, arguments.collect(Kismet.&model) as KismetObject[])
+		if (obj.inner() instanceof Macro)
+			((Macro) obj.inner()).doCall(c, arguments.collect(Kismet.&model) as KismetObject[])
 		else obj.call(arguments*.evaluate(c) as KismetObject[])
 	}
 
@@ -79,8 +83,8 @@ import hlaaftana.kismet.*
 	NumberExpression(boolean type, StringBuilder[] arr) {
 		StringBuilder x = arr[0]
 		boolean t = false
-		if ((t |= null != arr[1])) x.append('.').append(arr[1])
-		if ((t |= null != arr[2])) x.append('e').append(arr[2])
+		if (null != arr[1]) { x.append('.').append(arr[1]); t = true }
+		if (null != arr[2]) { x.append('e').append(arr[2]); t = true }
 		String r = x.toString()
 		if (null == arr[3]) value = t ? new BigDecimal(r) : new BigInteger(r) else {
 			if (type) {

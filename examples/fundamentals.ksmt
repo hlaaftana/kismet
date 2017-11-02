@@ -1,22 +1,16 @@
+"i wrote this first part a little more complex and filler than i should have"
+"there are clearer code examples if you scroll down"
+
+"also keep in mind i don't have to put both quotes on the same line on every comment"
+"im just doing it this way so intellij can parse it and syntax highlight it"
+
+"you might have noticed these are string comments. you won't find comments in kismet along with"
+"return, break, continue, and other purely imperative statements"
+
 "this string is the value of this expression. every expression has a value. there are multiple types of expressions:"
 
 "block: contains multiple sequential expressions. surrounded by {} except at the top level of every script"
 "the last value in a block (which is what we're in right now) is the return value of the block"
-
-"string: surrounded by double quotes or single quotes. contains text."
-
-"number: just numbers. can be one of 1, 1.0, 1e9, 1.0e9 and so on. info about negative numbers if you scroll down"
-
-"atom: a string value surrounded by () unless it has no spaces.
-"its value is its name searched in the 'context' which is where the variables are stored. so if you type"
-a
-"you get the variable with the name 'a'. also if you do"
-a.b
-"you get the property 'b' of variable 'a', and if you do"
-a[0]
-"you get the 0th element of variable 'a'."
-"atoms can have characters like []{}(\"' if they dont start with them, so the following will parse correctly:"
-isn't? 1 3
 
 "call: contains 1 value expression and multiple argument expressions. surrounded by [] except at the top level with a newline"
 "the value is called with the argument expressions. in the top level, if you write:"
@@ -31,17 +25,107 @@ d
 d]
 "it would parse as [a b c d]"
 
+"atom:"
+"a string value surrounded by () unless it has no spaces."
+"its value is its name searched in the 'context' which is where the variables are stored. so if you type"
+a
+"you get the variable with the name 'a'. also if you do"
+a.b
+"you get the property 'b' of variable 'a', and if you do"
+a[0]
+"you get the 0th element of variable 'a'."
+"atoms can have characters like []{}(\"' if they dont start with them, so the following will parse correctly:"
+isn't? 1 3
+
+"string:"
+"surrounded by double quotes or single quotes. contains text."
+
+"number:"
+"just numbers. can be one of 1, 1.0, 1e9, 1.0e9 and so on. info about negative numbers if you scroll down"
+
+"java number types in kismet are like so:"
+"BigInteger => Integer, BigDecimal => Float, long/Long => Int64, int/Integer => Int32,"
+"short/Short => Int16, byte/Byte => Int8, float/Float => Float32, double/Double => Float64"
+
+"normally numbers are parsed as Integers or Floats. however you can change this:"
+[assert [of? 1 Integer]
+        [of? 1i Integer]
+        [of? 1.0i Integer]
+        [of? 1i8 Int8]
+        [of? 1i16 Int16]
+        [of? 1i32 Int32]
+        [of? 1i64 Int64]
+        [of? 1f Float]
+        [of? 1.0f Float]
+        [of? 1f32 Float32]
+        [of? 1f64 Float64]]
+
+"note that this doesn't work:"
+-1
+"kismet thinks this is an atom. instead do:"
+negative 1
+
 "you can define variables with :="
 := a 0
-is? a 0
+assert_is a 0
 
 "you can set defined variables with ="
 = a 1
-is? a 1
+assert_is a 1
 
 "you can define variables which aren't defined and set them otherwise with ::="
 ::= a 2
-is? a 2
+assert_is a 2
 
 ::= b 1
-is? b 1
+assert_is b 1
+
+"you can define functions with fn"
+:= get_four [fn 4]
+assert_is [get_four] 4
+
+"function arguments are like $0, $1... a list of all arguments is stored in $all"
+:= swap2 [fn [list $1 $0]]
+assert_is [swap2 'a' 'b'] [list 'b' 'a']
+
+:= rev [fn [reverse $all]]
+assert_is [rev 1 2 3 4 5] [list 5 4 3 2 1]
+
+"the list function could be written in kismet directly as:"
+:= list [fn $all]
+
+"[defn name ...] is an alias for [:= name [fn ...]]"
+defn can_drink? [>= $0.age 21]
+
+"functions can have arguments"
+defn plus a b [+ a b]
+
+"and arguments can have checks"
+defn factorial [a [integer] [greater_equal 0]] {
+    if_else [zero? a] 1 [product [range 1 a]]
+}
+
+[assert_is [factorial 0] 1
+           [factorial 1] 1
+           [factorial 2] 2
+           [factorial 3] 6
+           [factorial 4] 24
+           [factorial 5] 120
+           [factorial 6] 720]
+
+"kismet is dynamic, so functions can recurse or call other functions by getting their value at runtime"
+defn factorial a {
+    if_chain [zero? a] 1 [one? a] 1 {
+        * a [factorial [prev a]]
+    }
+}
+
+defn pown1 n [if_else [even? n] 1 [negative 1]]
+defn fibonacci_nth n {
+    if_chain [or [zero? n] [one? n]] 1 {
+        "[prev n] where n is a number is equal to [- n 1], same with [next n] and [+ n 1]"
+        := r [prev [absolute n]]
+        := x [if_else [negative? n] [pown1 r] [fibonacci_nth [prev r]]
+        * [fibonacci_nth r] x
+    }
+}

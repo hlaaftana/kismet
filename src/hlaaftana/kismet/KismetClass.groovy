@@ -10,17 +10,16 @@ class KismetClass implements KismetCallable {
 	static KismetCallable defaultGetter, defaultSetter, defaultCaller,
 	                      defaultConstructor = func { ...a -> }
 
-	@CompileDynamic
-	@SuppressWarnings('all')
-	static void dynamicInstantiator() {
-		defaultGetter = func { KismetObject... a -> ((KismetObject) a[0]).inner[a[1].inner] }
-		defaultSetter = func { KismetObject... a -> a[0].inner[a[1].inner] = a[2] }
+	static {
+		defaultGetter = func { KismetObject... a ->
+			a[0].inner().invokeMethod 'getAt', a[1].inner()
+		}
+		defaultSetter = func { KismetObject... a -> a[0].inner().invokeMethod 'putAt', [a[1].inner(), a[2].inner()] }
 		defaultCaller = func { KismetObject... a ->
-			a.length > 1 ? a[0].inner(a.drop(1) as KismetObject[]) : a[0].inner()
+			a.length > 1 ? a[0].inner().invokeMethod('call', a.drop(1) as KismetObject[]) :
+					a[0].inner().invokeMethod('call', null)
 		}
 	}
-
-	static { dynamicInstantiator() }
 
 	Class orig
 	String name = 'anonymous_'.concat(instances.size().toString())
@@ -37,6 +36,13 @@ class KismetClass implements KismetCallable {
 		this()
 		this.orig = orig
 		this.name = name
+	}
+
+	boolean isChild(KismetClass kclass) {
+		for (p in kclass.parents)
+			if (p == this || p.parents.any { this == it || isChild(it) })
+				return true
+		false
 	}
 
 	void setName(String n){
@@ -61,8 +67,8 @@ class KismetClass implements KismetCallable {
 	}
 
 	boolean isInstance(KismetObject x) {
-		if (orig == KismetObject) x.kclass.inner == this || parents.any { it.isInstance(x) }
-		else orig.isInstance(x.inner)
+		if (orig == KismetObject) x.kclass.inner() == this || parents.any { it.isInstance(x) }
+		else orig.isInstance(x.inner())
 	}
 
 	String toString(){ "class($name)" }

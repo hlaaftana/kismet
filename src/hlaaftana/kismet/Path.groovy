@@ -3,10 +3,12 @@ package hlaaftana.kismet
 import groovy.transform.CompileDynamic
 import groovy.transform.CompileStatic
 import groovy.transform.InheritConstructors
-import hlaaftana.kismet.parser.StringExpression
+
+import java.util.regex.Pattern
 
 @CompileStatic
 class Path {
+	static final Pattern REGEX = ~/(?:\[\d+])|(?:(?:\.|^)[^.\[]+)/
 	String raw
 	List<PathExpression> expressions = []
 
@@ -14,33 +16,19 @@ class Path {
 
 	Path(String aaa){
 		raw = aaa
-		StringBuilder latest = new StringBuilder()
-		boolean escaped = false
-		boolean type = true
-		for (c in aaa.chars) {
-			int len = latest.length()
-			if (!escaped && (c == '.' || c == '[')) {
-				String x = latest.toString()
-				latest = new StringBuilder()
-				expressions.add(type ? new PropertyPathExpression(x) : new SubscriptPathExpression(x))
-				type = c == '.'
-			} else {
-				if (escaped) latest.append('\\')
-				if (0 != len || c != ']' || c != '\\') latest.append(c)
-			}
-			escaped = c == '\\'
+		expressions = REGEX.matcher(raw).iterator().withIndex().collect { String it, int i ->
+			it.startsWith('[') ? new SubscriptPathExpression(it[1 .. -2]) :
+								 new PropertyPathExpression(it[(i == 0 ? 0 : 1) .. -1])
 		}
-		String x = latest.toString()
-		expressions.add(type ? new PropertyPathExpression(x) : new SubscriptPathExpression(x))
 	}
 
 	static Path parse(String aaa){ new Path(aaa) }
 
 	String toString() { raw }
 
-	def apply(thing){
-		for (it in expressions) thing = it.act(thing)
-		thing
+	def apply(c){
+		for (it in expressions) c = it.act(c)
+		c
 	}
 
 	Tuple2<PathExpression, Path> dropLastAndLast() {
@@ -55,30 +43,26 @@ class Path {
 			this.raw = raw
 		}
 
-		abstract act(thing)
+		abstract act(r)
 	}
 
 	@InheritConstructors
 	static class PropertyPathExpression extends PathExpression {
 		@CompileDynamic
-		def act(thing) {
+		def act(r) {
 			raw ? (raw.startsWith('*') ?
-				thing*."${raw.substring(1)}" :
-				thing."$raw") :
-				thing
+				r*."${raw.substring(1)}" :
+				r."$raw") :
+				r
 		}
 	}
 
 	static class SubscriptPathExpression extends PathExpression {
-		def value
+		int val
+		SubscriptPathExpression(String r) { super(r); val = r as int }
 
-		SubscriptPathExpression(String r) {
-			super(r)
-			value = r.isInteger() ? r as int : new StringExpression(r).value
-		}
-
-		def act(thing) {
-			thing.invokeMethod('getAt', value)
+		def act(r) {
+			r.invokeMethod('getAt', val)
 		}
 	}
 }

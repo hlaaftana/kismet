@@ -10,7 +10,15 @@ public class StringEscaper {
 	static {
 		to.put('\\', "\\\\"); to.put('"', "\\\""); to.put('\'', "\\\'"); to.put('\b', "\\b");
 		to.put('\n', "\\n"); to.put('\t', "\\t"); to.put('\f', "\\f"); to.put('\r', "\\r");
-		from = Collections.flip(to);
+		from = flip(to);
+	}
+
+	private static <K, V> Map<V, K> flip(Map<K, V> map) {
+		Map<V, K> newMap = new HashMap<>();
+		for (Map.Entry<K, V> e : map.entrySet()) {
+			newMap.put(e.getValue(), e.getKey());
+		}
+		return newMap;
 	}
 
 	public static String escapeSoda(String str) {

@@ -22,7 +22,7 @@ class KismetFunction extends Function {
 	}
 
 	KismetObject call(KismetObject... args){
-		Block c = b.inner.anonymousClone()
+		Block c = b.inner().anonymousClone()
 		a.setArgs(c, args)
 		c()
 	}
@@ -37,7 +37,7 @@ class KismetFunction extends Function {
 
 		def parse(Expression[] params) {
 			for (e in params) {
-				if (e instanceof AtomExpression) parameters.add(new Parameter(name: e.text, index: last++))
+				if (e instanceof AtomExpression) parameters.add(new Parameter(name: ((AtomExpression) e).text, index: last++))
 				else if (e instanceof StringExpression)
 					  parameters.add(new Parameter(name: ((StringExpression) e).value, index: last++))
 				else if (e instanceof BlockExpression) parse(((BlockExpression) e).content as Expression[])
@@ -86,7 +86,16 @@ class KismetFunction extends Function {
 				}
 			}
 			if (!p.containsKey('index')) p.index = last++
-			if (null == block) parameters.add(new Parameter(p))
+			if (null == block) {
+				Parameter x = new Parameter()
+				x.index = (int) p.index
+				x.name = (p.name ?: "\$$x.index").toString()
+				x.slice = (int) (null == p.slice ? 0 : p.slice)
+				x.transforms = (List<Expression>) (null == p.transforms ? [] : p.transforms)
+				x.checks = (List<Expression>) (null == p.checks ? [] : p.checks)
+				if (null != p.topLevelChecks) x.topLevelChecks = (List<CallExpression>) p.topLevelChecks
+				parameters.add(x)
+			}
 			else for (c in block.content) parseCall(p, ((CallExpression) c).expressions)
 		}
 
@@ -134,10 +143,12 @@ class KismetFunction extends Function {
 			int slice
 
 			@SuppressWarnings('GroovyUnusedDeclaration')
-			def setTopLevelChecks(List<CallExpression> r) {
+			void setTopLevelChecks(List<CallExpression> r) {
 				for (x in r) {
 					def n = ((AtomExpression) x.value).text
-					List<Expression> exprs = [new AtomExpression(n + '?'), new AtomExpression(name)]
+					List<Expression> exprs = new ArrayList<>()
+					exprs.add new AtomExpression(n + '?')
+					exprs.add new AtomExpression(name)
 					exprs.addAll x.arguments
 					checks.add new CallExpression(exprs)
 				}
@@ -161,7 +172,7 @@ class GroovyFunction extends Function {
 	}
 
 	KismetObject call(KismetObject... args){
-		Kismet.model(cc(convert ? args*.inner as Object[] : args))
+		Kismet.model(cc(convert ? args*.inner() as Object[] : args))
 	}
 
 	def cc(...args) {
