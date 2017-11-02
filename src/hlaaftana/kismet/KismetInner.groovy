@@ -48,7 +48,9 @@ class KismetInner {
 	RNG: new KismetClass(Random, 'RNG').object]
 
 	static {
-		// TODO: add date crap
+		// TODO: add date stuff and time in milliseconds and stuff
+		// TODO: cycle, accumulate, union
+		// TODO: function that takes function f and returns a function that takes a list as a first argument and calls f with the list as the arguments
 		Map<String, Object> toConvert = [
 		true: true, false: false, null: null,
 		yes: true, no: false, on: true, off: false,

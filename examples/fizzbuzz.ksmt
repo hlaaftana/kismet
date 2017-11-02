@@ -1,9 +1,6 @@
-join [with_result s [list] {
-    for_each n [range 1 100] {
-        add s [if_chain
+join [collect [range 1 100]
+              [fn n [if_chain
+              [divisible_by? n 15] "FizzBuzz"
               [divisible_by? n 3] "Fizz"
               [divisible_by? n 5] "Buzz"
-              [divisible_by? n 15] "FizzBuzz"
-              n]
-    }
-}] "\n"
+              n]]] "\n"

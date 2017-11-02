@@ -120,12 +120,18 @@ defn factorial a {
     }
 }
 
+"fibonacci that accepts negative indexes:"
 defn pown1 n [if_else [even? n] 1 [negative 1]]
 defn fibonacci_nth n {
-    if_chain [or [zero? n] [one? n]] 1 {
+    if_else [or [zero? n] [one? n]] 1 {
         "[prev n] where n is a number is equal to [- n 1], same with [next n] and [+ n 1]"
         := r [prev [absolute n]]
         := x [if_else [negative? n] [pown1 r] [fibonacci_nth [prev r]]
         * [fibonacci_nth r] x
     }
+}
+
+"fibonacci that explicitly checks if number is positive:"
+defn fibonacci_nth [n [positive]] {
+    if_else [or [zero? n] [one? n]] 1 [* [fibonacci_nth [- n 1]] [fibonacci_nth [- n 2]]]
 }
