@@ -1,0 +1,10 @@
+defn binary_search a k {
+    := c [size a]
+    := b c
+    := i 0
+    while [< i b] {
+        := mid [div i b] 2]
+        if_else [< [get a mid] k] [= i [next mid]] [= b mid]
+    }
+    if_else [and [< i c] [is a[i] k]] i [negative 1]
+}
