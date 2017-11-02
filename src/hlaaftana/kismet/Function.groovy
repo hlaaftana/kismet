@@ -33,7 +33,7 @@ class KismetFunction extends Function {
 		List<Parameter> parameters = []
 		int last = 0
 
-		Arguments(Expression[] p) { doDollars = p.length != 0; parse(p) }
+		Arguments(Expression[] p) { enforceLength = !(doDollars = p.length == 0); parse(p) }
 
 		def parse(Expression[] params) {
 			for (e in params) {
@@ -74,8 +74,8 @@ class KismetFunction extends Function {
 						for (c in d.arguments) {
 							if (c instanceof AtomExpression) {
 								def t = ((AtomExpression) c).text
-								if (t == '$') doDollars = true
-								else if (t == '#') enforceLength = true
+								if (t == '$') doDollars = !doDollars
+								else if (t == '#') enforceLength = !enforceLength
 								else throw new UnexpectedSyntaxException('My bad but i dont know how to handle atom '
 									+ t + ' in meta-argument call')
 							} else throw new UnexpectedSyntaxException('My bad but i dont know how to handle ' +

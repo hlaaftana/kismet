@@ -37,7 +37,8 @@ defn fibonacci_imperative n {
         := s 1
         := f i 0
         while [< i n] {
-
+            add l [= f [+ s [= s f]]]
+            increment i
         }
     }
 }

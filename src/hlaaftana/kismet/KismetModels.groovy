@@ -28,7 +28,8 @@ class KismetModels {
 
 	static KismetObject model(obj){
 		null == obj ? new KismetObject(null, KismetInner.defaultContext.Null) :
-			new KismetObject(obj, (KismetObject<KismetClass>) (defaultConversions.find { k, v -> obj in k }?.value ?:
-				KismetInner.defaultContext.Native))
+			obj.class.array ? model(obj.collect(Kismet.&model)) :
+				new KismetObject(obj, (KismetObject<KismetClass>) (defaultConversions.find { k, v -> obj in k }?.value ?:
+					KismetInner.defaultContext.Native))
 	}
 }

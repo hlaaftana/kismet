@@ -4,6 +4,7 @@ import groovy.transform.CompileStatic
 import groovy.transform.InheritConstructors
 import hlaaftana.kismet.parser.*
 
+import java.text.SimpleDateFormat
 import java.util.regex.Pattern
 
 @CompileStatic
@@ -45,13 +46,18 @@ class KismetInner {
 	Pair: new KismetClass(Tuple2, 'Pair').object,
 	Iterator: new KismetClass(Iterator, 'Iterator').object,
 	Throwable: new KismetClass(Throwable, 'Throwable').object,
-	RNG: new KismetClass(Random, 'RNG').object]
+	RNG: new KismetClass(Random, 'RNG').object,
+	Date: new KismetClass(Date, 'Date').object]
 
 	static {
-		// TODO: add date stuff and time in milliseconds and stuff
-		// TODO: cycle, accumulate, union
-		// TODO: function that takes function f and returns a function that takes a list as a first argument and calls f with the list as the arguments
 		Map<String, Object> toConvert = [
+		now_nanos: funcc { ...args -> System.nanoTime() },
+		now_millis: funcc { ...args -> System.currentTimeMillis() },
+		now_seconds: funcc { ...args -> System.currentTimeSeconds() },
+		now_date: funcc { ...args -> new Date() },
+		new_date: funcc { ...args -> Date.invokeMethod('newInstance', args) },
+		parse_date_from_format: funcc { ...args -> new SimpleDateFormat(args[1].toString()).parse(args[0].toString()) },
+		format_date: funcc { ...args -> new SimpleDateFormat(args[1].toString()).format(args[0] as File) },
 		true: true, false: false, null: null,
 		yes: true, no: false, on: true, off: false,
 		class: func { KismetObject... a -> a[0].kclass },
@@ -188,6 +194,7 @@ class KismetInner {
 		'odd?': funcc { ...args -> args[0].invokeMethod('mod', 2) != 0 },
 		'divisible_by?': funcc { ...args -> args[0].invokeMethod('mod', args[1]) == 0 },
 		'integer?': funcc { ...args -> args[0].invokeMethod('mod', 1) == 0 },
+		'natural?': funcc { ...args -> args[0].invokeMethod('mod', 1) == 0 && ((int) args[0].invokeMethod('compareTo', 0)) >= 0 },
 		absolute: funcc { ...a -> Math.invokeMethod('abs', a[0]) },
 		'+': funcc { ...args -> args.sum() },
 		'-': funcc { ...args -> args.inject { a, b -> a.invokeMethod 'minus', b } },
@@ -199,26 +206,23 @@ class KismetInner {
 		sum: funcc { ...args -> args[0].invokeMethod('sum', null) },
 		product: funcc { ...args -> args[0].inject { a, b -> a.invokeMethod 'multiply', b } },
 		new_rng: funcc { ...args -> args.length > 0 ? new Random(args[0] as long) : new Random() },
-		random_integer: funcc { ...args ->
-			Random rand = args[0] as Random
-			BigInteger max = args[1] as BigInteger
-			BigInteger min = args.length > 2 ? args[3] as BigInteger : 0
-			byte[] bytes = (max - min).toByteArray()
-			rand.nextBytes(bytes)
-			new BigInteger(bytes) + min
-		},
-		// TODO: fix lazy crap here
 		random_int8_list_from_reference: funcc { ...args ->
 			byte[] bytes = args[1] as byte[]
 			(args[0] as Random).nextBytes(bytes)
 			bytes as List<Byte>
 		},
-		random_int32_between_low_and_high: funcc { ...args -> (args[0] as Random).nextInt() },
-		random_int64_between_low_and_high: funcc { ...args -> (args[0] as Random).nextLong() },
+		random_int32_of_all: funcc { ...args -> (args[0] as Random).nextInt() },
+		random_int64_of_all: funcc { ...args -> (args[0] as Random).nextLong() },
 		random_float32_between_0_and_1: funcc { ...args -> (args[0] as Random).nextFloat() },
 		random_float64_between_0_and_1: funcc { ...args -> (args[0] as Random).nextDouble() },
 		random_bool: funcc { ...args -> (args[0] as Random).nextBoolean() },
 		next_gaussian: funcc { ...args -> (args[0] as Random).nextGaussian() },
+		random_int: funcc { ...args ->
+			BigInteger lower = args.length > 1 ? args[0] as BigInteger : 0
+			BigInteger higher = args.length > 1 ? args[1] as BigInteger : args[0] as BigInteger
+			double x = (args[0] as Random).nextDouble()
+			lower + (((higher - lower) * x) as BigInteger)
+		},
 		replace: funcc { ...args -> args[0].toString().replace(args[1].toString(),
 				args.length > 2 ? args[2].toString() : '') },
 		replace_all: funcc { ...args ->
@@ -758,6 +762,7 @@ class KismetInner {
 			code.evaluate(c)
 			d.context.getProperty(name)
 		}]
+		defaultContext.'?' = defaultContext.bool
 		defaultContext.fold = defaultContext.reduce = defaultContext.inject
 		defaultContext.length = defaultContext.size
 		defaultContext.filter = defaultContext.select = defaultContext.find_all
