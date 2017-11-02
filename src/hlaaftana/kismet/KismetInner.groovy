@@ -218,11 +218,34 @@ class KismetInner {
 		random_bool: funcc { ...args -> (args[0] as Random).nextBoolean() },
 		next_gaussian: funcc { ...args -> (args[0] as Random).nextGaussian() },
 		random_int: funcc { ...args ->
-			BigInteger lower = args.length > 1 ? args[0] as BigInteger : 0
-			BigInteger higher = args.length > 1 ? args[1] as BigInteger : args[0] as BigInteger
+			BigInteger lower = args.length > 2 ? args[1] as BigInteger : 0
+			BigInteger higher = args.length > 2 ? args[2] as BigInteger : args[1] as BigInteger
 			double x = (args[0] as Random).nextDouble()
-			lower + (((higher - lower) * x) as BigInteger)
+			lower + (((higher - lower) * (x as BigDecimal)) as BigInteger)
 		},
+		random_float: funcc { ...args ->
+			BigDecimal lower = args.length > 2 ? args[1] as BigDecimal : 0
+			BigDecimal higher = args.length > 2 ? args[2] as BigDecimal : args[1] as BigDecimal
+			double x = (args[0] as Random).nextDouble()
+			lower + (higher - lower) * (x as BigDecimal)
+		},
+		high: funcc { ...args ->
+			if (args[0] instanceof Number) ((Object) args[0].class).invokeMethod('getProperty', 'MAX_VALUE')
+			else if (args[0] instanceof KismetClass && Number.isAssignableFrom(((KismetClass) args[0]).orig))
+				((KismetClass) args[0]).orig.invokeMethod('getProperty', 'MAX_VALUE')
+			else if (args[0] instanceof Range) ((Range) args[0]).to
+			else if (args[0] instanceof Collection) ((Collection) args[0]).size() - 1
+			else throw new UnexpectedValueException('Don\'t know how to get high of ' + args[0] + ' with class ' + args[0].class)
+		},
+		low: funcc { ...args ->
+			if (args[0] instanceof Number) ((Object) args[0].class).invokeMethod('getProperty', 'MIN_VALUE')
+			else if (args[0] instanceof KismetClass && Number.isAssignableFrom(((KismetClass) args[0]).orig))
+				((KismetClass) args[0]).orig.invokeMethod('getProperty', 'MIN_VALUE')
+			else if (args[0] instanceof Range) ((Range) args[0]).from
+			else if (args[0] instanceof Collection) 0
+			else throw new UnexpectedValueException('Don\'t know how to get low of ' + args[0] + ' with class ' + args[0].class)
+		},
+		collect_range_with_step: funcc { ...args -> (args[0] as Range).step(args[1] as int) },
 		replace: funcc { ...args -> args[0].toString().replace(args[1].toString(),
 				args.length > 2 ? args[2].toString() : '') },
 		replace_all: funcc { ...args ->
@@ -236,8 +259,8 @@ class KismetInner {
 					args[0].toString().replaceFirst(((Pattern) args[1]), replacement) :
 					args[0].toString().replaceFirst(args[1].toString(), replacement) },
 		quote_regex: funcc { ...args -> Pattern.quote(args[0].toString()) },
-		codepoint_iterator: funcc { ...args -> args[0].toString().codePoints().iterator() },
-		char_iterator: funcc { ...args -> args[0].toString().chars().iterator() },
+		'codepoints~': funcc { ...args -> args[0].toString().codePoints().iterator() },
+		'chars~': funcc { ...args -> args[0].toString().chars().iterator() },
 		chars: funcc { ...args -> args[0].toString().chars.toList() },
 		codepoint_to_chars: funcc { ...args -> Character.toChars((int) args[0]).toList() },
 		upper: funcc { ...args -> args[0] instanceof char ? Character.toUpperCase((char) args[0]) :
@@ -288,7 +311,7 @@ class KismetInner {
 		float: func { KismetObject... a -> a[0].as BigDecimal },
 		float32: func { KismetObject... a -> a[0].as float },
 		float64: func { KismetObject... a -> a[0].as double },
-		iterator: funcc { ...args -> args[0].iterator() },
+		'~': funcc { ...args -> args[0].iterator() },
 		list_iterator: funcc { ...args -> args[0].invokeMethod('listIterator', null) },
 		has_next: funcc { ...args -> args[0].invokeMethod('hasNext', null) },
 		next: funcc { ...args -> args[0].invokeMethod('next', null) },
@@ -611,6 +634,10 @@ class KismetInner {
 		subsequences: funcc { ...args -> args[0].invokeMethod('subsequences', null) },
 		combinations: funcc { ...args -> args[0].invokeMethod('combinations', null) },
 		permutations: funcc { ...args -> args[0].invokeMethod('permutations', null) },
+		'permutations~': funcc { ...args -> new PermutationGenerator(args[0] instanceof Collection ? (Collection) args[0]
+																   : args[0] instanceof Iterable ? (Iterable) args[0]
+																   : args[0] instanceof Iterator ? new IteratorIterable((Iterator) args[0])
+																   : args[0] as Collection) },
 		'any?': func { KismetObject... args -> args[0].inner().any(args[1].&call) },
 		'every?': func { KismetObject... args -> args[0].inner().every(args[1].&call) },
 		'none?': func { KismetObject... args -> !args[0].inner().any(args[1].&call) },
@@ -642,8 +669,8 @@ class KismetInner {
 		clear: funcc { ...args -> args[0].invokeMethod('clear', null) },
 		put: funcc { ...args -> args[0].invokeMethod('put', [args[1], args[2]]) },
 		put_all: funcc { ...args -> args[0].invokeMethod('putAll', args[1]) },
-		retain_all: funcc { ...args -> args[0].invokeMethod('retainAll', args[1]) },
-		retain_any: func { KismetObject... args -> args[0].inner().invokeMethod('retainAll', args[1].&call) },
+		'keep_all!': funcc { ...args -> args[0].invokeMethod('retainAll', args[1]) },
+		'keep_any!': func { KismetObject... args -> args[0].inner().invokeMethod('retainAll', args[1].&call) },
 		'has?': funcc { ...args -> args[0].invokeMethod('contains', args[1]) },
 		'has_all?': funcc { ...args -> args[0].invokeMethod('containsAll', args[1]) },
 		'has_key?': funcc { ...args -> args[0].invokeMethod('containsKey', args[1]) },
@@ -710,6 +737,26 @@ class KismetInner {
 				b.add(a)
 			}
 			b
+		},
+		'consecutives~': funcc { ...args ->
+			def x = args[0]
+			int siz = x.invokeMethod('size', null) as int
+			int con = args[1] as int
+			new IteratorIterable<>(new Iterator<List>() {
+				int i = 0
+
+				@Override
+				boolean hasNext() {
+					i < siz - con
+				}
+
+				@Override
+				List next() {
+					List a = new ArrayList(con)
+					for (int j = 0; j < siz; ++j) a.add(x.invokeMethod('getAt', i + j))
+					a
+				}
+			})
 		},
 		drop: funcc { ...args -> args[0].invokeMethod('drop', args[1] as int) },
 		drop_right: funcc { ...args -> args[0].invokeMethod('dropRight', args[1] as int) },
