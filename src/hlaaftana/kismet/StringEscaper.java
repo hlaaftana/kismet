@@ -59,7 +59,10 @@ public class StringEscaper {
 					if (c == 'u') { u = new StringBuilder(); continue; }
 					else {
 						String esc = "\\" + c;
-						if (from.containsKey(esc)) builder.append(from.get(esc));
+						if (from.containsKey(esc)) {
+							builder.deleteCharAt(builder.length() - 1);
+							builder.append(from.get(esc));
+						}
 						else builder.append(c);
 					}
 				}
