@@ -110,7 +110,7 @@ class KismetFunction extends Function {
 				boolean variadic = false
 				int max = 0
 				for (p in parameters) {
-					if (p.index + p.slice > max) max = p.index + p.slice
+					if (p.index + p.slice + 1 > max) max = p.index + p.slice + 1
 					if (p.slice < 0) variadic = true
 				}
 				if (variadic ? max < args.length : max != args.length)

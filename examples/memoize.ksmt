@@ -1,0 +1,17 @@
+defn memoized f {
+    := cache [map]
+    fn [if_else [has_key? cache $all]
+                [get cache $all]
+                [put cache $all [call f $all]]]
+}
+
+defmcr memoize [eval [sprintf "::= %s [memoized %1$s]" $0.text] $block]
+
+defn nth_fibonacci n [
+    if_chain [zero? n] 1
+             [one? n] 1
+             [+ [nth_fibonacci [- n 1]]
+                [nth_fibonacci [- n 2]]]
+]
+
+memoize nth_fibonacci

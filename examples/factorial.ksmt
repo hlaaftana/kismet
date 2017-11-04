@@ -23,9 +23,10 @@ block "imperative" {
         := i [next [- n r]]
         "[until a ...] is equal to [while [not a] ...], a little idiom i took from perl and ruby (also unless)"
         until [> i n] {
-            "i kind of don't want to add operators like *= because of the existence"
-            "of operators like := and ::= which might confuse the user"
-            = x [* x i]
+            "|>= takes from the operator |> which prepends the first argument to the following expressions"
+            |>= x [* i]
+            "so that becomes [= x [* x i]]"
+
             "[increment i] is the same as [= i [next i]]"
             increment i
         }
