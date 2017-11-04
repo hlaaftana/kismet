@@ -1,5 +1,20 @@
-join [collect [range 1 100]
-              [fn n [if_chain [divisible_by? n 15] "FizzBuzz"
-                              [divisible_by? n 3] "Fizz"
-                              [divisible_by? n 5] "Buzz"
-                              n]]] "\n"
+defn fizzbuzz_imperative n {
+    := x [new_list n]
+    := i 1
+    until [is? i n] {
+        add x [if_chain [divisible_by? i 15] "FizzBuzz"
+                        [divisible_by? i 3] "Fizz"
+                        [divisible_by? i 5] "Buzz"
+                        n]
+        increment i
+    }
+    join x "\n"
+}
+
+defn fizzbuzz_functional n {
+    join [collect [range 1 n]
+                  [fn i [if_chain [divisible_by? i 15] "FizzBuzz"
+                                  [divisible_by? i 3] "Fizz"
+                                  [divisible_by? i 5] "Buzz"
+                                  i]]] "\n"
+}

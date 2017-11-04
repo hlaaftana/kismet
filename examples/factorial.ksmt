@@ -1,6 +1,6 @@
 "i think functional programming comes naturally in a lisp-y (f x y z)-like-calls environment"
 "or maybe i thought it was cool so i added it"
-defn functional {
+block "functional" {
     "kismet is dynamic so this would work when called after permutation is defined"
     defn factorial n [permutation n n]
     "[next i] is equal to [+ i 1] if i is a number"
@@ -14,7 +14,7 @@ defn functional {
 "which are all imperative. the main purpose of this entire language is/was safe"
 "and nice scripting everyone can use on my bot, \"was\" meaning i dont use the "
 "bot much anymore"
-defn imperative {
+block "imperative" {
     "not going to rewrite the entire function. look at permutation"
     defn factorial n [permutation n n]
 

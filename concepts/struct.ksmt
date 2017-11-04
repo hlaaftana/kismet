@@ -1,0 +1,44 @@
+struct Person {
+    first_name [of String]
+    middle_name [of String Null]
+    last_name [of String]
+
+    converter String [sprintf "%s %s%s" first_name
+        [if_else middle_name [string middle_name " "] ""] last_name]
+}
+
+struct TVShow {
+    name [of String]
+    seasons [of List]
+    cast [of Map]
+}
+
+struct Season {
+    number [integer] [positive]
+    episodes [of List]
+}
+
+struct Episode {
+    number [integer] [positive]
+    title [of String]
+}
+
+:= eric_andre_show [TVShow "The Eric Andre Show" [list
+    [Season 1 [list
+        [Episode 1 "George Clooney"]
+        [Episode 2 "Russell Brand"]
+        [Episode 3 "Tatyana Ali"]
+        [Episode 4 "Brandi Glanville"]
+        [Episode 5 "Reese Witherspoon"]
+        [Episode 6 "Jack"]
+        [Episode 7 "Sinbad"]
+        [Episode 8 "J-Moe"]
+        [Episode 9 "Evangelos"]
+        [Episode 10 "Ryan Phillippe"]
+        [Episode 11 "Wesley Snipes"]
+    ]]
+    [Season 2 [list
+        [Episode 1 "Maria Menounos/Eric Balfour"]
+        [Episode 2 "hhhap"]
+    ]]
+]]

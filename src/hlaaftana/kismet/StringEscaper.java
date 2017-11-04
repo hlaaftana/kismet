@@ -13,7 +13,7 @@ public class StringEscaper {
 		from = flip(to);
 	}
 
-	private static <K, V> Map<V, K> flip(Map<K, V> map) {
+	static <K, V> Map<V, K> flip(Map<K, V> map) {
 		Map<V, K> newMap = new HashMap<>();
 		for (Map.Entry<K, V> e : map.entrySet()) {
 			newMap.put(e.getValue(), e.getKey());
