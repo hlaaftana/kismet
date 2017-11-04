@@ -9,11 +9,11 @@ import hlaaftana.kismet.*
 	static String repr(Expression expr) {
 		if (expr instanceof AtomExpression) '(' +
 				((AtomExpression) expr).text.replace(')', '\\)') + ')'
-		else if (expr instanceof StringExpression) StringEscaper.escapeSoda(((StringExpression) expr).value)
+		else if (expr instanceof StringExpression) '"' + StringEscaper.escapeSoda(((StringExpression) expr).value) + '"'
 		else if (expr instanceof NumberExpression) ((NumberExpression) expr).value.toString()
 		else if (expr instanceof CallExpression)
 			"call[${((CallExpression) expr).expressions.collect(this.&repr).join(', ')}]"
-		else if (expr instanceof BlockExpression) 'block{' +
+		else if (expr instanceof BlockExpression) 'block{\n' +
 			((BlockExpression) expr).content.collect { '  '.concat(repr(it)) }.join('\r\n') + '}'
 		else throw new IllegalArgumentException('Unknown expression type ' + expr.class)
 	}
@@ -41,7 +41,7 @@ import hlaaftana.kismet.*
 	BlockExpression(List<Expression> exprs) { content = exprs }
 
 	KismetObject evaluate(Block c) {
-		KismetObject a = Kismet.model null
+		KismetObject a = Kismet.NULL
 		for (e in content) a = e.evaluate(c)
 		a
 	}

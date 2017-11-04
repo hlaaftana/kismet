@@ -1,11 +1,10 @@
 package hlaaftana.kismet
 
-import groovy.transform.CompileDynamic
 import groovy.transform.CompileStatic
 import groovy.transform.Memoized
 
 @CompileStatic
-class KismetClass implements KismetCallable {
+class KismetClass<T> implements KismetCallable {
 	static List<KismetClass> instances = []
 	static KismetCallable defaultGetter, defaultSetter, defaultCaller,
 	                      defaultConstructor = func { ...a -> }
@@ -21,12 +20,27 @@ class KismetClass implements KismetCallable {
 		}
 	}
 
-	Class orig
+	Class<T> orig
 	String name = 'anonymous_'.concat(instances.size().toString())
 	KismetCallable getter = defaultGetter, setter = defaultSetter,
 	               caller = defaultCaller, constructor = defaultConstructor
 	List<KismetClass> parents = []
 	Map<KismetClass, KismetCallable> converters = [:]
+
+	@Memoized
+	static KismetClass from(Class c) {
+		int bestScore = -1
+		KismetClass winner = null
+		for (k in instances) {
+			if (!k.orig?.isAssignableFrom(c)) continue
+			int ls = k.relationScore(c)
+			if (bestScore < 0 || ls < bestScore) {
+				bestScore = ls
+				winner = k
+			}
+		}
+		winner
+	}
 
 	KismetClass() {
 		instances.add this
@@ -45,6 +59,11 @@ class KismetClass implements KismetCallable {
 		false
 	}
 
+	protected int relationScore(Class c) {
+		if (!orig.isAssignableFrom(c)) return -1
+		c == orig ? 0 : relationScore(c.superclass) + 1
+	}
+
 	void setName(String n){
 		if (n in instances*.name) throw new IllegalArgumentException("Class with name $n already exists")
 		this.@name = n
@@ -60,10 +79,22 @@ class KismetClass implements KismetCallable {
 		new MetaKismetClass()
 	}
 
+	static KismetClass fromName(String name) {
+		int hash = name.hashCode()
+		for (x in instances) if (x.name.hashCode() == hash && x.name == name) return x
+		null
+	}
+
 	KismetObject call(KismetObject... args){
-		def a = new KismetObject(new Expando(), this.object)
-		constructor.call(([a] as KismetObject[]) + args)
-		a
+		if (orig == KismetObject) {
+			def a = new KismetObject(new Expando(), this.object)
+			constructor.call(([a] as KismetObject[]) + args)
+			a
+		} else if (null == orig) null else {
+			Object[] a = new Object[args.length]
+			for (int i = 0; i < a.length; ++i) a[i] = args[i].inner()
+			new KismetObject(orig.newInstance(a), this.object)
+		}
 	}
 
 	boolean isInstance(KismetObject x) {

@@ -48,12 +48,8 @@ class Path {
 
 	@InheritConstructors
 	static class PropertyPathExpression extends PathExpression {
-		@CompileDynamic
 		def act(r) {
-			raw ? (raw.startsWith('*') ?
-				r*."${raw.substring(1)}" :
-				r."$raw") :
-				r
+			raw ? r.invokeMethod('getProperty', raw) : r
 		}
 	}
 

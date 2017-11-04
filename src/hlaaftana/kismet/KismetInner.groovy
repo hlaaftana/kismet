@@ -1,5 +1,6 @@
 package hlaaftana.kismet
 
+import groovy.json.JsonSlurper
 import groovy.transform.CompileStatic
 import groovy.transform.InheritConstructors
 import hlaaftana.kismet.parser.*
@@ -16,14 +17,14 @@ class KismetInner {
 	Integer: new KismetClass(BigInteger, 'Integer').object,
 	Float: new KismetClass(BigDecimal, 'Float').object,
 	String: new KismetClass(String, 'String').object,
-	Boolean: new KismetClass(boolean, 'Boolean').object,
-	Int8: new KismetClass(byte, 'Int8').object,
-	Int16: new KismetClass(short, 'Int16').object,
-	Int32: new KismetClass(int, 'Int32').object,
-	Int64: new KismetClass(long, 'Int64').object,
-	Float32: new KismetClass(float, 'Float32').object,
-	Float64: new KismetClass(double, 'Float64').object,
-	Character: new KismetClass(char, 'Character').object,
+	Boolean: new KismetClass(Boolean, 'Boolean').object,
+	Int8: new KismetClass(Byte, 'Int8').object,
+	Int16: new KismetClass(Short, 'Int16').object,
+	Int32: new KismetClass(Integer, 'Int32').object,
+	Int64: new KismetClass(Long, 'Int64').object,
+	Float32: new KismetClass(Float, 'Float32').object,
+	Float64: new KismetClass(Double, 'Float64').object,
+	Character: new KismetClass(Character, 'Character').object,
 	Path: new KismetClass(Path, 'Path').object,
 	Set: new KismetClass(Set, 'Set').object,
 	List: new KismetClass(List, 'List').object,
@@ -47,7 +48,8 @@ class KismetInner {
 	Iterator: new KismetClass(Iterator, 'Iterator').object,
 	Throwable: new KismetClass(Throwable, 'Throwable').object,
 	RNG: new KismetClass(Random, 'RNG').object,
-	Date: new KismetClass(Date, 'Date').object]
+	Date: new KismetClass(Date, 'Date').object,
+	JSONParser: new KismetClass(JsonSlurper, 'JSONParser').object]
 
 	static {
 		Map<String, Object> toConvert = [
@@ -61,7 +63,7 @@ class KismetInner {
 		true: true, false: false, null: null,
 		yes: true, no: false, on: true, off: false,
 		class: func { KismetObject... a -> a[0].kclass },
-		class_for_name: funcc { ...a -> KismetClass.instances.groupBy { it.name }[a[0].toString()] },
+		class_from_name: func { KismetObject... a -> KismetClass.fromName(a[0].toString()) },
 		'instance?': func { KismetObject... a -> a.drop(1).any { KismetObject<KismetClass> b -> b.inner().isInstance a[0] } },
 		'of?': func { KismetObject... a -> a.drop(1).any { KismetObject b ->
 			def x = b.inner()
@@ -73,7 +75,12 @@ class KismetInner {
 			if (x instanceof KismetClass) !x.isInstance(a[0])
 			else throw new UnexpectedValueException('Argument in not_of? not class')
 		} },
-		get_variable: macro { Block c, Expression... exprs -> c.context.getProperty(exprs[0].evaluate(c).toString()) },
+		variable: macro { Block c, Expression... exprs ->
+			String name = exprs[0].evaluate(c).toString()
+			exprs.length > 1 ? c.context.directSet(name, exprs[1].evaluate(c))
+							 : c.context.getProperty(name)
+		},
+		variables: macro { Block c, Expression... exprs -> new HashMap<>(c.context.data) },
 		current_block: macro { Block c, Expression... exprs -> c },
 		java_class_name: funcc { ...args -> args[0].class.name },
 		try: macro { Block c, Expression... exprs ->
@@ -188,23 +195,37 @@ class KismetInner {
 		negative: funcc { ...a -> a[0].invokeMethod 'unaryMinus', null },
 		'positive?': funcc { ...args -> ((int) args[0].invokeMethod('compareTo', 0)) > 0 },
 		'negative?': funcc { ...args -> ((int) args[0].invokeMethod('compareTo', 0)) < 0 },
+		'null?': funcc { ...args -> null == args[0] },
+		'not_null?': funcc { ...args -> null != args[0] },
+		'false?': funcc { ...args -> !args[0].asBoolean() },
+		'bool?': funcc { ...args -> args[0] instanceof boolean },
 		'zero?': funcc { ...args -> args[0] == 0 },
 		'one?': funcc { ...args -> args[0] == 1 },
 		'even?': funcc { ...args -> args[0].invokeMethod('mod', 2) == 0 },
 		'odd?': funcc { ...args -> args[0].invokeMethod('mod', 2) != 0 },
 		'divisible_by?': funcc { ...args -> args[0].invokeMethod('mod', args[1]) == 0 },
 		'integer?': funcc { ...args -> args[0].invokeMethod('mod', 1) == 0 },
+		'decimal?': funcc { ...args -> args[0].invokeMethod('mod', 1) != 0 },
 		'natural?': funcc { ...args -> args[0].invokeMethod('mod', 1) == 0 && ((int) args[0].invokeMethod('compareTo', 0)) >= 0 },
-		absolute: funcc { ...a -> Math.invokeMethod('abs', a[0]) },
+		absolute: funcc { ...a -> a[0].invokeMethod('abs', null) },
 		'+': funcc { ...args -> args.sum() },
 		'-': funcc { ...args -> args.inject { a, b -> a.invokeMethod 'minus', b } },
 		'*': funcc { ...args -> args.inject { a, b -> a.invokeMethod 'multiply', b } },
 		'/': funcc { ...args -> args.inject { a, b -> a.invokeMethod 'div', b } },
 		div: funcc { ...args -> args.inject { a, b -> a.invokeMethod 'intdiv', b } },
-		mod: funcc { ...args -> args.inject { a, b -> a.invokeMethod 'mod', b } },
+		rem: funcc { ...args -> args.inject { a, b -> a.invokeMethod 'mod', b } },
+		mod: funcc { ...args -> args.inject { a, b -> a.invokeMethod 'abs', null invokeMethod 'mod', b } },
 		pow: funcc { ...args -> args.inject { a, b -> a.invokeMethod 'power', b } },
 		sum: funcc { ...args -> args[0].invokeMethod('sum', null) },
 		product: funcc { ...args -> args[0].inject { a, b -> a.invokeMethod 'multiply', b } },
+		'defined?': macro { Block c, Expression... exprs ->
+			try {
+				c.context.getProperty(resolveName(exprs[0], c, "checking if variable is defined"))
+				true
+			} catch (UndefinedVariableException ignored) {
+				false
+			}
+		},
 		new_rng: funcc { ...args -> args.length > 0 ? new Random(args[0] as long) : new Random() },
 		random_int8_list_from_reference: funcc { ...args ->
 			byte[] bytes = args[1] as byte[]
@@ -212,22 +233,32 @@ class KismetInner {
 			bytes as List<Byte>
 		},
 		random_int32_of_all: funcc { ...args -> (args[0] as Random).nextInt() },
+		random_int32_with_max: funcc { ...args -> (args[0] as Random).nextInt(args[1] as int) },
 		random_int64_of_all: funcc { ...args -> (args[0] as Random).nextLong() },
 		random_float32_between_0_and_1: funcc { ...args -> (args[0] as Random).nextFloat() },
 		random_float64_between_0_and_1: funcc { ...args -> (args[0] as Random).nextDouble() },
 		random_bool: funcc { ...args -> (args[0] as Random).nextBoolean() },
 		next_gaussian: funcc { ...args -> (args[0] as Random).nextGaussian() },
 		random_int: funcc { ...args ->
-			BigInteger lower = args.length > 2 ? args[1] as BigInteger : 0
+			BigInteger lower = args.length > 2 ? args[1] as BigInteger : 0g
 			BigInteger higher = args.length > 2 ? args[2] as BigInteger : args[1] as BigInteger
 			double x = (args[0] as Random).nextDouble()
 			lower + (((higher - lower) * (x as BigDecimal)) as BigInteger)
 		},
 		random_float: funcc { ...args ->
-			BigDecimal lower = args.length > 2 ? args[1] as BigDecimal : 0
+			BigDecimal lower = args.length > 2 ? args[1] as BigDecimal : 0g
 			BigDecimal higher = args.length > 2 ? args[2] as BigDecimal : args[1] as BigDecimal
 			double x = (args[0] as Random).nextDouble()
 			lower + (higher - lower) * (x as BigDecimal)
+		},
+		shuffle: funcc { ...args ->
+			args[1] instanceof Random ? Collections.shuffle(toList(args[0]), args[1] as Random)
+					: Collections.shuffle(toList(args[0]))
+		},
+		sample: funcc { ...args ->
+			List x = toList(args[0])
+			Random r = args[1] instanceof Random ? args[1] as Random : new Random()
+			x[r.nextInt(x.size())]
 		},
 		high: funcc { ...args ->
 			if (args[0] instanceof Number) ((Object) args[0].class).invokeMethod('getProperty', 'MAX_VALUE')
@@ -246,22 +277,29 @@ class KismetInner {
 			else throw new UnexpectedValueException('Don\'t know how to get low of ' + args[0] + ' with class ' + args[0].class)
 		},
 		collect_range_with_step: funcc { ...args -> (args[0] as Range).step(args[1] as int) },
+		each_range_with_step: func { KismetObject... args -> (args[0].inner() as Range)
+				.step(args[1].inner() as int, args[2].&call) },
 		replace: funcc { ...args -> args[0].toString().replace(args[1].toString(),
 				args.length > 2 ? args[2].toString() : '') },
-		replace_all: funcc { ...args ->
-			def replacement = args.length > 2 ? args[2].toString() : ''
-			args[1] instanceof Pattern ?
-				args[0].toString().replaceAll(((Pattern) args[1]), replacement) :
-				args[0].toString().replaceAll(args[1].toString(), replacement) },
-		replace_first: funcc { ...args ->
-			def replacement = args.length > 2 ? args[2].toString() : ''
-			args[1] instanceof Pattern ?
-					args[0].toString().replaceFirst(((Pattern) args[1]), replacement) :
-					args[0].toString().replaceFirst(args[1].toString(), replacement) },
-		quote_regex: funcc { ...args -> Pattern.quote(args[0].toString()) },
-		'codepoints~': funcc { ...args -> args[0].toString().codePoints().iterator() },
-		'chars~': funcc { ...args -> args[0].toString().chars().iterator() },
-		chars: funcc { ...args -> args[0].toString().chars.toList() },
+		replace_all_regex: func { KismetObject... args ->
+			def replacement = args.length > 2 ?
+					(args[2].inner() instanceof String ? args[2].inner() : args[2].&call) : ''
+			def str = args[0].inner().toString()
+			def pattern = args[1].inner() instanceof Pattern ? (Pattern) args[1].inner() : args[1].inner().toString()
+			str.invokeMethod('replaceAll', [pattern, replacement])
+		},
+		replace_first_regex: func { KismetObject... args ->
+			def replacement = args.length > 2 ?
+					(args[2].inner() instanceof String ? args[2].inner() : args[2].&call) : ''
+			def str = args[0].inner().toString()
+			def pattern = args[1].inner() instanceof Pattern ? (Pattern) args[1].inner() : args[1].inner().toString()
+			str.invokeMethod('replaceFirst', [pattern, replacement])
+		},
+		'blank?': func { KismetObject... args -> args[0].toString().isAllWhitespace() },
+		quote_regex: func { KismetObject... args -> Pattern.quote(args[0].toString()) },
+		'codepoints~': func { KismetObject... args -> args[0].toString().codePoints().iterator() },
+		'chars~': func { KismetObject... args -> args[0].toString().chars().iterator() },
+		chars: func { KismetObject... args -> args[0].toString().chars.toList() },
 		codepoint_to_chars: funcc { ...args -> Character.toChars((int) args[0]).toList() },
 		upper: funcc { ...args -> args[0] instanceof char ? Character.toUpperCase((char) args[0]) :
 								  args[0] instanceof int ? Character.toUpperCase((int) args[0]) :
@@ -301,7 +339,12 @@ class KismetInner {
 		regex: funcc { ...a -> a[0].invokeMethod 'bitwiseNegate', null },
 		access_set: funcc { ...a -> a[0].invokeMethod('putAt', [a[1], a[2]]) },
 		access_get: funcc { ...a -> a[0].invokeMethod('getAt', a[1]) },
-		string: func { KismetObject... a -> a[0].as String },
+		string: func { KismetObject... a ->
+			if (a.length == 1) return a[0].toString()
+			StringBuilder x = new StringBuilder()
+			for (s in a) x.append(s.toString())
+			x.toString()
+		},
 		int: func { KismetObject... a -> a[0].as BigInteger },
 		int8: func { KismetObject... a -> a[0].as byte },
 		int16: func { KismetObject... a -> a[0].as short },
@@ -320,11 +363,28 @@ class KismetInner {
 		new_list: funcc { ...args -> new ArrayList(args[0] as int) },
 		list: funcc { ...args -> args.toList() },
 		new_set: funcc { ...args -> args.length > 1 ? new HashSet(args[0] as int, args[1] as float) : new HashSet(args[0] as int) },
-		set: funcc { ...args -> args.toList().toSet() },
+		set: funcc { ...args ->
+			Set x = new HashSet()
+			for (a in args) x.add(a)
+			x
+		},
 		pair: funcc { ...args -> new Tuple2(args[0], args[1]) },
-		to_list: funcc { ...args -> args[0].invokeMethod('toList', null) },
-		to_set: funcc { ...args -> args[0].invokeMethod('toSet', null) },
+		to_list: funcc { ...args -> toList(args[0]) },
+		to_set: funcc { ...args -> toSet(args[0]) },
 		to_pair: funcc { ...args -> new Tuple2(args[0].invokeMethod('getAt', 0), args[0].invokeMethod('getAt', 1)) },
+		entry_pairs: funcc { ...args ->
+			def r = []
+			for (x in (args[0] as Map)) r.add(new Tuple2(x.key, x.value))
+			r
+		},
+		map_from_pairs: funcc { ...args ->
+			Map m = [:]
+			for (x in args[0]) {
+				def p = x as Tuple2
+				m.put(p.first, p.second)
+			}
+			m
+		},
 		map: funcc { ...args ->
 			Map map = [:]
 			Iterator iter = args.iterator()
@@ -367,9 +427,9 @@ class KismetInner {
 		copy_map: funcc { ...args -> new HashMap(args[0] as Map) },
 		new_map: funcc { ...args -> args.length > 1 ? new HashMap(args[0] as int, args[1] as float) : new HashMap(args[0] as int) },
 		zip: funcc { ...args -> args.toList().transpose() },
-		knit: func { KismetObject... args -> (args[0].inner() as List).transpose()
+		knit: func { KismetObject... args -> toList(args[0].inner()).transpose()
 				.collect { args[1].invokeMethod('call', it as Object[]) } },
-		transpose: funcc { ...args -> (args[0] as List).transpose() },
+		transpose: funcc { ...args -> toList(args[0]).transpose() },
 		'unique?': funcc { ...args -> args[0].invokeMethod('size', null) ==
 					args[0].invokeMethod('unique', false).invokeMethod('size', null) },
 		'unique!': funcc { ...args -> args[0].invokeMethod('unique', null) },
@@ -379,15 +439,24 @@ class KismetInner {
 		'unique_via!': func { KismetObject... args -> args[0].inner().invokeMethod('unique', args[1].&call) },
 		unique_via: func { KismetObject... args -> args[0].inner().invokeMethod('unique', [false, args[1].&call]) },
 		spread: funcc { ...args -> args[0].invokeMethod('toSpreadMap', null) },
+		invert_map: funcc { ...args -> StringEscaper.flip(args[0] as Map) },
+		new_json_parser: funcc { ...args -> new JsonSlurper() },
+		parse_json: funcc { ...args ->
+			String text = args.length > 1 ? args[1].toString() : args[0].toString()
+			JsonSlurper sl = args.length > 1 ? args[0] as JsonSlurper : new JsonSlurper()
+			sl.parseText(text)
+		},
 		size: funcc { ...a -> a[0].invokeMethod('size', null) },
 		keys: funcc { ...a -> a[0].invokeMethod('keySet', null).invokeMethod('toList', null) },
 		values: funcc { ...a -> a[0].invokeMethod('values', null) },
-		reverse: funcc { ...a -> a[0].invokeMethod('reverse', null) },
+		reverse: funcc { ...a -> a[0].invokeMethod('reverse', a[0] instanceof CharSequence ? null : false) },
+		'reverse!': funcc { ...a -> a[0].invokeMethod('reverse', null) },
+		'reverse?': funcc { ...a -> a[0].invokeMethod('reverse', false) == a[1] },
 		sprintf: funcc { ...args -> String.invokeMethod('format', args) },
 		expr_type: funcc { ...args -> args[0] instanceof Expression ?
 			(args[0].class.simpleName - 'Expression').uncapitalize() : null },
-		capitalize: funcc { ...args -> args[0].toString().capitalize() },
-		uncapitalize: funcc { ...args -> args[0].toString().uncapitalize() },
+		capitalize: func { KismetObject... args -> args[0].toString().capitalize() },
+		uncapitalize: func { KismetObject... args -> args[0].toString().uncapitalize() },
 		center: funcc { ...args ->
 			args.length > 2 ? args[0].toString().center(args[1] as Number, args[2].toString()) :
 							  args[0].toString().center(args[1] as Number)
@@ -402,28 +471,28 @@ class KismetInner {
 		},
 		'prefix?': funcc { ...args ->
 			if (args[1] instanceof String) ((String) args[1]).startsWith(args[0].toString())
-			else Collections.invokeMethod('indexOfSubList', [args[1] as List, args[0] as List]) == 0
+			else Collections.invokeMethod('indexOfSubList', [toList(args[1]), toList(args[0])]) == 0
 		},
 		'suffix?': funcc { ...args ->
 			if (args[1] instanceof String) ((String) args[1]).endsWith(args[0].toString())
 			else {
-				def a = args[0] as List
-				def b = args[1] as List
+				def a = toList(args[0])
+				def b = toList(args[1])
 				Collections.invokeMethod('lastIndexOfSubList', [b, a]) == b.size() - a.size()
 			}
 		},
 		'infix?': funcc { ...args ->
 			if (args[1] instanceof String) ((String) args[1]).contains(args[0].toString())
-			else Collections.invokeMethod('indexOfSubList', [args[1] as List, args[0] as List]) != -1
+			else Collections.invokeMethod('indexOfSubList', [toList(args[1]), toList(args[0])]) != -1
 		},
-		'subsequence?': funcc { ...args -> args[1].invokeMethod('containsAll', args[0]) },
+		'superset?': funcc { ...args -> args[0].invokeMethod('containsAll', args[1]) },
 		'rotate!': funcc { ...args ->
 			List x = (List) args[0]
 			Collections.rotate(x, args[1] as int)
 			x
 		},
 		rotate: funcc { ...args ->
-			List x = new ArrayList(args[0] as List)
+			List x = new ArrayList(toList(args[0]))
 			Collections.rotate(x, args[1] as int)
 			x
 		},
@@ -562,9 +631,13 @@ class KismetInner {
 		eval: macro { Block c, Expression... a ->
 			def x = a[0].evaluate(c)
 			if (x.inner() instanceof Block) ((Block) x.inner()).evaluate()
-			else if (x.inner() instanceof Expression) ((Expression) x.inner()).evaluate(c)
-			else if (x.inner() instanceof Path) ((Path) x.inner()).apply(c.context)
-			else if (x.inner() instanceof String) newCode(c, parse((String) x.inner())).evaluate()
+			else if (x.inner() instanceof Expression)
+				((Expression) x.inner()).evaluate(a.length > 1 ? a[1].evaluate(c).inner() as Block : c)
+			else if (x.inner() instanceof Path)
+				((Path) x.inner()).apply((a.length > 1 ? a[1].evaluate(c).inner() as Block : c).context)
+			else if (x.inner() instanceof String)
+				if (a.length > 1) parse((String) x.inner()).evaluate(a[1].evaluate(c).inner() as Block)
+				else newCode(c, parse((String) x.inner())).evaluate()
 			else throw new UnexpectedValueException('Expected first value of eval to be an expression, block, path or string')
 		},
 		quote: macro { Block c, Expression... exprs -> exprs.length == 1 ? exprs[0] :
@@ -583,7 +656,7 @@ class KismetInner {
 		},
 		if_chain: macro { Block c, Expression... ab ->
 			Iterator<Expression> a = ab.iterator()
-			KismetObject x = Kismet.model null
+			KismetObject x = Kismet.NULL
 			while (a.hasNext()) {
 				x = a.next().evaluate(c)
 				if (a.hasNext() && x) return a.next().evaluate(c)
@@ -592,7 +665,7 @@ class KismetInner {
 		},
 		unless_chain: macro { Block c, Expression... ab ->
 			Iterator<Expression> a = ab.iterator()
-			KismetObject x = Kismet.model null
+			KismetObject x = Kismet.NULL
 			while (a.hasNext()) {
 				x = a.next().evaluate(c)
 				if (a.hasNext() && !x) return a.next().evaluate(c)
@@ -604,13 +677,13 @@ class KismetInner {
 		while: macro { Block c, Expression... exprs ->
 			Block b = newCode(c, exprs.drop(1))
 			KismetObject j = Kismet.model(null)
-			while (exprs[0].evaluate(c)) j = b.evaluate()
+			while (exprs[0].evaluate(c)) j = b.anonymousClone().evaluate()
 			j
 		},
 		until: macro { Block c, Expression... exprs ->
 			Block b = newCode(c, exprs.drop(1))
 			KismetObject j = Kismet.model(null)
-			while (!exprs[0].evaluate(c)) j = b.evaluate()
+			while (!exprs[0].evaluate(c)) j = b.anonymousClone().evaluate()
 			j
 		},
 		for_each: macro { Block c, Expression... exprs ->
@@ -623,6 +696,14 @@ class KismetInner {
 				a = y()
 			}
 			a
+		},
+		for: macro { Block c, Expression... exprs ->
+			Block b = newCode(c, exprs.drop(3))
+			KismetObject result = Kismet.model(null)
+			for (exprs[0].evaluate(b); exprs[1].evaluate(b); exprs[2].evaluate(b)){
+				result = b.anonymousClone()()
+			}
+			result
 		},
 		each: func { KismetObject... args -> args[0].inner().each(args[1].&call) },
 		each_with_index: func { KismetObject... args -> args[0].inner().invokeMethod('eachWithIndex', args[1].&call) },
@@ -666,6 +747,16 @@ class KismetInner {
 				r = r.invokeMethod('get', a[i])
 			r
 		},
+		walk: macro { Block c, Expression... args ->
+			def r = args[0].evaluate(c)
+			for (int i = 1; i < args.length; ++i) {
+				Expression x = args[i]
+				if (x instanceof AtomExpression)
+					r = r.invokeMethod('getAt', ((AtomExpression) x).text)
+				else r = r.invokeMethod('getAt', x.evaluate(c))
+			}
+			r
+		},
 		clear: funcc { ...args -> args[0].invokeMethod('clear', null) },
 		put: funcc { ...args -> args[0].invokeMethod('put', [args[1], args[2]]) },
 		put_all: funcc { ...args -> args[0].invokeMethod('putAll', args[1]) },
@@ -676,14 +767,18 @@ class KismetInner {
 		'has_key?': funcc { ...args -> args[0].invokeMethod('containsKey', args[1]) },
 		'has_value?': funcc { ...args -> args[0].invokeMethod('containsValue', args[1]) },
 		'is_code_kismet?': funcc { ...args -> args[0] instanceof KismetFunction || args[0] instanceof KismetMacro },
-		func_to_block: funcc { ...args -> args[0] instanceof KismetFunction ? ((KismetFunction) args[0]).b :
+		get_func_code: funcc { ...args -> args[0] instanceof KismetFunction ? ((KismetFunction) args[0]).b :
 										  args[0] instanceof KismetMacro ? ((KismetMacro) args[0]).b :
 										  false },
 		'disjoint?': funcc { ...args -> args[0].invokeMethod('disjoint', args[1]) },
 		'intersect?': funcc { ...args -> !args[0].invokeMethod('disjoint', args[1]) },
 		call: func { KismetObject... args -> args[0].call(args[1].inner() as Object[]) },
 		range: funcc { ...args -> args[0]..args[1] },
-		parse_independent_kismet: funcc { ...args -> Kismet.parse(args[0].toString()) },
+		parse_independent_kismet: funcc { ...args ->
+			String code = args[0].toString()
+			args.length > 1 ? Kismet.parse(code, args[1] as Map) : Kismet.parse(code)
+		},
+		parse_kismet: funcc { ...args -> parse(args[0].toString()) },
 		parse_path: funcc { ...args -> Path.parse(args[0].toString()) },
 		apply_path: funcc { ...args -> ((Path) args[0]).apply(args[1]) },
 		'sort!': funcc { ...args -> args[0].invokeMethod('sort', null) },
@@ -747,13 +842,13 @@ class KismetInner {
 
 				@Override
 				boolean hasNext() {
-					i < siz - con
+					this.i < siz - con
 				}
 
 				@Override
 				List next() {
 					List a = new ArrayList(con)
-					for (int j = 0; j < siz; ++j) a.add(x.invokeMethod('getAt', i + j))
+					for (int j = 0; j < siz; ++j) a.add(x.invokeMethod('getAt', this.i + j))
 					a
 				}
 			})
@@ -766,6 +861,15 @@ class KismetInner {
 		take_while: func { KismetObject... args -> args[0].inner().invokeMethod('takeWhile', args[1].&call) },
 		each_combination: func { KismetObject... args -> args[0].inner().invokeMethod('eachCombination', args[1].&call) },
 		each_permutation: func { KismetObject... args -> args[0].inner().invokeMethod('eachPermutation', args[1].&call) },
+		each_key_value: func { KismetObject... args ->
+			def m = (args[0].inner() as Map)
+			for (e in m) {
+				args[1].call(e.key, e.value)
+			}
+			m
+		},
+		'within_range?': funcc { ...args -> (args[1] as Range).containsWithinBounds(args[0]) },
+		'is_range_reverse?': funcc { ...args -> (args[1] as Range).reverse },
 		max: funcc { ...args -> args.max() },
 		min: funcc { ...args -> args.min() },
 		max_in: funcc { ...args -> args[0].invokeMethod('max', null) },
@@ -808,8 +912,41 @@ class KismetInner {
 			d.context.directSet(name, value)
 			code.evaluate(c)
 			d.context.getProperty(name)
-		}]
-		defaultContext.'?' = defaultContext.bool
+		},
+		'number?': funcc { ...args -> args[0] instanceof Number },
+		'|>': macro { Block c, Expression... args ->
+			pipeForward(c, args[0].evaluate(c), args.drop(1).toList())
+		},
+		'<|': macro { Block c, Expression... args ->
+			pipeBackward(c, args[0].evaluate(c), args.drop(1).toList())
+		},
+		gcd: funcc { ...args -> gcd(args[0] as Number, args[1] as Number) },
+		lcm: funcc { ...args -> lcm(args[0] as Number, args[1] as Number) },
+		reduce_ratio: funcc { ...args ->
+			Tuple2 pair = args[0] as Tuple2
+			def (Number a, Number b) = [pair.first as Number, pair.second as Number]
+			Number gcd = gcd(a, b)
+			(a, b) = [a.intdiv(gcd), b.intdiv(gcd)]
+			new Tuple2(a, b)
+		},
+		repr_expr: funcc { ...args -> Expression.repr((Expression) args[0]) },
+		sum_range: funcc { ...args ->
+			Range r = args[0] as Range
+			def (Number to, Number from) = [r.to as Number, r.from as Number]
+			Number x = to.minus(from).next()
+			x.multiply(from.plus(x)).intdiv(2)
+		},
+		sum_range_with_step: funcc { ...args ->
+			Range r = args[0] as Range
+			Number step = args[1] as Number
+			def (Number to, Number from) = [(r.to as Number).next(), r.from as Number]
+			to.minus(from).intdiv(step).multiply(from.plus(to.minus(step))).intdiv(2)
+		},]
+		defaultContext.'true?' = defaultContext.'yes?' = defaultContext.'on?' =
+				defaultContext.'?' = defaultContext.bool
+		defaultContext.'no?' = defaultContext.'off?' = defaultContext.'false?'
+		defaultContext.'subsequence?' = defaultContext.'infix?'
+		defaultContext.'subset?' = defaultContext.'has_all?'
 		defaultContext.fold = defaultContext.reduce = defaultContext.inject
 		defaultContext.length = defaultContext.size
 		defaultContext.filter = defaultContext.select = defaultContext.find_all
@@ -872,6 +1009,72 @@ class KismetInner {
 		}
 		builder.push(10)
 		new BlockExpression(builder.expressions)
+	}
+	
+	static List toList(x) {
+		List r
+		try {
+			r = x as List
+		} catch (ex) {
+			try {
+				r = (List) x.invokeMethod('toList', null)
+			} catch (ignore) {
+				throw ex
+			}
+		}
+		r
+	}
+
+	static Set toSet(x) {
+		Set r
+		try {
+			r = x as Set
+		} catch (ex) {
+			try {
+				r = (Set) x.invokeMethod('toSet', null)
+			} catch (ignore) {
+				throw ex
+			}
+		}
+		r
+	}
+
+	static KismetObject pipeForward(Block c, KismetObject val, List<Expression> args) {
+		for (exp in args) {
+			if (exp instanceof CallExpression) {
+				List<Expression> exprs = ((CallExpression) exp).expressions
+				exprs.add(1, exp)
+				val = new CallExpression(exprs).evaluate(c)
+			} else if (exp instanceof BlockExpression) {
+				val = pipeForward(c, val, ((BlockExpression) exp).content)
+			} else throw new UnexpectedSyntaxException('Did not expect ' + exp.class + ' in |>')
+		}
+		val
+	}
+
+	static KismetObject pipeBackward(Block c, KismetObject val, List<Expression> args) {
+		for (exp in args) {
+			if (exp instanceof CallExpression) {
+				List<Expression> exprs = ((CallExpression) exp).expressions
+				exprs.add(exp)
+				val = new CallExpression(exprs).evaluate(c)
+			} else if (exp instanceof BlockExpression) {
+				val = pipeForward(c, val, ((BlockExpression) exp).content)
+			} else throw new UnexpectedSyntaxException('Did not expect ' + exp.class + ' in <|')
+		}
+		val
+	}
+
+	static Number gcd(Number a, Number b) {
+		a = a.abs()
+		if (b == 0) return a
+		b = b.abs()
+		while (a % b) (b, a) = [a % b, b]
+		b
+	}
+
+	static Number lcm(Number a, Number b) {
+		a.multiply(b).abs().intdiv(gcd(a, b))
 	}
 	
 	static GroovyMacro macro(Closure c){

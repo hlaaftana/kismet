@@ -49,7 +49,7 @@ class KismetObject<T> implements KismetCallable {
 
 	@CompileStatic
 	def "as"(Class c){
-		KismetClass k = KismetModels.defaultConversions[c]?.inner()
+		KismetClass k = KismetClass.from(c)
 		if (k && kclass.inner().converters.containsKey(k)) kclass.inner().converters[k](this)
 		else try { inner.asType(c) }
 		catch (ClassCastException ex) { if (c == Closure) this.&call else throw ex }
@@ -67,10 +67,14 @@ class KismetObject<T> implements KismetCallable {
 	}
 
 	boolean asBoolean(){
-		inner as boolean
+		kclass.inner().orig != KismetObject ? inner as boolean : this.as(boolean)
+	}
+
+	int hashCode() {
+		inner.hashCode()
 	}
 
 	String toString() {
-		inner.toString()
+		kclass.inner().orig != KismetObject ? inner.toString() : this.as(String)
 	}
 }
