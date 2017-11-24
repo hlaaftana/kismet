@@ -1,20 +1,29 @@
 package hlaaftana.kismet.parser
 
 import groovy.transform.CompileStatic
+import groovy.transform.InheritConstructors
 import hlaaftana.kismet.*
 
 @CompileStatic abstract class Expression {
 	abstract KismetObject evaluate(Block c)
 
+	Expression percentize(Block p) {
+		new StaticExpression(this, p)
+	}
+
 	static String repr(Expression expr) {
 		if (expr instanceof AtomExpression) '(' +
 				((AtomExpression) expr).text.replace(')', '\\)') + ')'
-		else if (expr instanceof StringExpression) '"' + StringEscaper.escapeSoda(((StringExpression) expr).value) + '"'
+		else if (expr instanceof StringExpression) '"' + StringEscaper.escapeSoda(((StringExpression) expr).value.inner()) + '"'
 		else if (expr instanceof NumberExpression) ((NumberExpression) expr).value.toString()
 		else if (expr instanceof CallExpression)
 			"call[${((CallExpression) expr).expressions.collect(this.&repr).join(', ')}]"
 		else if (expr instanceof BlockExpression) 'block{\n' +
 			((BlockExpression) expr).content.collect { '  '.concat(repr(it)) }.join('\r\n') + '}'
+		else if (expr instanceof StaticExpression) {
+			def a = (StaticExpression) expr
+			"static($a.value, ${repr(a.expression) ?: "<NO EXPRESSION>"})"
+		}
 		else throw new IllegalArgumentException('Unknown expression type ' + expr.class)
 	}
 }
@@ -24,6 +33,7 @@ import hlaaftana.kismet.*
 	Path path
 
 	AtomExpression(String t) { text = t; path = Path.parse(t) }
+	AtomExpression(Path p) { text = p.raw; path = p }
 
 	void setText(String t) {
 		this.@text = t
@@ -31,7 +41,21 @@ import hlaaftana.kismet.*
 	}
 
 	KismetObject evaluate(Block c) {
-		Kismet.model path.apply(c.context)
+		Kismet.model(path.expressions[0].raw.empty ? new PathFunction(path) : path.apply(c.context))
+	}
+
+	boolean equals(obj) {
+		obj instanceof AtomExpression && ((AtomExpression) obj).text == text
+	}
+
+	static class PathFunction extends Function {
+		Path path
+		PathFunction(Path p) { path = p }
+
+		@Override
+		KismetObject call(KismetObject... args) {
+			Kismet.model(path.apply(args[0]))
+		}
 	}
 }
 
@@ -45,6 +69,8 @@ import hlaaftana.kismet.*
 		for (e in content) a = e.evaluate(c)
 		a
 	}
+
+	boolean equals(obj) { obj instanceof BlockExpression && obj.content == content }
 }
 
 @CompileStatic class CallExpression extends Expression {
@@ -52,7 +78,7 @@ import hlaaftana.kismet.*
 	List<Expression> arguments
 
 	CallExpression(List<Expression> expressions) {
-		value = expressions[0]
+		setValue(expressions[0])
 		arguments = expressions.drop(1)
 	}
 
@@ -69,58 +95,152 @@ import hlaaftana.kismet.*
 		x.addAll(arguments)
 		x
 	}
-}
 
-@CompileStatic class LiteralExpression<T> extends Expression {
-	T value
-
-	KismetObject evaluate(Block c) {
-		Kismet.model value
+	boolean equals(obj) {
+		obj instanceof CallExpression && obj.expressions == expressions
 	}
 }
 
-@CompileStatic class NumberExpression extends LiteralExpression<Number> {
+@CompileStatic class ConstantExpression<T> extends Expression {
+	KismetObject<T> value
+
+	void setValue(T obj) {
+		value = Kismet.model(obj)
+	}
+
+	KismetObject evaluate(Block c) {
+		value
+	}
+}
+
+@CompileStatic class NumberExpression extends ConstantExpression<Number> {
 	NumberExpression(boolean type, StringBuilder[] arr) {
 		StringBuilder x = arr[0]
 		boolean t = false
 		if (null != arr[1]) { x.append('.').append(arr[1]); t = true }
 		if (null != arr[2]) { x.append('e').append(arr[2]); t = true }
 		String r = x.toString()
-		if (null == arr[3]) value = t ? new BigDecimal(r) : new BigInteger(r) else {
+		if (null == arr[3]) setValue(t ? new BigDecimal(r) : new BigInteger(r)) else {
 			if (type) {
-				if (arr[3].length() == 0) value = new BigDecimal(r)
+				if (arr[3].length() == 0) setValue(new BigDecimal(r))
 				else {
 					int b = new Integer(arr[3].toString())
-					if (b == 32) value = new Float(r)
-					else if (b == 64) value = new Double(r)
+					if (b == 1) setValue(-new BigDecimal(r))
+					else if (b == 32) setValue(new Float(r))
+					else if (b == 33) setValue(-new Float(r))
+					else if (b == 64) setValue(new Double(r))
+					else if (b == 65) setValue(-new Double(r))
 					else throw new NumberFormatException("Invalid number of bits $b for explicit float")
 				}
 			} else {
-				if (t) throw new NumberFormatException('Added exponent or fraction to explicit integer')
-				else if (arr[3].length() == 0) value = new BigInteger(r)
+				if (t) {
+					def v = new BigDecimal(r)
+					if (arr[3].length() == 0) setValue(v.toBigInteger())
+					else {
+						int b = new Integer(arr[3].toString())
+						if (b == 1) setValue(-v.toBigInteger())
+						else if (b == 8) setValue(v.byteValue())
+						else if (b == 9) setValue(-v.byteValue())
+						else if (b == 16) setValue(v.shortValue())
+						else if (b == 17) setValue(-v.shortValue())
+						else if (b == 32) setValue(v.intValue())
+						else if (b == 33) setValue(-v.intValue())
+						else if (b == 64) setValue(v.longValue())
+						else if (b == 65) setValue(-v.longValue())
+						else throw new NumberFormatException("Invalid number of bits $b for explicit integer")
+					}
+				}
+				else if (arr[3].length() == 0) setValue(new BigInteger(r))
 				else {
 					int b = new Integer(arr[3].toString())
-					if (b == 8) value = new Byte(r)
-					else if (b == 16) value = new Short(r)
-					else if (b == 32) value = new Integer(r)
-					else if (b == 64) value = new Long(r)
+					if (b == 1) setValue(-new BigInteger(r))
+					else if (b == 8) setValue(new Byte(r))
+					else if (b == 9) setValue(-new Byte(r))
+					else if (b == 16) setValue(new Short(r))
+					else if (b == 17) setValue(-new Short(r))
+					else if (b == 32) setValue(new Integer(r))
+					else if (b == 33) setValue(-new Integer(r))
+					else if (b == 64) setValue(new Long(r))
+					else if (b == 65) setValue(-new Long(r))
 					else throw new NumberFormatException("Invalid number of bits $b for explicit integer")
 				}
 			}
 		}
 	}
+
+	NumberExpression(Number v) { setValue(v) }
+
+	NumberExpression(String x) {
+		NumberBuilder b = new NumberBuilder()
+		char[] a = x.toCharArray()
+		for (int i = 0; i < a.length; ++i) b.doPush((int) a[i])
+		value = b.doPush(32).value
+	}
+
+	NumberExpression percentize(Block p) {
+		new NumberExpression(value.inner().div(100))
+	}
+
+	boolean equals(obj) {
+		obj instanceof NumberExpression && obj.value.inner() == value.inner()
+	}
 }
 
 @CompileStatic
-class StringExpression extends LiteralExpression<String> {
+class StringExpression extends ConstantExpression<String> {
+	String raw
+	Exception exception
+
 	StringExpression(String v) {
-		value = StringEscaper.unescapeSoda(v)
+		try {
+			setValue(StringEscaper.unescapeSoda(raw = v))
+		} catch (ex) { exception = ex }
+	}
+
+	StringExpression percentize(Block p) {
+		throw new UndefinedBehaviourException('Percentizing string expression is undefined behaviour as of now')
+	}
+
+	boolean equals(obj) {
+		obj instanceof StringExpression && obj.value.inner() == value.inner()
+	}
+
+	KismetObject<String> evaluate(Block c) {
+		if (null == exception) value
+		else throw exception
+	}
+}
+
+@CompileStatic
+class StaticExpression<T extends Expression> extends ConstantExpression<Object> {
+	T expression
+
+	StaticExpression(T ex = null, KismetObject val) {
+		expression = ex
+		value = val
+	}
+
+	StaticExpression(T ex = null, val) {
+		expression = ex
+		setValue(val)
+	}
+
+	StaticExpression(T ex = null, Block c) {
+		this(ex, ex.evaluate(c))
 	}
 }
 
 @CompileStatic
 abstract class ExprBuilder<T extends Expression> {
-	abstract T push(int cp)
+	Block parserBlock
+	boolean percent = false
+
+	abstract T doPush(int cp)
+
+	Expression push(int cp) {
+		T x = doPush(cp)
+		null == x ? x : percent ? x.percentize(parserBlock) : x
+	}
 }
 
 @CompileStatic class AtomBuilder extends ExprBuilder<AtomExpression> {
@@ -128,12 +248,15 @@ abstract class ExprBuilder<T extends Expression> {
 	boolean escaped = false
 	boolean bracketed
 
-	AtomBuilder(boolean b) { bracketed = b }
+	AtomBuilder(Block c, boolean b) { parserBlock = c; bracketed = b }
 
-	AtomExpression push(int cp) {
+	AtomExpression doPush(int cp) {
 		if ((bracketed && !escaped && cp == 41) || (!bracketed && Character.isWhitespace(cp)))
 			return new AtomExpression(last.toString())
-		if (escaped) { escaped = false; last.deleteCharAt(last.codePointCount(0, last.length())) }
+		if (escaped) {
+			escaped = false
+			if (cp == 41) last.deleteCharAt(last.length() - 1)
+		}
 		else escaped = cp == 92
 		last.appendCodePoint(cp)
 		(AtomExpression) null
@@ -153,7 +276,7 @@ abstract class ExprBuilder<T extends Expression> {
 		newlyStage = true
 	}
 
-	NumberExpression push(int cp) {
+	NumberExpression doPush(int cp) {
 		int up
 		if (cp > 47 && cp < 58) {
 			newlyStage = false
@@ -176,33 +299,44 @@ abstract class ExprBuilder<T extends Expression> {
 	}
 }
 
+@CompileStatic @InheritConstructors class UndefinedBehaviourException extends KismetException {}
+
 @CompileStatic class StringExprBuilder extends ExprBuilder<StringExpression> {
 	StringBuilder last = new StringBuilder()
-	boolean escaped = true
+	boolean escaped = false
 	int quote
 
 	StringExprBuilder(int q) {
 		quote = q
 	}
 
-	StringExpression push(int cp) {
+	void setPercent(boolean x) {
+		if (x) throw new UndefinedBehaviourException('Percent for string expression is undefined behaviour as of now')
+	}
+
+	StringExpression doPush(int cp) {
 		if (!escaped && cp == quote) return new StringExpression(last.toString())
 		if (escaped) escaped = false
 		else escaped = cp == 92
 		last.appendCodePoint(cp)
 		(StringExpression) null
 	}
+
+	StringExpression push(int cp) {
+		doPush(cp)
+	}
 }
 
 @CompileStatic class CallBuilder extends ExprBuilder<CallExpression> {
 	List<Expression> expressions = []
 	ExprBuilder last = null
+	boolean lastPercent = false
 	boolean bracketed
 
-	CallBuilder(boolean b) { bracketed = b }
+	CallBuilder(Block c, boolean b) { parserBlock = c; bracketed = b }
 
 	@Override
-	CallExpression push(int cp) {
+	CallExpression doPush(int cp) {
 		if ((bracketed ? cp == 93 : (cp == 10 || cp == 13)) && endOnDelim) {
 			if (null != last) {
 				Expression x = last.push(10)
@@ -214,12 +348,14 @@ abstract class ExprBuilder<T extends Expression> {
 			return new CallExpression(expressions)
 		} else if (null == last) {
 			if (bracketed && cp == 93) return new CallExpression(expressions)
-			else if (cp == 40) last = new AtomBuilder(true)
-			else if (cp == 91) last = new CallBuilder(true)
-			else if (cp == 123) last = new BlockBuilder(true)
+			else if (cp == 37) lastPercent = true
+			else if (cp == 40) last = new AtomBuilder(parserBlock, true)
+			else if (cp == 91) last = new CallBuilder(parserBlock, true)
+			else if (cp == 123) last = new BlockBuilder(parserBlock, true)
 			else if ((cp > 47 && cp < 58) || cp == 46) (last = new NumberBuilder()).push(cp)
 			else if (cp == 34 || cp == 39) last = new StringExprBuilder(cp)
-			else if (!Character.isWhitespace(cp)) (last = new AtomBuilder(false)).push(cp)
+			else if (!Character.isWhitespace(cp)) (last = new AtomBuilder(parserBlock, false)).push(cp)
+			if (lastPercent && null != last) last.percent = !(lastPercent = false)
 		} else {
 			Expression x = last.push(cp)
 			if (null != x) {
@@ -245,27 +381,32 @@ abstract class ExprBuilder<T extends Expression> {
 @CompileStatic class BlockBuilder extends ExprBuilder<BlockExpression> {
 	List<Expression> expressions = []
 	CallBuilder last = null
+	boolean lastPercent = false
 	boolean bracketed
 
-	BlockBuilder(boolean b) { bracketed = b }
+	BlockBuilder(Block c, boolean b) { parserBlock = c; bracketed = b }
 
 	@Override
-	BlockExpression push(int cp) {
+	BlockExpression doPush(int cp) {
 		if (cp == 125 && bracketed && (null == last || (last.endOnDelim && !(last.anyBlocks())))) {
 			if (null != last) {
-				CallExpression x = last.push(10)
+				CallExpression x = last.doPush(10)
 				if (null == x)
 					throw new UnexpectedSyntaxException('Last call in block was bracketed but was not closed')
-				expressions.add(!last.bracketed && !x.arguments ? x.value : x)
+				Expression a = !last.bracketed && !x.arguments ? x.value : x
+				expressions.add(last.percent ? a.percentize(parserBlock) : a)
 			}
 			return new BlockExpression(expressions)
 		} else if (null == last) {
-			if (cp == 91) last = new CallBuilder(true)
-			else if (!Character.isWhitespace(cp)) (last = new CallBuilder(false)).push(cp)
+			if (cp == 91) last = new CallBuilder(parserBlock, true)
+			else if (cp == 37) lastPercent = true
+			else if (!Character.isWhitespace(cp)) (last = new CallBuilder(parserBlock, false)).push(cp)
+			if (lastPercent && null != last) last.percent = !(lastPercent = false)
 		} else {
-			CallExpression x = last.push(cp)
+			CallExpression x = last.doPush(cp)
 			if (null != x) {
-				expressions.add(!last.bracketed && !x.arguments ? x.value : x)
+				Expression a = !last.bracketed && !x.arguments ? x.value : x
+				expressions.add(last.percent ? a.percentize(parserBlock) : a)
 				last = null
 			}
 		}
@@ -282,13 +423,13 @@ class ExprTest {
 			case CallExpression: println 'Call:'; printTree(((CallExpression) expr).value, indent + 2)
 				for (e in ((CallExpression) expr).arguments) printTree(e, indent + 2); break
 			case AtomExpression: println "Atom: ${((AtomExpression) expr).text}"; break
-			case LiteralExpression: println "${expr.class.simpleName - "Expression"}: ${((LiteralExpression) expr).value}"
+			case ConstantExpression: println "${expr.class.simpleName - "Expression"}: ${((ConstantExpression) expr).value}"
 		}
 	}
 
 	static main(args) {
 		long time = System.currentTimeMillis()
-		printTree KismetInner.parse(new File('old/lang/newkismetsyntax.txt').text)
+		printTree Kismet.parse(new File('old/lang/newkismetsyntax.txt').text).expression
 		//printTree KismetInner.parse("{[aba ba a ba {[x y {[z d][d][ag ga ]}]}]}")
 		println System.currentTimeMillis() - time
 	}

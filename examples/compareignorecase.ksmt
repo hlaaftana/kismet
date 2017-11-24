@@ -1,0 +1,5 @@
+defn compare_ignore_case? [a b] [is? [lower a] [lower b]]
+
+assert [compare_ignore_case? 'abcD' 'AbCD']
+assert_not [compare_ignore_case? ' ab CD' 'abcd']
+assert_not [compare_ignore_case? 'bcda' 'cbad']

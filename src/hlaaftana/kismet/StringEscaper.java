@@ -53,7 +53,11 @@ public class StringEscaper {
 					else if (c == '{') {
 						if (uBase < 2) uBase = 16;
 						recordU = true;
-					} else throw new IllegalArgumentException("Unknown unicode character base for character " + c);
+					} else {
+						recordU = false;
+						builder.append('\\').append('u').append(c);
+						u = null;
+					}
 					continue;
 				} else {
 					if (c == 'u') { u = new StringBuilder(); continue; }
