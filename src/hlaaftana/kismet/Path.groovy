@@ -1,6 +1,5 @@
 package hlaaftana.kismet
 
-import groovy.transform.CompileDynamic
 import groovy.transform.CompileStatic
 import groovy.transform.InheritConstructors
 

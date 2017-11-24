@@ -13,18 +13,25 @@ abstract class Function implements KismetCallable {}
 
 @CompileStatic
 class KismetFunction extends Function {
-	Arguments a
-	KismetObject<Block> b
+	Map<Arguments, Block> methods = [:]
 
-	KismetFunction(Expression[] params, KismetObject<Block> b) {
-		a = new Arguments(params)
-		this.b = b
+	KismetFunction(Map<List<Expression>, Block> m) {
+		for (e in m) methods.put(new Arguments(e.key), e.value)
 	}
 
 	KismetObject call(KismetObject... args){
-		Block c = b.inner().anonymousClone()
-		a.setArgs(c, args)
-		c()
+		CheckFailedException last = null
+		for (m in methods) {
+			Block c = m.value.anonymousClone()
+			try {
+				m.key.setArgs(c, args)
+			} catch (CheckFailedException ex) {
+				last = ex
+				continue
+			}
+			return c()
+		}
+		if (null != last) throw last else Kismet.NULL
 	}
 
 	static class Arguments {
@@ -33,14 +40,17 @@ class KismetFunction extends Function {
 		List<Parameter> parameters = []
 		int last = 0
 
-		Arguments(Expression[] p) { enforceLength = !(doDollars = p.length == 0); parse(p) }
+		Arguments(List<Expression> p) {
+			enforceLength = !(doDollars = (null == p ? true : p.empty))
+			if (null != p) parse(p)
+		}
 
-		def parse(Expression[] params) {
+		def parse(List<Expression> params) {
 			for (e in params) {
 				if (e instanceof AtomExpression) parameters.add(new Parameter(name: ((AtomExpression) e).text, index: last++))
 				else if (e instanceof StringExpression)
-					  parameters.add(new Parameter(name: ((StringExpression) e).value, index: last++))
-				else if (e instanceof BlockExpression) parse(((BlockExpression) e).content as Expression[])
+					  parameters.add(new Parameter(name: ((StringExpression) e).value.inner(), index: last++))
+				else if (e instanceof BlockExpression) parse(((BlockExpression) e).content)
 				else if (e instanceof CallExpression) parseCall(((CallExpression) e).expressions)
 			}
 		}
@@ -50,17 +60,31 @@ class KismetFunction extends Function {
 			BlockExpression block = null
 			for (e in exprs) {
 				if (e instanceof AtomExpression) p.name = ((AtomExpression) e).text
-				else if (e instanceof StringExpression) p.name = ((StringExpression) e).value
+				else if (e instanceof StringExpression) p.name = ((StringExpression) e).value.inner()
 				else if (e instanceof BlockExpression) block = (BlockExpression) e
-				else if (e instanceof NumberExpression) p.index = ((NumberExpression) e).value.intValue()
+				else if (e instanceof NumberExpression) p.index = ((NumberExpression) e).value.inner().intValue()
 				else if (e instanceof CallExpression) {
 					CallExpression b = (CallExpression) e
 					if (b.value instanceof AtomExpression) {
 						def xx = ((AtomExpression) b.value).text
-						if (xx == '*') {
-							if (!b.arguments.empty && b.arguments[0] instanceof NumberExpression) {
-								last += (p.slice = ((NumberExpression) b.arguments[0]).value.intValue()) - 1
+						if (xx == 'slice') {
+							if (!b.arguments.empty) {
+								int i = b.arguments[0] instanceof NumberExpression ?
+										((NumberExpression) b.arguments[0]).value.inner().intValue() + 1 :
+										b.arguments[0] instanceof AtomExpression ?
+												new Integer(((AtomExpression) b.arguments[0]).text) :
+												0
+								last += (p.slice = i) - 1
 							} else p.slice = (last = 0) - 1
+						} else if (xx == 'index') {
+							if (!b.arguments.empty) {
+								int i = b.arguments[0] instanceof NumberExpression ?
+										((NumberExpression) b.arguments[0]).value.inner().intValue() + 1 :
+										b.arguments[0] instanceof AtomExpression ?
+										new Integer(((AtomExpression) b.arguments[0]).text) + 1 :
+										0
+								p.index = last = i
+							} else p.index = last = 0
 						} else if (xx == 'check' || xx == 'transform') {
 							def n = xx + 's', v = p.get(n)
 							if (null == v) p.put n, b.arguments
@@ -100,11 +124,12 @@ class KismetFunction extends Function {
 		}
 
 		void setArgs(Block c, KismetObject[] args) {
+			List<KismetObject> lis = args.toList()
 			if (doDollars) {
 				for (int it = 0; it < args.length; ++it) {
 					c.context.directSet('$'.concat(String.valueOf(it)), args[it])
 				}
-				c.context.directSet('$all', Kismet.model(args.toList()))
+				c.context.directSet('$all', Kismet.model(lis))
 			}
 			if (enforceLength) {
 				boolean variadic = false
@@ -118,9 +143,7 @@ class KismetFunction extends Function {
 							(variadic ? '>= ' : '== ') + max)
 			}
 			for (p in parameters) {
-				def value = p.slice == 0 ? args[p.index] :
-							p.slice == -1 ? args.drop(p.index).toList() :
-							args.toList().subList(p.index, p.index + p.slice)
+				def value = lis[p.index .. (p.slice < 0 ? p.slice : p.index + p.slice)]
 				value = Kismet.model(value)
 				for (t in p.transforms) {
 					c.context.directSet(p.name, value)
@@ -176,6 +199,6 @@ class GroovyFunction extends Function {
 	}
 
 	def cc(...args) {
-		x.invokeMethod('call', args)
+		null == args ? x.call([null] as Object[]) : x.invokeMethod('call', args)
 	}
 }

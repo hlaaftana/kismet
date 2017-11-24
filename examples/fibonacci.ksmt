@@ -20,16 +20,16 @@ defn fibonacci n {
         "if, say, the space after the first (f) was removed, it would count (f[+) as one atom"
         "you could surround all the atoms with () instead of spaces but that would be the same length or more in the end"
         "() lets you write atoms with spaces in them, so you could have english variables"
-        "for example [:= (The english alphabet\\.) 'abcdefghijklmnopqrstuvwxyz']"
+        "for example [:= (The english alphabet) 'abcdefghijklmnopqrstuvwxyz']"
     }
     l
 }
 
-defn fibonacci_collect n {
+defn fibonacci_collect {
     "($0) is the first argument"
     "the list of all arguments is stored in ($all) if the arguments in defn weren't supplied"
     [:= f 0] [:= s 1]
-    collect [range 1 n] [fn [= f [+ s [= s f]]]]
+    collect [range 1 $0] [fn [= f [+ s [= s f]]]]
 }
 
 defn fibonacci_imperative n {

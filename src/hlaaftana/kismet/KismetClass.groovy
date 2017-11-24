@@ -21,6 +21,7 @@ class KismetClass<T> implements KismetCallable {
 	}
 
 	Class<T> orig
+	boolean allowConstructor = true
 	String name = 'anonymous_'.concat(instances.size().toString())
 	KismetCallable getter = defaultGetter, setter = defaultSetter,
 	               caller = defaultCaller, constructor = defaultConstructor
@@ -46,10 +47,11 @@ class KismetClass<T> implements KismetCallable {
 		instances.add this
 	}
 
-	KismetClass(Class orig = KismetObject, String name) {
+	KismetClass(Class orig = KismetObject, String name, boolean allowConstructor = true) {
 		this()
 		this.orig = orig
 		this.name = name
+		this.allowConstructor = allowConstructor
 	}
 
 	boolean isChild(KismetClass kclass) {
@@ -87,14 +89,16 @@ class KismetClass<T> implements KismetCallable {
 
 	KismetObject call(KismetObject... args){
 		if (orig == KismetObject) {
-			def a = new KismetObject(new Expando(), this.object)
-			constructor.call(([a] as KismetObject[]) + args)
-			a
-		} else if (null == orig) null else {
+			KismetObject[] arr = new KismetObject[args.length + 1]
+			arr[0] = new KismetObject(new Expando(), this.object)
+			System.arraycopy(args, 0, arr, 1, args.length)
+			constructor.call(arr)
+		} else if (null == orig) null else if (allowConstructor) {
 			Object[] a = new Object[args.length]
 			for (int i = 0; i < a.length; ++i) a[i] = args[i].inner()
 			new KismetObject(orig.newInstance(a), this.object)
-		}
+		} else throw new ForbiddenAccessException(
+				"Forbidden constructor for original class $orig with kismet class $this")
 	}
 
 	boolean isInstance(KismetObject x) {

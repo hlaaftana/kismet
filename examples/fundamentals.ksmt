@@ -6,8 +6,11 @@
 
 "you might have noticed these are string comments. you won't find comments in kismet along with"
 "return, break, continue, and other purely imperative statements"
+"however you can do"
+don't "this so the string doesn't evaluate, and escapes like \u can be ignored"
+quote "don't returns null, quote returns the expression if given 1 argument, or the list of expressions given multiple"
 
-"this string is the value of this expression. every expression has a value. there are multiple types of expressions:"
+"this string is the value of this expression. there are multiple types of expressions:"
 
 "block: contains multiple sequential expressions. surrounded by {} except at the top level of every script"
 "the last value in a block (which is what we're in right now) is the return value of the block"
@@ -50,7 +53,6 @@ isn't? 1 3
 "normally numbers are parsed as Integers or Floats. however you can change this:"
 [assert [of? 1 Integer]
         [of? 1i Integer]
-        [of? 1.0i Integer]
         [of? 1i8 Int8]
         [of? 1i16 Int16]
         [of? 1i32 Int32]
@@ -64,6 +66,8 @@ isn't? 1 3
 -1
 "kismet thinks this is an atom. instead do:"
 negative 1
+"or just add 1 to the bits specifier, but this might be more confusing"
+1i1
 
 "you can define variables with :="
 := a 0
@@ -80,13 +84,35 @@ assert_is a 2
 ::= b 1
 assert_is b 1
 
+"kismet doesn't have +=, *= and whatnot, but it does have |>="
+:= a 2
+|>= a [+ 5]
+
+"|>= draws from |>, which evaluates a sequence of expressions with a value, where the value"
+"is the 1st argument in a function call"
+assert_is [|> a [* 3] logarithm] [logarithm [* a 3]]
+
+"<| is the same as |> but the value is the last argument instead of the first"
+assert_is [<| 5 [list 1 2 3 4] [subset? [list 2 4 5]]] [subset? [list 2 4 5] [list 1 2 3 4 5]]
+
+"you can use a block to run multiple expressions more neatly"
+|> [range 1 5] {
+    product
+    list
+    * 2
+    [[fn* {
+        assert_is $0 120
+        |> $1 class [is? Null]
+    }]]
+}
+
 "you can define functions with fn"
 := get_four [fn 4]
 assert_is [get_four] 4
 
 "function arguments are like $0, $1... a list of all arguments is stored in $all"
-:= swap2 [fn [list $1 $0]]
-assert_is [swap2 'a' 'b'] [list 'b' 'a']
+:= swap2 [fn [pair $1 $0]]
+assert_is [swap2 'a' 'b'] [pair 'b' 'a']
 
 := rev [fn [reverse $all]]
 assert_is [rev 1 2 3 4 5] [list 5 4 3 2 1]
@@ -98,12 +124,12 @@ assert_is [rev 1 2 3 4 5] [list 5 4 3 2 1]
 defn can_drink? [>= $0.age 21]
 
 "functions can have arguments"
-defn plus a b [+ a b]
+defn plus [a b] [+ a b]
 
 "and arguments can have checks"
-defn factorial [a [integer] [greater_equal 0]] {
-    if_else [zero? a] 1 [product [range 1 a]]
-}
+defn factorial [[a [integer] [greater_equal 0]]] [
+    if_else [zero? a] 1
+        [product [range 1 a]]]
 
 [assert_is [factorial 0] 1
            [factorial 1] 1
@@ -114,11 +140,32 @@ defn factorial [a [integer] [greater_equal 0]] {
            [factorial 6] 720]
 
 "kismet is dynamic, so functions can recurse or call other functions by getting their value at runtime"
-defn factorial a {
-    if_chain [zero? a] 1 [one? a] 1 {
-        * a [factorial [prev a]]
+defn factorial a [
+    if_chain [zero? a] 1 [one? a] 1
+        [* a [factorial [prev a]]]]
+
+"however if you have to define function g inside function f, it will define g every time f is called"
+"so there are 2 strategies we can take"
+
+"if g needs arguments from f, it needs to be defined dynamically"
+defn inverter f [fn [not [call f $all]]]
+
+"if it doesn't, we can use the % operator which evaluates expressions at parse-time"
+"therefore will be run in the main block before the script is ran,"
+"and cannot use local function arguments or runtime variables"
+"BUT will only be evaluated once and is mostly better for performance"
+defn operation {
+    %{
+        defn secret_code {
+            don't "Secret stuff!"
+        }
     }
+    [secret_code]
+    "note: someone can save the function block, run it, then get the secret_code variable from "
+    "the block variables, so we should undefine it to not let that happen"
+    undef secret_code
 }
+"also the % operator divides numbers by 100 also at parse-time"
 
 "fibonacci that accepts negative indexes:"
 defn pown1 n [if_else [even? n] 1 [negative 1]]
@@ -132,10 +179,39 @@ defn fibonacci_nth n {
 }
 
 "fibonacci that explicitly checks if number is 0 or positive:"
-defn fibonacci_nth [n [natural]] {
+defn fibonacci_nth [[n [natural]]] {
     if_else [< n 2] 1 {
         := f [fibonacci_nth [- n 1]]
         := s [fibonacci_nth [- n 2]]
         + f s
     }
+}
+
+defn new_president_of_the_us {
+    age [natural] [greater_equal 35]
+    resident_country [is "United States"]
+    resident_for_years [natural] [greater_equal 14]
+    terms_served_before [natural] [less 0]
+    has_a_penis [yes]
+} "president constructor here"
+
+defn can_be_president [try {
+    call new_president_of_the_us $all
+    yes
+} e [if [is? "CheckFailedException" [java_class_name e]] no
+     else [raise e]]]
+
+"down here yet? cool, because i'm going to show a feature you shouldn't always use"
+|>| 1 + 2 - 3
+"this calls functions as every odd expression"
+"if 2 function expressions are the same, it will call the function with more than 2 arguments"
+assert_is [|>| 1 list 2 list 3 list 4] [list 1 2 3 4]
+"note there is no operator precedence, it just evaluates left to right"
+assert_is [|>| 1 list 2 * 3] [list 1 2 1 2 1 2]
+assert_isn't [|>| 1 list 2 * 3] [list 1 6]
+"|>| can be used again to reverse the effect"
+|>| {
+    6 * [|>| [
+        product [range 1 5]
+    ]] assert_is [product [1 range 6]]
 }

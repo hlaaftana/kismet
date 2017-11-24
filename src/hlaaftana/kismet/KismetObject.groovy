@@ -1,6 +1,7 @@
 package hlaaftana.kismet
 
 import groovy.transform.CompileStatic
+import groovy.transform.InheritConstructors
 
 @CompileStatic
 class KismetObject<T> implements KismetCallable {
@@ -14,12 +15,14 @@ class KismetObject<T> implements KismetCallable {
 	KismetObject(T i){ this.@inner = i }
 
 	def getProperty(String name){
-		if (name in forbidden) throw new MissingPropertyException(name, inner.class)
+		if (name in forbidden)
+			throw new ForbiddenAccessException("Forbidden property $name for $kclass")
 		else Kismet.model(kclass.inner().getter.call(this, Kismet.model(name)))
 	}
 
 	void setProperty(String name, value){
-		if (name in forbidden) throw new MissingPropertyException(name, inner.class)
+		if (name in forbidden)
+			throw new ForbiddenAccessException("Forbidden property $name for $kclass")
 		else Kismet.model(kclass.inner().setter.call(this, Kismet.model(name), Kismet.model(value)))
 	}
 
@@ -77,4 +80,10 @@ class KismetObject<T> implements KismetCallable {
 	String toString() {
 		kclass.inner().orig != KismetObject ? inner.toString() : this.as(String)
 	}
+
+	Iterator iterator() {
+		inner.iterator()
+	}
 }
+
+@CompileStatic @InheritConstructors class ForbiddenAccessException extends KismetException {}
