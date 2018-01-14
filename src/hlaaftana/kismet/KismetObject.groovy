@@ -5,8 +5,10 @@ import groovy.transform.InheritConstructors
 
 @CompileStatic
 class KismetObject<T> implements KismetCallable {
+	static final List<String> DEFAULT_FORBIDDEN = ['class', 'metaClass', 'properties',
+			'metaPropertyValues', 'forbidden'].asImmutable()
 	KismetObject<KismetClass> kclass
-	List<String> forbidden = ['class', 'metaClass', 'properties', 'metaPropertyValues', 'forbidden']
+	List<String> forbidden = DEFAULT_FORBIDDEN
 	T inner
 
 	T inner() { this.@inner }
@@ -50,10 +52,10 @@ class KismetObject<T> implements KismetCallable {
 		Kismet.model(kclass.inner().caller.call((([this] as KismetObject[]) + args) as KismetObject[]))
 	}
 
-	@CompileStatic
 	def "as"(Class c){
 		KismetClass k = KismetClass.from(c)
-		if (k && kclass.inner().converters.containsKey(k)) kclass.inner().converters[k](this)
+		def p = null == k ? (KismetCallable) null : kclass.inner().converters[k]
+		if (null != p) p(this)
 		else try { inner.asType(c) }
 		catch (ClassCastException ex) { if (c == Closure) this.&call else throw ex }
 	}

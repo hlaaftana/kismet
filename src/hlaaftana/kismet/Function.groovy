@@ -143,7 +143,7 @@ class KismetFunction extends Function {
 							(variadic ? '>= ' : '== ') + max)
 			}
 			for (p in parameters) {
-				def value = lis[p.index .. (p.slice < 0 ? p.slice : p.index + p.slice)]
+				def value = p.slice == 0 ? lis[p.index] : lis[p.index .. (p.slice < 0 ? p.slice : p.index + p.slice)]
 				value = Kismet.model(value)
 				for (t in p.transforms) {
 					c.context.directSet(p.name, value)
@@ -199,6 +199,6 @@ class GroovyFunction extends Function {
 	}
 
 	def cc(...args) {
-		null == args ? x.call([null] as Object[]) : x.invokeMethod('call', args)
+		null == args ? x.call() : x.invokeMethod('call', args)
 	}
 }

@@ -5,7 +5,7 @@ defn memoized f {
                 [put cache $all [call f $all]]]
 }
 
-defmcr memoize [eval [sprintf "::= %s [memoized %1$s]" $0.text] $block]
+defmcr memoize [eval [call_expr [atom "::="] $0 [call_expr [atom "memoized"] $0]] $block]
 
 defn nth_fibonacci n [check n
     zero 1

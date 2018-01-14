@@ -1,6 +1,7 @@
 package hlaaftana.kismet
 
 import groovy.transform.CompileStatic
+import hlaaftana.kismet.parser.OldParser
 
 @CompileStatic
 class Kismet {
@@ -25,6 +26,26 @@ class Kismet {
 	}
 
 	static eval(String code, Block parent) { parse(code, parent).evaluate() }
+
+	static Block parseOld(String code, Map<String, KismetObject> ctxt = new HashMap(KismetInner.defaultContext)){
+		Block x = new Block()
+		x.context = new Context(x, ctxt)
+		parseOld(code, x)
+	}
+
+	static Block parseOld(String code, Block parent) {
+		Block b = new Block()
+		b.context = new Context(b)
+		b.parent = parent
+		b.expression = OldParser.compile(code)
+		b
+	}
+
+	static evalOld(String code, Map ctxt = new HashMap(KismetInner.defaultContext)){
+		parseOld(code, ctxt).evaluate()
+	}
+
+	static evalOld(String code, Block parent) { parseOld(code, parent).evaluate() }
 
 	static KismetObject model(x){ null == x ? NULL : (KismetObject) ((Object) KismetModels).invokeMethod('model', x) }
 }
