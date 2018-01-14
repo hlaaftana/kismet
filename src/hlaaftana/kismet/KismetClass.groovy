@@ -15,8 +15,7 @@ class KismetClass<T> implements KismetCallable {
 		}
 		defaultSetter = func { KismetObject... a -> a[0].inner().invokeMethod 'putAt', [a[1].inner(), a[2].inner()] }
 		defaultCaller = func { KismetObject... a ->
-			a.length > 1 ? a[0].inner().invokeMethod('call', a.drop(1) as KismetObject[]) :
-					a[0].inner().invokeMethod('call', null)
+			a[0].inner().invokeMethod('call', a.tail())
 		}
 	}
 
@@ -56,8 +55,10 @@ class KismetClass<T> implements KismetCallable {
 
 	boolean isChild(KismetClass kclass) {
 		for (p in kclass.parents)
-			if (p == this || p.parents.any { this == it || isChild(it) })
-				return true
+			if (p == this) return true
+			else for (x in p.parents)
+				if (this == x || isChild(x))
+					return true
 		false
 	}
 
@@ -103,6 +104,7 @@ class KismetClass<T> implements KismetCallable {
 
 	boolean isInstance(KismetObject x) {
 		if (orig == KismetObject) x.kclass.inner() == this || parents.any { it.isInstance(x) }
+		else if (null == orig) null == x.inner()
 		else orig.isInstance(x.inner())
 	}
 

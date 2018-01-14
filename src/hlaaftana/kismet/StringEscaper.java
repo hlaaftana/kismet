@@ -10,6 +10,7 @@ public class StringEscaper {
 	static {
 		to.put('\\', "\\\\"); to.put('"', "\\\""); to.put('\'', "\\\'"); to.put('\b', "\\b");
 		to.put('\n', "\\n"); to.put('\t', "\\t"); to.put('\f', "\\f"); to.put('\r', "\\r");
+		to.put('\u000b', "\\v"); to.put('\7', "\\a"); to.put('\u001b', "\\b");
 		from = flip(to);
 	}
 

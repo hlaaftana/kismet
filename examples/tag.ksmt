@@ -1,10 +1,9 @@
 "tag command demonstrated with a custom command concept i want to make"
 
-quote {
+don't {
 "\u is a little different in kismet than in java/groovy to allow for UTF-8 characters above \uFFFF"
 "\u can also be proceeded by one of xXdDoObB to allow for different bases than hexadecimal."
-"xX is hex, dD is decimal, oO is octal, bB is binary."
-}
+"xX is hex, dD is decimal, oO is octal, bB is binary."}
 
 defn strip_mentions content [replace content "@" "@\u{200b}"]
 
@@ -17,16 +16,24 @@ defn strip_mentions content [replace content "@" "@\u{200b}"]
 
 "defcmd will be a macro already defined when this script is run"
 
-defcmd tag [if_else [< [size [:= args [split_args arguments 3]]] 2]
-                    [respond "Too few arguments"]
-                    [check args[0]
-                        [is "set"] {
-                            unless [has_key? guild_data "tags"] [= guild_data.tags [map]]
-                            put guild_data.tags args[1] [map "content" args[2] "author" message.author.idLong]
-                            respond "Successful"
-                        } [is "author"] [respond [sprintf "Author for tag %s is %d" args[1]
-                                                 [get guild_data.tags args[1] "author"]]]
-                        [respond [if_else [and [has_key? guild_data "tags"]
-                                               [has_key? guild_data.tags args[0]]]
-                                          [strip_mentions [get guild_data.tags args[0] "content"]]
-                                          "Invalid tag"]]]]
+defcmd tag [if [< [size [:= args [split_args arguments 3]]] 2]
+    [respond "Too few arguments"]
+  else [check args[0]
+    [is "set"] {
+      unless [has_key? guild_data "tags"] [= guild_data.tags [map]]
+      put guild_data.tags args[1] [map "content" args[2] "author" message.author.id]
+      respond "Successful"
+    }
+
+    [is "author"] [respond
+      [sprintf "Author for tag %s is %d"
+        args[1]
+        [get guild_data.tags args[1] "author"]
+      ]
+    ]
+
+    [respond
+      [if [has_key_traverse? guild_data "tags" args[0]]
+        [strip_mentions [get guild_data.tags args[0] "content"]]
+      else
+        "Invalid tag"]]]]

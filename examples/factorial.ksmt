@@ -27,8 +27,8 @@ block "imperative" {
             |>= x [* i]
             "so that becomes [= x [* x i]]"
 
-            "[increment i] is the same as [= i [next i]]"
-            increment i
+            "[incr i] is the same as [= i [next i]]"
+            incr i
         }
         "final return value"
         x
@@ -44,7 +44,7 @@ block "imperative" {
             "in kismet, BigInteger => Integer, BigDecimal => Float, byte => Int8, short => Int16,"
             "char => Character, int => Int32, long => Int64, float => Float32, double => Float64"
             = x [/ [* x [- n i]] [- r i]]
-            increment i
+            incr i
         }
     }]
 }

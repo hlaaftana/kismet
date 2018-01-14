@@ -492,6 +492,19 @@ class KismetInner {
 					x
 				},
 				pair: funcc { ... args -> new Tuple2(args[0], args[1]) },
+				bottom_half: funcc { ...args ->
+					args[0] instanceof Number ? ((Number) args[0]).intdiv(2) :
+					args[0] instanceof Tuple2 ? ((Tuple2) args[0]).first :
+					args[0] instanceof Collection ? ((Collection) args[0]).take(((Collection) args[0]).size().intdiv(2) as int) :
+					args[0] instanceof Map ? ((Map) args[0]).values() :
+					args[0] },
+				top_half: funcc { ...args ->
+					args[0] instanceof Number ? ((Number) args[0]).minus(((Number) args[0]).intdiv(2)) :
+					args[0] instanceof Tuple2 ? ((Tuple2) args[0]).second :
+					args[0] instanceof Collection ? ((Collection) args[0]).takeRight(
+							((Collection) args[0]).size().minus(((Collection) args[0]).size().intdiv(2)) as int) :
+					args[0] instanceof Map ? ((Map) args[0]).keySet() :
+					args[0] },
 				to_list: funcc { ... args -> toList(args[0]) },
 				to_set: funcc { ... args -> toSet(args[0]) },
 				to_pair: funcc { ... args -> new Tuple2(args[0].invokeMethod('getAt', 0), args[0].invokeMethod('getAt', 1)) },
@@ -545,6 +558,26 @@ class KismetInner {
 					}
 					r
 				},
+				memoize: func { KismetObject... args ->
+					def x = args[1]
+					Map<KismetObject[], KismetObject> results = new HashMap<>()
+					func { KismetObject... a ->
+						def p = results.get(a)
+						null == p ? x.call(a) : p
+					}
+				},
+				atom: func { KismetObject... args -> new AtomExpression(args[0].toString()) },
+				'atom?': func { KismetObject... args -> args[0].inner() instanceof AtomExpression },
+				static_expr: funcc { ...args -> StaticExpression.class.newInstance(args) },
+				'static_expr?': func { KismetObject... args -> args[0].inner() instanceof StaticExpression },
+				number_expr: func { KismetObject... args -> new NumberExpression(args[0].toString()) },
+				'number_expr?': func { KismetObject... args -> args[0].inner() instanceof NumberExpression },
+				string_expr: func { KismetObject... args -> new StringExpression(args[0].toString()) },
+				'string_expr?': func { KismetObject... args -> args[0].inner() instanceof StringExpression },
+				call_expr: funcc { ...args -> new CallExpression(args.toList() as List<Expression>) },
+				'call_expr?': func { KismetObject... args -> args[0].inner() instanceof CallExpression },
+				block_expr: funcc { ...args -> new BlockExpression(args.toList() as List<Expression>) },
+				'block_expr?': func { KismetObject... args -> args[0].inner() instanceof BlockExpression },
 				escape: funcc { ... args -> StringEscaper.escapeSoda(args[0].toString()) },
 				unescape: funcc { ... args -> StringEscaper.escapeSoda(args[0].toString()) },
 				copy_map: funcc { ... args -> new HashMap(args[0] as Map) },
@@ -731,10 +764,10 @@ class KismetInner {
 				block: macro { Block c, Expression... exprs ->
 					c.child(exprs)
 				},
-				increment: macro { Block c, Expression... exprs ->
+				incr: macro { Block c, Expression... exprs ->
 					change(c, exprs.take(1), new CallExpression([new AtomExpression('next'), exprs[0]]).evaluate(c), 'increment')
 				},
-				decrement: macro { Block c, Expression... exprs ->
+				decr: macro { Block c, Expression... exprs ->
 					change(c, exprs.take(1), new CallExpression([new AtomExpression('prev'), exprs[0]]).evaluate(c), 'decrement')
 				},
 				'|>=': macro { Block c, Expression... exprs ->
@@ -786,10 +819,11 @@ class KismetInner {
 					exprs[0].evaluate(c) ? c.childEval(exprs.tail()) : Kismet.NULL
 				},
 				if: macro { Block c, Expression... exprs ->
+					c = c.child()
 					if (exprs.length == 2)
-						exprs[0].evaluate(c) ? c.childEval(exprs[1]) : Kismet.NULL
+						c.eval(exprs[0]) ? c.eval(exprs[1]) : Kismet.NULL
 					else {
-						def cond = exprs[0].evaluate(c)
+						def cond = c.eval(exprs[0])
 						int b = 1
 						int i = 1
 						for (int s = exprs.length; i < s; ++i) {
@@ -798,26 +832,27 @@ class KismetInner {
 								String text = ((AtomExpression) x).text
 								if (text == 'else')
 									return cond ?
-											c.childEval(Arrays.copyOfRange(exprs, b, i)) :
-											c.childEval(Arrays.copyOfRange(exprs, i + 1, exprs.length))
+											c.eval(Arrays.copyOfRange(exprs, b, i)) :
+											c.eval(Arrays.copyOfRange(exprs, i + 1, exprs.length))
 								else if (text == 'else?') {
-									if (cond) return c.childEval(Arrays.copyOfRange(exprs, b, i))
+									if (cond) return c.eval(Arrays.copyOfRange(exprs, b, i))
 									cond = exprs[++i].evaluate(c)
 									b = i + 1
 								}
 							}
 						}
-						c.childEval(Arrays.copyOfRange(exprs, b, i))
+						c.eval(Arrays.copyOfRange(exprs, b, i))
 					}
 				},
 				unless_then: macro { Block c, Expression... exprs ->
 					!exprs[0].evaluate(c) ? c.childEval(exprs.tail()) : Kismet.NULL
 				},
 				unless: macro { Block c, Expression... exprs ->
+					c = c.child()
 					if (exprs.length == 2)
-						!exprs[0].evaluate(c) ? c.childEval(exprs[1]) : Kismet.NULL
+						!c.eval(exprs[0]) ? c.eval(exprs[1]) : Kismet.NULL
 					else {
-						def cond = exprs[0].evaluate(c)
+						def cond = c.eval(exprs[0])
 						int b = 1
 						int i = 1
 						for (int s = exprs.length; i < s; ++i) {
@@ -826,16 +861,16 @@ class KismetInner {
 								String text = ((AtomExpression) x).text
 								if (text == 'else')
 									return !cond ?
-											c.childEval(Arrays.copyOfRange(exprs, b, i)) :
-											c.childEval(Arrays.copyOfRange(exprs, i + 1, exprs.length))
+											c.eval(Arrays.copyOfRange(exprs, b, i)) :
+											c.eval(Arrays.copyOfRange(exprs, i + 1, exprs.length))
 								else if (text == 'else?') {
-									if (!cond) return c.childEval(Arrays.copyOfRange(exprs, b, i))
+									if (!cond) return c.eval(Arrays.copyOfRange(exprs, b, i))
 									cond = exprs[++i].evaluate(c)
 									b = i + 1
 								}
 							}
 						}
-						c.childEval(Arrays.copyOfRange(exprs, b, i))
+						c.eval(Arrays.copyOfRange(exprs, b, i))
 					}
 				},
 				when_then: macro { Block c, Expression... exprs ->
@@ -955,7 +990,7 @@ class KismetInner {
 					while (a.hasNext()) {
 						def b = a.next()
 						if (a.hasNext())
-							if (!check(c, val, b)) return a.next().evaluate(c)
+							if (check(c, val, b)) return a.next().evaluate(c)
 							else a.next()
 						else return b.evaluate(c)
 					}
@@ -992,6 +1027,29 @@ class KismetInner {
 					for (x in exprs[1].evaluate(c).inner()) {
 						Block y = b.anonymousClone()
 						y.context.directSet(n, Kismet.model(x))
+						a = y()
+					}
+					a
+				},
+				for_i32: macro { Block c, Expression... exprs ->
+					String n = resolveName(exprs[0], c, 'for_i32')
+					Block b = c.child(exprs.drop(2))
+					KismetObject a = Kismet.NULL
+					if (!(exprs[1] instanceof CallExpression))
+						throw new UnexpectedSyntaxException('second argument in for_i32 was a ' + exprs[1].class)
+					def range = ((CallExpression) exprs[1]).expressions
+					int bottom, top
+					if (range.size() == 1) {
+						bottom = 0
+						top = range[0].evaluate(b).inner() as int
+					} else {
+						bottom = range[0].evaluate(b).inner() as int
+						top = range[1].evaluate(b).inner() as int
+					}
+					int step = null == range[2] ? 1 : range[2].evaluate(b).inner() as int
+					for (; bottom < top; bottom += step) {
+						Block y = b.anonymousClone()
+						y.context.directSet(n, Kismet.model(bottom))
 						a = y()
 					}
 					a
@@ -1046,7 +1104,7 @@ class KismetInner {
 				},
 				count_elements: func { KismetObject... args ->
 					BigInteger i = 0
-					def c = args.drop(1)
+					def c = args.tail()
 					def b = new Object[c.length]
 					for (int m = 0; m < c.length; ++i) b[m] = c[m].inner()
 					boolean j = args.length == 1
@@ -1104,6 +1162,14 @@ class KismetInner {
 				'has?': funcc { ... args -> args[0].invokeMethod('contains', args[1]) },
 				'has_all?': funcc { ... args -> args[0].invokeMethod('containsAll', args[1]) },
 				'has_key?': funcc { ... args -> args[0].invokeMethod('containsKey', args[1]) },
+				'has_key_traverse?': funcc { ... args ->
+					def x = args[0]
+					for (a in args.tail()) {
+						if (!((boolean) x.invokeMethod('containsKey', args[1]))) return false
+						else x = args[0].invokeMethod('getAt', a)
+					}
+					true
+				},
 				'has_value?': funcc { ... args -> args[0].invokeMethod('containsValue', args[1]) },
 				'is_code_kismet?': funcc { ... args -> args[0] instanceof KismetFunction || args[0] instanceof KismetMacro },
 				'disjoint?': funcc { ... args -> args[0].invokeMethod('disjoint', args[1]) },
@@ -1112,6 +1178,7 @@ class KismetInner {
 				range: funcc { ... args -> args[0]..args[1] },
 				parse_independent_kismet: func { KismetObject... args -> Kismet.parse(args[0].toString()) },
 				parse_kismet: macro { Block c, Expression... args ->
+					println args
 					parse(args.length > 1 ? (Block) args[1].evaluate(c).inner() : c.child(),
 							args[0].evaluate(c).toString())
 				},
@@ -1187,10 +1254,7 @@ class KismetInner {
 					new IteratorIterable<>(new Iterator<List>() {
 						int i = 0
 
-						@Override
-						boolean hasNext() {
-							this.i < siz - con
-						}
+						boolean hasNext() { this.i < siz - con }
 
 						@Override
 						List next() {
@@ -1226,17 +1290,17 @@ class KismetInner {
 				consume: func { KismetObject... args -> args[1].call(args[0]) },
 				tap: func { KismetObject... args -> args[1].call(args[0]); args[0] },
 				sleep: funcc { ... args -> sleep args[0] as long },
-				times_do: funcc { KismetObject... args ->
-					def n = args[0].inner() as int
-					List x = new ArrayList(n)
-					for (int i = 0; i < n; ++i) x.add(args[1].invokeMethod('call', Kismet.model(i)))
-					x
+				times_do: func { KismetObject... args ->
+					def n = (Number) args[0].inner()
+					def l = new ArrayList(n.intValue())
+					for (def i = n - n; i < n; i += 1) l.add args[1].call(Kismet.model(i))
+					l
 				},
 				compose: func { KismetObject... args ->
-					funcc { ... a ->
+					funcc { ...a ->
 						def l = a
 						for (int i = args.length - 1; i >= 0; --i) {
-							l = args[i].invokeMethod('call', l)
+							l = args[i].call(l)
 						}
 						l
 					}
@@ -1388,6 +1452,7 @@ class KismetInner {
 		toConvert.'no?' = toConvert.'off?' = toConvert.'false?'
 		toConvert.'superset?' = toConvert.'has_all?'
 		toConvert.fold = toConvert.reduce = toConvert.inject
+		toConvert.half = toConvert.bottom_half // joke here???
 		toConvert.length = toConvert.size
 		toConvert.filter = toConvert.select = toConvert.find_all
 		toConvert.succ = toConvert.next
@@ -1403,6 +1468,7 @@ class KismetInner {
 		toConvert.assign = toConvert.'='
 		toConvert.'variable?' = toConvert.'defined?'
 		toConvert.'with_index' = toConvert.'indexed'
+		toConvert.'divs?' = toConvert.'divides?' = toConvert.'divisible_by?'
 		for (e in toConvert) defaultContext.put(e.key, Kismet.model(e.value))
 		defaultContext = defaultContext.asImmutable()
 	}
@@ -1691,7 +1757,7 @@ class Block {
 @CompileStatic
 class Context {
 	Block code
-	Map<String, KismetObject> data = [:]
+	Map<String, KismetObject> data
 
 	Context(Block code = null, Map<String, KismetObject> data = [:]) {
 		this.code = code
@@ -1699,26 +1765,28 @@ class Context {
 	}
 
 	KismetObject getProperty(String name) {
-		if (getData().containsKey(name)) getData()[name]
-		else if (null != code?.parent)
+		def ours = getData().get(name)
+		if (null != ours) ours
+		else if (null != code && null != code.parent)
 			code.parent.context.getProperty(name)
 		else throw new UndefinedVariableException(name)
 	}
 
 	KismetObject directSet(String name, KismetObject value) {
-		getData()[name] = value
+		getData().put(name, value)
 	}
 
 	KismetObject define(String name, KismetObject value) {
-		if (getData().containsKey(name))
+		def d = getData()
+		if (d.containsKey(name))
 			throw new VariableExistsException("Variable $name already exists")
-		getData()[name] = value
+		d.put(name, value)
 	}
 
 	KismetObject change(String name, KismetObject value) {
-		if (getData().containsKey(name))
-			getData()[name] = value
-		else if (null != code?.parent)
+		def d = getData()
+		if (d.containsKey(name)) d.put(name, value)
+		else if (null != code && null != code.parent)
 			code.parent.context.change(name, value)
 		else throw new UndefinedVariableException(name)
 	}
