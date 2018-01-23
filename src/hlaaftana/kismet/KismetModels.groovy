@@ -6,13 +6,10 @@ import groovy.transform.CompileStatic
 class KismetModels {
 	static KismetObject KISMET_NULL = new KismetObject(null, KismetInner.defaultContext.Null)
 
-	static KismetObject model(KismetClass x) { x.object }
-	static KismetObject model(KismetObject obj) { null == obj ? KISMET_NULL : obj }
-	static KismetObject model(Closure c){ model(new GroovyFunction(c)) }
-
-	static KismetObject model(File f){
-		model(new Expando(name: f.name) )
-	}
+	static KismetObject<KismetClass> model(KismetClass x) { x.object }
+	static <T> KismetObject<T> model(KismetObject<T> obj) { null == obj ? KISMET_NULL : obj }
+	static KismetObject<GroovyFunction> model(Closure c){ model(new GroovyFunction(c)) }
+	static <T> KismetObject<IteratorIterable<T>> model(Iterator<T> it) { model((Object) new IteratorIterable<T>(it)) }
 
 	static KismetObject model(obj){
 		null == obj ? KISMET_NULL :

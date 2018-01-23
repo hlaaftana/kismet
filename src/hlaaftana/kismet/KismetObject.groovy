@@ -1,14 +1,10 @@
 package hlaaftana.kismet
 
 import groovy.transform.CompileStatic
-import groovy.transform.InheritConstructors
 
 @CompileStatic
-class KismetObject<T> implements KismetCallable {
-	static final List<String> DEFAULT_FORBIDDEN = ['class', 'metaClass', 'properties',
-			'metaPropertyValues', 'forbidden'].asImmutable()
+class KismetObject<T> {
 	KismetObject<KismetClass> kclass
-	List<String> forbidden = DEFAULT_FORBIDDEN
 	T inner
 
 	T inner() { this.@inner }
@@ -16,16 +12,12 @@ class KismetObject<T> implements KismetCallable {
 	KismetObject(T i, KismetObject<KismetClass> c){ this(i); this.@kclass = c }
 	KismetObject(T i){ this.@inner = i }
 
-	def getProperty(String name){
-		if (name in forbidden)
-			throw new ForbiddenAccessException("Forbidden property $name for $kclass")
-		else Kismet.model(kclass.inner().getter.call(this, Kismet.model(name)))
+	def getProperty(String name) {
+		kclass.inner().getter.call(this, Kismet.model(name))
 	}
 
 	void setProperty(String name, value){
-		if (name in forbidden)
-			throw new ForbiddenAccessException("Forbidden property $name for $kclass")
-		else Kismet.model(kclass.inner().setter.call(this, Kismet.model(name), Kismet.model(value)))
+		kclass.inner().setter.call(this, Kismet.model(name), Kismet.model(value))
 	}
 
 	def methodMissing(String name, ...args){
@@ -49,12 +41,16 @@ class KismetObject<T> implements KismetCallable {
 	}
 
 	KismetObject call(KismetObject... args) {
-		Kismet.model(kclass.inner().caller.call((([this] as KismetObject[]) + args) as KismetObject[]))
+		final l = args.length
+		def x = new KismetObject[l + 1]
+		x[0] = this
+		System.arraycopy(args, 0, x, 1, l)
+		kclass.inner().caller.call(x)
 	}
 
 	def "as"(Class c){
 		KismetClass k = KismetClass.from(c)
-		def p = null == k ? (KismetCallable) null : kclass.inner().converters[k]
+		def p = null == k ? (Function) null : kclass.inner().converters[k]
 		if (null != p) p(this)
 		else try { inner.asType(c) }
 		catch (ClassCastException ex) { if (c == Closure) this.&call else throw ex }
@@ -88,4 +84,3 @@ class KismetObject<T> implements KismetCallable {
 	}
 }
 
-@CompileStatic @InheritConstructors class ForbiddenAccessException extends KismetException {}

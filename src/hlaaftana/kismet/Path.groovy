@@ -9,15 +9,17 @@ import java.util.regex.Pattern
 class Path {
 	static final Pattern REGEX = ~/(?:\[\d+])|(?:(?:\.|^)[^.\[]+)/
 	String raw
-	List<PathExpression> expressions = []
+	List<PathStep> expressions = []
 
-	Path(List<PathExpression> exprs) { expressions = exprs }
+	Path(List<PathStep> exprs) { expressions = exprs }
+
+	Path(PathStep... exprs) { expressions = exprs.toList() }
 
 	Path(String aaa){
 		raw = aaa
 		expressions = REGEX.matcher(raw).iterator().withIndex().collect { String it, int i ->
-			it.startsWith('[') ? new SubscriptPathExpression(it[1 .. -2]) :
-								 new PropertyPathExpression(it[(i == 0 ? 0 : 1) .. -1])
+			it.startsWith('[') ? new SubscriptPathStep(it[1 .. -2]) :
+								 new PropertyPathStep(it[(i == 0 ? 0 : 1) .. -1])
 		}
 	}
 
@@ -30,15 +32,15 @@ class Path {
 		c
 	}
 
-	Tuple2<PathExpression, Path> dropLastAndLast() {
+	Tuple2<PathStep, Path> dropLastAndLast() {
 		List x = new ArrayList(expressions)
-		[x.pop(), new Path(x)] as Tuple2<PathExpression, Path>
+		new Tuple2<>(x.pop(), new Path(x))
 	}
 
-	static abstract class PathExpression {
+	static abstract class PathStep {
 		String raw
 
-		PathExpression(String raw) {
+		PathStep(String raw) {
 			this.raw = raw
 		}
 
@@ -46,15 +48,18 @@ class Path {
 	}
 
 	@InheritConstructors
-	static class PropertyPathExpression extends PathExpression {
+	@CompileStatic
+	static class PropertyPathStep extends PathStep {
 		def act(r) {
-			raw ? r.invokeMethod('getProperty', raw) : r
+			null != raw ? r[raw] : r
 		}
 	}
 
-	static class SubscriptPathExpression extends PathExpression {
+	@CompileStatic
+	static class SubscriptPathStep extends PathStep {
 		int val
-		SubscriptPathExpression(String r) { super(r); val = r as int }
+		SubscriptPathStep(String r) { super(r); val = Integer.parseInt(r) }
+		SubscriptPathStep(int r) { super(null); val = r }
 
 		def act(r) {
 			r.invokeMethod('getAt', val)

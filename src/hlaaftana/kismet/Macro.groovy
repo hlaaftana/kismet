@@ -3,8 +3,8 @@ package hlaaftana.kismet
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.parser.Expression
 
-abstract class Macro {
-	abstract KismetObject doCall(Block c, KismetObject<Expression>... expressions)
+abstract class Macro implements KismetCallable {
+	int precedence
 }
 
 @CompileStatic
@@ -15,13 +15,13 @@ class KismetMacro extends Macro {
 		this.b = b
 	}
 
-	KismetObject doCall(Block s, KismetObject<Expression>... args){
-		Block c = b.inner().anonymousClone()
+	KismetObject call(Context s, Expression... args){
+		Block c = b.inner().child()
 		for (int it = 0; it < args.length; ++it) {
-			c.context.directSet('$'.concat(String.valueOf(it)), args[it])
+			c.context.set('$'.concat(String.valueOf(it)), Kismet.model(args[it]))
 		}
-		c.context.directSet('$block', Kismet.model(s))
-		c.context.directSet('$all', Kismet.model(args.toList()))
+		c.context.set('$context', Kismet.model(s))
+		c.context.set('$all', Kismet.model(args.toList()))
 		c()
 	}
 }
@@ -36,7 +36,7 @@ class GroovyMacro extends Macro {
 		this.x = x
 	}
 
-	KismetObject doCall(Block c, KismetObject<Expression>... expressions){
-		Kismet.model(expressions.length != 0 ? x.call(c, convert ? expressions*.inner() as Expression[] : expressions) : x.call(c))
+	KismetObject call(Context c, Expression... expressions){
+		Kismet.model(expressions.length != 0 ? x.call(c, expressions) : x.call(c))
 	}
 }

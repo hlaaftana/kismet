@@ -5,7 +5,7 @@ don't {
 "\u can also be proceeded by one of xXdDoObB to allow for different bases than hexadecimal."
 "xX is hex, dD is decimal, oO is octal, bB is binary."}
 
-defn strip_mentions content [replace content "@" "@\u{200b}"]
+defn [strip_mentions content] [replace content "@" "@\u{200b}"]
 
 "however 0x or 0b literals aren't in kismet. instead you can use the (hex), (binary) and (octal) macros"
 "like [hex 6f27], [octal 77231], [binary 1001010110110]."
@@ -15,6 +15,12 @@ defn strip_mentions content [replace content "@" "@\u{200b}"]
 "BigIntegers and BigDecimals to java primitives. you can use (integer) or (float) to turn them back."
 
 "defcmd will be a macro already defined when this script is run"
+
+defcmd tag {
+  "set" name & content {
+    unless guild_data.tags [= guild_data.tags [map]]
+  }
+}
 
 defcmd tag [if [< [size [:= args [split_args arguments 3]]] 2]
     [respond "Too few arguments"]

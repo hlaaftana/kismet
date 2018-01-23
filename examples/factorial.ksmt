@@ -2,11 +2,11 @@
 "or maybe i thought it was cool so i added it"
 block "functional" {
     "kismet is dynamic so this would work when called after permutation is defined"
-    defn factorial n [permutation n n]
+    defn [factorial n] [permutation n n]
     "[next i] is equal to [+ i 1] if i is a number"
-    defn permutation n r [product [range [next [- n r]] n]]
+    defn [permutation n r] [product [range [next [- n r]] n]]
     "div is integer division, / is normal division"
-    defn combination n r [div [permutation n r] [factorial r]]
+    defn [combination n r] [div [permutation n r] [factorial r]]
 }
 
 "imperative facilities still exist because this language is written in Groovy,"
@@ -16,9 +16,9 @@ block "functional" {
 "bot much anymore"
 block "imperative" {
     "not going to rewrite the entire function. look at permutation"
-    defn factorial n [permutation n n]
+    defn [factorial n] [permutation n n]
 
-    defn permutation [n r] {
+    defn [permutation n r] {
         := x 1
         := i [next [- n r]]
         "[until a ...] is equal to [while [not a] ...], a little idiom i took from perl and ruby (also unless)"
@@ -36,7 +36,7 @@ block "imperative" {
 
     "with_result is hard to describe in words and i could have used it in permutation,"
     "but chose not to to show off imperative first"
-    defn combination [n r] [with_result x 1 {
+    defn [combination n r] [with_result x 1 {
         := i 0
         while [< i r] {
             "kismet uses java BigIntegers and BigDecimals by default"

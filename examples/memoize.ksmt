@@ -1,13 +1,13 @@
-defn memoized f {
+defn [memoized f] {
     := cache [map]
     fn [if_else [has_key? cache $all]
                 [get cache $all]
                 [put cache $all [call f $all]]]
 }
 
-defmcr memoize [eval [call_expr [atom "::="] $0 [call_expr [atom "memoized"] $0]] $block]
+defmcr memoize [eval [call_expr [path "::="] $0 [call_expr [path "memoized"] $0]] $block]
 
-defn nth_fibonacci n [check n
+defn [nth_fibonacci n] [check n
     zero 1
     one 1
     [+ [nth_fibonacci [- n 1]]
