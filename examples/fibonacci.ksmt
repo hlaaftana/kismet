@@ -7,7 +7,7 @@
 "it could also be written as [defn fibonacci {...code...}]"
 "also defn is an alias for [:= fibonacci [fn {...code...}]]"
 "function calls on the top level of blocks can omit the [] by ending on a newline"
-defn fibonacci n {
+defn [fibonacci n] {
     "defining variables is done with (:=)"
     "setting already defined variables or properties is done with (=)"
     "setting variables even if they dont exist is done with (::=)"
@@ -17,9 +17,9 @@ defn fibonacci n {
     for_each i [range 1 n] {
         add l [= f [+ s [= s f]]]
         "this (add) call is the shortest way to write it"
-        "if, say, the space after the first (f) was removed, it would count (f[+) as one atom"
-        "you could surround all the atoms with () instead of spaces but that would be the same length or more in the end"
-        "() lets you write atoms with spaces in them, so you could have english variables"
+        "if, say, the space after the first (f) was removed, it would count (f[+) as one path"
+        "you could surround all the paths with () instead of spaces but that would be the same length or more in the end"
+        "() lets you write paths with spaces in them, so you could have english variables"
         "for example [:= (The english alphabet) 'abcdefghijklmnopqrstuvwxyz']"
     }
     l
@@ -32,7 +32,7 @@ defn fibonacci_collect {
     collect [range 1 $0] [fn [= f [+ s [= s f]]]]
 }
 
-defn fibonacci_imperative n {
+defn [fibonacci_imperative n] {
     with_result l [new_list n] {
         := s 1
         := f i 0

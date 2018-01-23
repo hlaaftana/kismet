@@ -2,50 +2,28 @@ package hlaaftana.kismet
 
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.parser.OldParser
+import hlaaftana.kismet.parser.Parser
 
 @CompileStatic
 class Kismet {
-	static KismetObject NULL = KismetModels.KISMET_NULL
+	static final KismetObject NULL = KismetModels.KISMET_NULL
+	static Context DEFAULT_CONTEXT = new Context(null, new HashMap(KismetInner.defaultContext))
 
-	static Block parse(String code, Map ctxt = new HashMap(KismetInner.defaultContext)){
-		Block x = new Block()
-		x.context = new Context(x, ctxt)
-		parse(code, x)
-	}
-
-	static Block parse(String code, Block parent) {
-		Block b = new Block()
-		b.context = new Context(b)
-		b.parent = parent
-		b.expression = KismetInner.parse(b, code)
-		b
+	static Block parse(String code, Context ctxt = new Context(DEFAULT_CONTEXT)) {
+		new Block(Parser.parse(ctxt, code), ctxt)
 	}
 	
-	static eval(String code, Map ctxt = new HashMap(KismetInner.defaultContext)){
+	static KismetObject eval(String code, Context ctxt = new Context(DEFAULT_CONTEXT)) {
 		parse(code, ctxt).evaluate()
 	}
 
-	static eval(String code, Block parent) { parse(code, parent).evaluate() }
-
-	static Block parseOld(String code, Map<String, KismetObject> ctxt = new HashMap(KismetInner.defaultContext)){
-		Block x = new Block()
-		x.context = new Context(x, ctxt)
-		parseOld(code, x)
+	static Block parseOld(String code, Context ctxt = new Context(DEFAULT_CONTEXT)) {
+		new Block(OldParser.parse(code), ctxt)
 	}
 
-	static Block parseOld(String code, Block parent) {
-		Block b = new Block()
-		b.context = new Context(b)
-		b.parent = parent
-		b.expression = OldParser.compile(code)
-		b
-	}
-
-	static evalOld(String code, Map ctxt = new HashMap(KismetInner.defaultContext)){
+	static KismetObject evalOld(String code, Context ctxt = new Context(DEFAULT_CONTEXT)) {
 		parseOld(code, ctxt).evaluate()
 	}
 
-	static evalOld(String code, Block parent) { parseOld(code, parent).evaluate() }
-
-	static KismetObject model(x){ null == x ? NULL : (KismetObject) ((Object) KismetModels).invokeMethod('model', x) }
+	static KismetObject model(x) { null == x ? NULL : (KismetObject) ((Object) KismetModels).invokeMethod('model', x) }
 }

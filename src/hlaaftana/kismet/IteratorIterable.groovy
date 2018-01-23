@@ -22,7 +22,7 @@ class IteratorIterable<T> implements Iterator<T>, Iterable<T> {
 
 	@Override
 	T next() {
-		++inside
+		inside.next()
 	}
 
 	@Override

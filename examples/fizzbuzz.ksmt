@@ -1,4 +1,4 @@
-defn fizzbuzz_imperative n {
+defn [fizzbuzz_imperative n] {
     := x [new_list n]
     for [:= i 1] [< i n] [incr i] {
         "if_then doesn't evaluate the condition in a child block, and has no elses"
@@ -10,7 +10,7 @@ defn fizzbuzz_imperative n {
     join x
 }
 
-defn fizzbuzz_functional n [
+defn [fizzbuzz_functional n] [
   join [collect [range 1 n]
        [fn i [check i
              [divs 15] "FizzBuzz"

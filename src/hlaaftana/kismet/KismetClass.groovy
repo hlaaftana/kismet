@@ -1,31 +1,58 @@
 package hlaaftana.kismet
 
 import groovy.transform.CompileStatic
+import groovy.transform.InheritConstructors
 import groovy.transform.Memoized
 
 @CompileStatic
-class KismetClass<T> implements KismetCallable {
+class KismetClass<T> {
+	static final Set<String> DEFAULT_FORBIDDEN = (['class', 'metaClass', 'properties',
+			'metaPropertyValues'] as Set<String>).asImmutable()
 	static List<KismetClass> instances = []
-	static KismetCallable defaultGetter, defaultSetter, defaultCaller,
-	                      defaultConstructor = func { ...a -> }
-
-	static {
-		defaultGetter = func { KismetObject... a ->
-			a[0].inner().invokeMethod 'getAt', a[1].inner()
-		}
-		defaultSetter = func { KismetObject... a -> a[0].inner().invokeMethod 'putAt', [a[1].inner(), a[2].inner()] }
-		defaultCaller = func { KismetObject... a ->
-			a[0].inner().invokeMethod('call', a.tail())
-		}
-	}
 
 	Class<T> orig
 	boolean allowConstructor = true
 	String name = 'anonymous_'.concat(instances.size().toString())
-	KismetCallable getter = defaultGetter, setter = defaultSetter,
-	               caller = defaultCaller, constructor = defaultConstructor
+	Function getter = new Function() {
+		@CompileStatic
+		KismetObject call(KismetObject... args) {
+			final name = (String) args[1].inner()
+			if (forbidden.contains(name))
+				throw new ForbiddenAccessException("Forbidden property $name for $this")
+			Kismet.model(args[0].inner()[name])
+		}
+	}
+	Function setter = new Function() {
+		@CompileStatic
+		KismetObject call(KismetObject... args) {
+			final name = (String) args[1].inner()
+			if (forbidden.contains(name))
+				throw new ForbiddenAccessException("Forbidden property $name for $this")
+			Kismet.model(args[0].inner()[name] = args[2].inner())
+		}
+	}
+	Function subscriptGet = new Function() {
+		@CompileStatic
+		KismetObject call(KismetObject... args) {
+			Kismet.model(args[0].invokeMethod('getAt', args.tail()))
+		}
+	}
+	Function subscriptSet = new Function() {
+		@CompileStatic
+		KismetObject call(KismetObject... args) {
+			Kismet.model(args[0].invokeMethod('putAt', args.tail()))
+		}
+	}
+	Function caller = new Function() {
+		@CompileStatic
+		KismetObject call(KismetObject... args) {
+			Kismet.model(args[0].inner().invokeMethod('call', args.tail()))
+		}
+	}
+	Function constructor = Function.NOP
+	Set<String> forbidden = DEFAULT_FORBIDDEN
 	List<KismetClass> parents = []
-	Map<KismetClass, KismetCallable> converters = [:]
+	Map<KismetClass, Function> converters = [:]
 
 	@Memoized
 	static KismetClass from(Class c) {
@@ -62,7 +89,7 @@ class KismetClass<T> implements KismetCallable {
 		false
 	}
 
-	protected int relationScore(Class c) {
+	int relationScore(Class c) {
 		if (!orig.isAssignableFrom(c)) return -1
 		c == orig ? 0 : relationScore(c.superclass) + 1
 	}
@@ -74,13 +101,10 @@ class KismetClass<T> implements KismetCallable {
 
 	@Memoized
 	KismetObject<KismetClass> getObject() {
-		new KismetObject<KismetClass>(this, meta.object)
+		new KismetObject<KismetClass>(this, META.object)
 	}
 
-	@Memoized
-	static KismetClass getMeta() {
-		new MetaKismetClass()
-	}
+	static final MetaKismetClass META = new MetaKismetClass()
 
 	static KismetClass fromName(String name) {
 		int hash = name.hashCode()
@@ -109,8 +133,6 @@ class KismetClass<T> implements KismetCallable {
 	}
 
 	String toString(){ "class($name)" }
-
-	protected static GroovyFunction func(Closure a){ new GroovyFunction(false, a) }
 }
 
 @CompileStatic
@@ -118,7 +140,14 @@ class MetaKismetClass extends KismetClass {
 	{
 		name = 'Class'
 		orig = KismetClass
-		constructor = func { KismetObject... a -> a[0].@inner = new KismetClass() }
+		constructor = new Function() {
+			@CompileStatic
+			KismetObject call(KismetObject... args) {
+				final x = new KismetClass()
+				args[0].@inner = x
+				x.object
+			}
+		}
 	}
 
 	KismetObject<KismetClass> getObject() {
@@ -127,3 +156,5 @@ class MetaKismetClass extends KismetClass {
 		x
 	}
 }
+
+@CompileStatic @InheritConstructors class ForbiddenAccessException extends KismetException {}

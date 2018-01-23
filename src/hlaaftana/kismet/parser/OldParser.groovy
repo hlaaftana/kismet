@@ -1,9 +1,6 @@
 package hlaaftana.kismet.parser
 
 import groovy.transform.CompileStatic
-import hlaaftana.kismet.Block
-import hlaaftana.kismet.Kismet
-import hlaaftana.kismet.KismetObject
 import hlaaftana.kismet.UnexpectedSyntaxException
 
 @CompileStatic
@@ -60,7 +57,7 @@ class OldParser {
 		liens
 	}
 
-	static Expression compile(String code){
+	static Expression parse(String code) {
 		def lines = separateLines(code)
 		if (lines.size() <= 1)
 			parseExpression(lines[0])
@@ -104,8 +101,7 @@ class OldParser {
 						last = new StringBuilder()
 					}
 				} else last.appendCodePoint(x)
-			else
-			if (currentQuote != 0) {
+			else if (currentQuote != 0) {
 				if (!escaped) if (x == 92) escaped = true
 				else if (x == currentQuote) currentQuote = 0
 				last.appendCodePoint(x)
@@ -115,7 +111,7 @@ class OldParser {
 			} else if (x == 41) {
 				--parens
 				if (parens == 0) {
-					expressions.add compile(last.toString())
+					expressions.add parse(last.toString())
 					last = new StringBuilder()
 				} else last.appendCodePoint(x)
 			} else last.appendCodePoint(x)
@@ -141,13 +137,8 @@ class OldParser {
 		else if ((code.contains('(') && code.contains(')')) ||
 				code.codePoints().toArray().any(Character.&isWhitespace))
 			ex = parseCall(code)
-		else ex = new AtomExpression(code)
+		else ex = new PathExpression(code)
 		ex
 	}
 }
 
-@CompileStatic class NoExpression extends Expression {
-	KismetObject evaluate(Block c) {
-		Kismet.NULL
-	}
-}

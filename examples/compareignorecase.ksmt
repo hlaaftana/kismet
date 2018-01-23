@@ -1,4 +1,4 @@
-defn compare_ignore_case? [[x [slice]]] [reduce is? [collect x lower]]
+defn [compare_ignore_case? [x [slice]]] [reduce is? [collect x lower]]
 
 assert [compare_ignore_case? 'abcD' 'AbCD' 'ABCd' 'ABCD' 'abcd']
 assert_not [compare_ignore_case? ' ab CD' 'abcd']

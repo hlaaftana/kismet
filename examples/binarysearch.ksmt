@@ -1,6 +1,6 @@
 "performs the binary search algorithm on sorted list of comparables a and item k"
 "returns -1 if a wasn't sorted or the index the item is at otherwise"
-defn binary_search [a k] {
+defn [binary_search a k] {
     := b c [size a]
     := i 0
     while [< i b] [
