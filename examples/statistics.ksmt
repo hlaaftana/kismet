@@ -1,4 +1,4 @@
-defn [mean l] [/ [sum l] [size l]]
+defn [mean l] [[/ sum size] l]
 
 defn [median l] {
     := s [size l]

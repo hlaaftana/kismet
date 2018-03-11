@@ -1,85 +1,58 @@
 defclass Person {
-    "properties have the check stuff from function arguments"
-    "also a [default] thing which generates multiple constructors containing it and not containing it"
-    property [access] {
-        first_name [of String]
-        middle_name [of String Null]
-        last_name [of String]
-    }
+  first_name String
+  middle_name [or String Null] [optional]
+  last_name String
 
-    constructor [property [argument first_name middle_name last_name]]
-    constructor [property [argument first_name last_name] [set middle_name null]]
-
-    "by default the self object is named 'self' but can be changed"
-    converter String [sprintf "%s %s%s" self.first_name
-                     [if_else self.middle_name
-                              [string self.middle_name " "]
-                              ""]
-                     self.last_name]
+  to String [string
+    self.first_name
+    [if self.middle_name [string self.middle_name " "] else ""]
+    self.last_name]
 }
 
-defrecord TVShow {
-    name [of String]
-    cast [of Map]
-    seasons [of List] [slice]
+defclass TVShow {
+  name String
+  cast [Map Person String]
+  seasons [List Season] [slice]
 }
-
-quote "the above is the same as" {
-    defclass TVShow {
-        property [access] {
-            name [of String]
-            cast [of Map]
-            seasons [of List]
-        }
-
-        constructor [property [argument name cast [seasons [slice]]]]
-    }
-}
-
-"we can do intoclass to add converters and stuff to records"
 
 intoclass TVShow {
-    converter String {
-        := c self.cast
-        |>= c {
-            entry_pairs
-            collect [fn* [string $0 " as " $1]]
-            join "\n"
-        }
-        string self.name ", starring:\n" c
+  to String {
+    := c self.cast
+    |>= c {
+      entry_pairs
+      collect [fn* [actor character] [string actor " as " character]]
+      join "\n"
     }
+    string self.name ", starring:\n" c
+  }
 }
 
-defrecord Season {
-    number [integer] [positive]
-    episodes [of List] [slice]
+defclass Season {
+  number [integer] [positive]
+  episodes [List Episode] [slice]
 }
 
-defrecord Episode {
-    number [integer] [positive]
-    title [of String]
+defclass Episode {
+  number [integer] [positive]
+  title String
 }
 
 := eric_andre_show [TVShow "The Eric Andre Show"
-    [map
-        [Person "Eric" "Andre"] "Himself"
-        [Person "Hannibal" "Burress"] "Himself"
-    ]
-    [Season 1
-        [Episode 1 "George Clooney"]
-        [Episode 2 "Russell Brand"]
-        [Episode 3 "Tatyana Ali"]
-        [Episode 4 "Brandi Glanville"]
-        [Episode 5 "Reese Witherspoon"]
-        [Episode 6 "Jack"]
-        [Episode 7 "Sinbad"]
-        [Episode 8 "J-Moe"]
-        [Episode 9 "Evangelos"]
-        [Episode 10 "Ryan Phillippe"]
-        [Episode 11 "Wesley Snipes"]
-    ]
-    [Season 2
-        [Episode 1 "Maria Menounos/Eric Balfour"]
-        [Episode 2 "hhhap"]
-    ]
-]
+  [map
+    [Person "Eric" "Andre"] "Himself"
+    [Person "Hannibal" "Burress"] "Himself"]
+  [Season 1
+    [Episode 1 "George Clooney"]
+    [Episode 2 "Russell Brand"]
+    [Episode 3 "Tatyana Ali"]
+    [Episode 4 "Brandi Glanville"]
+    [Episode 5 "Reese Witherspoon"]
+    [Episode 6 "Jack"]
+    [Episode 7 "Sinbad"]
+    [Episode 8 "J-Moe"]
+    [Episode 9 "Evangelos"]
+    [Episode 10 "Ryan Phillippe"]
+    [Episode 11 "Wesley Snipes"]]
+  [Season 2
+    [Episode 1 "Maria Menounos/Eric Balfour"]
+    [Episode 2 "hhhap"]]]

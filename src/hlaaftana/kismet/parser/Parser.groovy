@@ -2,7 +2,7 @@ package hlaaftana.kismet.parser
 
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.Context
-import hlaaftana.kismet.LineColumnException
+import hlaaftana.kismet.ParseException
 import hlaaftana.kismet.UnexpectedSyntaxException
 
 @CompileStatic
@@ -23,7 +23,7 @@ class Parser {
 			try {
 				builder.push(c)
 			} catch (ex) {
-				throw new LineColumnException(ex, ln, cl)
+				throw new ParseException(ex, ln, cl)
 			}
 		}
 		builder.push(10)
@@ -46,7 +46,7 @@ class Parser {
 					CallExpression x = last.doPush(10)
 					if (null == x)
 						throw new UnexpectedSyntaxException('Last call in block was bracketed but was not closed')
-					Expression a = !last.bracketed && !x.arguments ? x.value : x
+					Expression a = !last.bracketed && !x.arguments ? x.callValue : x
 					expressions.add(last.percent ? a.percentize(parserContext) : a)
 				}
 				return new BlockExpression(expressions)
@@ -58,7 +58,7 @@ class Parser {
 			} else {
 				CallExpression x = last.doPush(cp)
 				if (null != x) {
-					Expression a = !last.bracketed && !x.arguments ? x.value : x
+					Expression a = !last.bracketed && !x.arguments ? x.callValue : x
 					expressions.add(last.percent ? a.percentize(parserContext) : a)
 					last = null
 				}

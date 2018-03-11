@@ -11,15 +11,20 @@ import hlaaftana.kismet.parser.StringExpression
 
 @CompileStatic
 abstract class Function implements KismetCallable {
+	boolean pure
 	int precedence
 
 	static final Function IDENTITY = new Function() {
+		{ setPure(true) }
+
 		@CompileStatic
 		KismetObject call(KismetObject... args) {
 			args[0]
 		}
 	}
 	static final Function NOP = new Function() {
+		{ setPure(true) }
+
 		@CompileStatic
 		KismetObject call(KismetObject... args) { Kismet.NULL }
 	}
@@ -127,10 +132,9 @@ interface Nameable {
 class KismetFunction extends Function implements Nameable {
 	Block block
 	Arguments arguments = Arguments.EMPTY
-	String name
+	String name = 'anonymous'
 
 	KismetFunction(Context c, boolean named, Expression[] args) {
-		name = 'anonymous'
 		final first = args[0]
 		if (args.length == 1) {
 			block = c.child(first)
@@ -147,6 +151,8 @@ class KismetFunction extends Function implements Nameable {
 			block = c.child(args.tail())
 		}
 	}
+
+	KismetFunction() {}
 
 	KismetObject call(KismetObject... args){
 		Block c = block.child()
@@ -188,8 +194,8 @@ class KismetFunction extends Function implements Nameable {
 				else if (e instanceof NumberExpression) p.index = ((NumberExpression) e).value.inner().intValue()
 				else if (e instanceof CallExpression) {
 					CallExpression b = (CallExpression) e
-					if (b.value instanceof PathExpression) {
-						def xx = ((PathExpression) b.value).text
+					if (b.callValue instanceof PathExpression) {
+						def xx = ((PathExpression) b.callValue).text
 						if (xx == 'slice') {
 							if (!b.arguments.empty) {
 								int i = b.arguments[0] instanceof NumberExpression ?
@@ -215,8 +221,8 @@ class KismetFunction extends Function implements Nameable {
 						}
 						else if (null == p.topLevelChecks) p.topLevelChecks = [b]
 						else ((List) p.topLevelChecks).add(b)
-					} else if (b.value instanceof CallExpression) {
-						CallExpression d = (CallExpression) b.value
+					} else if (b.callValue instanceof CallExpression) {
+						CallExpression d = (CallExpression) b.callValue
 						parseCall(p + [slice: -1, index: 0], d.expressions)
 						for (c in d.arguments) {
 							if (c instanceof PathExpression) {
@@ -229,7 +235,7 @@ class KismetFunction extends Function implements Nameable {
 								c.repr() + ' in meta-argument call')
 						}
 					}
-					else throw new UnexpectedSyntaxException('Call in function arguments with a non-path-or-call function value?')
+					else throw new UnexpectedSyntaxException('Call in function arguments with a non-path-or-call function callValue?')
 				}
 			}
 			if (!p.containsKey('index')) p.index = last++
@@ -278,7 +284,7 @@ class KismetFunction extends Function implements Nameable {
 				for (ch in p.checks)
 					if (!ch.evaluate(c))
 						throw new CheckFailedException("Check ${ch.repr()} failed for $p.name " +
-							c.getProperty(p.name))
+							c.get(p.name))
 		}
 
 		static class Parameter {
@@ -291,7 +297,7 @@ class KismetFunction extends Function implements Nameable {
 			@SuppressWarnings('GroovyUnusedDeclaration')
 			void setTopLevelChecks(List<CallExpression> r) {
 				for (x in r) {
-					def n = ((PathExpression) x.value).text
+					def n = ((PathExpression) x.callValue).text
 					List<Expression> exprs = new ArrayList<>()
 					exprs.add new PathExpression(n + '?')
 					exprs.add new PathExpression(name)

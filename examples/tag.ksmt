@@ -19,27 +19,19 @@ defn [strip_mentions content] [replace content "@" "@\u{200b}"]
 defcmd tag {
   "set" name & content {
     unless guild_data.tags [= guild_data.tags [map]]
+    put guild_data.tags args[1] [## [content args[2]] [author message.author.id]]
+    "Successful"
+  }
+
+  "author" name {
+    string "Author for tag " name " is " [user [get guild_data.tags name "author"]]
+  }
+
+  name {
+    if [has_key_traverse? guild_data "tags" name] {
+      strip_mentions [get guild_data.tags name content]
+    } else {
+      "Invalid tag"
+    }
   }
 }
-
-defcmd tag [if [< [size [:= args [split_args arguments 3]]] 2]
-    [respond "Too few arguments"]
-  else [check args[0]
-    [is "set"] {
-      unless [has_key? guild_data "tags"] [= guild_data.tags [map]]
-      put guild_data.tags args[1] [map "content" args[2] "author" message.author.id]
-      respond "Successful"
-    }
-
-    [is "author"] [respond
-      [sprintf "Author for tag %s is %d"
-        args[1]
-        [get guild_data.tags args[1] "author"]
-      ]
-    ]
-
-    [respond
-      [if [has_key_traverse? guild_data "tags" args[0]]
-        [strip_mentions [get guild_data.tags args[0] "content"]]
-      else
-        "Invalid tag"]]]]

@@ -52,15 +52,15 @@ isn't? 1 3
 
 "normally numbers are parsed as Integers or Floats. however you can change this:"
 [assert [of? 1 Integer]
-        [of? 1i Integer]
-        [of? 1i8 Int8]
-        [of? 1i16 Int16]
-        [of? 1i32 Int32]
-        [of? 1i64 Int64]
-        [of? 1f Float]
-        [of? 1.0f Float]
-        [of? 1f32 Float32]
-        [of? 1f64 Float64]]
+    [of? 1i Integer]
+    [of? 1i8 Int8]
+    [of? 1i16 Int16]
+    [of? 1i32 Int32]
+    [of? 1i64 Int64]
+    [of? 1f Float]
+    [of? 1.0f Float]
+    [of? 1f32 Float32]
+    [of? 1f64 Float64]]
 
 "note that this doesn't work:"
 -1
@@ -93,17 +93,17 @@ assert_is b 1
 assert_is [|> a [* 3] logarithm] [logarithm [* a 3]]
 
 "<| is the same as |> but the value is the last argument instead of the first"
-assert_is [<| 5 [list 1 2 3 4] [subset? [list 2 4 5]]] [subset? [list 2 4 5] [list 1 2 3 4 5]]
+assert_is [<| 5 [& 1 2 3 4] [subset? [& 2 4 5]]] [subset? [& 2 4 5] [& 1 2 3 4 5]]
 
 "you can use a block to run multiple expressions more neatly"
 |> [range 1 5] {
-    product
-    list
-    * 2
-    [[fn* {
-        assert_is $0 120
-        |> $1 class [is? Null]
-    }]]
+  product
+  &
+  * 2
+  [[fn* [a b] {
+    assert_is a 120
+    |> b class [is? Null]
+  }]]
 }
 
 "you can define functions with fn"
@@ -128,8 +128,8 @@ defn [plus a b] [+ a b]
 
 "and arguments can have checks"
 defn [factorial [a [integer] [greater_equal 0]]] [
-    if_else [zero? a] 1
-        [product [range 1 a]]]
+  if_else [zero? a] 1
+    [product [range 1 a]]]
 
 [assert_is [factorial 0] 1
            [factorial 1] 1
@@ -141,8 +141,8 @@ defn [factorial [a [integer] [greater_equal 0]]] [
 
 "kismet is dynamic, so functions can recurse or call other functions by getting their value at runtime"
 defn [factorial a] [
-    if_chain [zero? a] 1 [one? a] 1
-        [* a [factorial [prev a]]]]
+  if_chain [zero? a] 1 [one? a] 1
+    [* a [factorial [prev a]]]]
 
 "however if you have to define function g inside function f, it will define g every time f is called"
 "so there are 2 strategies we can take"
@@ -155,63 +155,63 @@ defn [negate f] [fn [not [call f $all]]]
 "and cannot use local function arguments or runtime variables"
 "BUT will only be evaluated once and is mostly better for performance"
 defn operation {
-    %{
-        defn secret_code {
-            don't "Secret stuff!"
-        }
+  %{
+    defn secret_code {
+      don't "Secret stuff!"
     }
-    [secret_code]
-    "note: someone can save the function block, run it, then get the secret_code variable from "
-    "the block variables, so we should undefine it to not let that happen"
-    undef secret_code
+  }
+  [secret_code]
+  "note: someone can save the function block, run it, then get the secret_code variable from "
+  "the block variables, so we should undefine it to not let that happen"
+  undef secret_code
 }
 "also the % operator divides numbers by 100 also at parse-time"
 
 "fibonacci that accepts negative indexes:"
 defn [pown1 n] [if_else [even? n] 1 [negative 1]]
 defn [fibonacci_nth n] {
-    if_else [or [zero? n] [one? n]] 1 {
-        "[prev n] where n is a number is equal to [- n 1], same with [next n] and [+ n 1]"
-        := r [prev [absolute n]]
-        := x [if_else [negative? n] [pown1 r] [fibonacci_nth [prev r]]
-        * [fibonacci_nth r] x
-    }
+  if_else [or [zero? n] [one? n]] 1 {
+    "[prev n] where n is a number is equal to [- n 1], same with [next n] and [+ n 1]"
+    := r [prev [absolute n]]
+    := x [if_else [negative? n] [pown1 r] [fibonacci_nth [prev r]]
+    * [fibonacci_nth r] x
+  }
 }
 
 "fibonacci that explicitly checks if number is 0 or positive:"
 defn [fibonacci_nth [n [natural]]] {
-    if_else [< n 2] 1 {
-        := f [fibonacci_nth [- n 1]]
-        := s [fibonacci_nth [- n 2]]
-        + f s
-    }
+  if_else [< n 2] 1 {
+    := f [fibonacci_nth [- n 1]]
+    := s [fibonacci_nth [- n 2]]
+    + f s
+  }
 }
 
 defn [new_president_of_the_us {
-    age [natural] [greater_equal 35]
-    resident_country [is "United States"]
-    resident_for_years [natural] [greater_equal 14]
-    terms_served_before [natural] [less 0]
-    has_a_penis [yes]
+  age [natural] [greater_equal 35]
+  resident_country [is "United States"]
+  resident_for_years [natural] [greater_equal 14]
+  terms_served_before [natural] [less 0]
+  has_a_penis [yes]
 }] "president constructor here"
 
 defn can_be_president [try {
-    call new_president_of_the_us $all
-    yes
+  call new_president_of_the_us $all
+  yes
 } e [if [is? "CheckFailedException" [java_class_name e]] no
-     else [raise e]]]
+   else [raise e]]]
 
 "down here yet? cool, because i'm going to show a feature you shouldn't always use"
 |>| 1 + 2 - 3
 "this calls functions as every odd expression"
 "if 2 function expressions are the same, it will call the function with more than 2 arguments"
-assert_is [|>| 1 list 2 list 3 list 4] [list 1 2 3 4]
+assert_is [|>| 1 & 2 & 3 & 4] [& 1 2 3 4]
 "note there is no operator precedence, it just evaluates left to right"
-assert_is [|>| 1 list 2 * 3] [list 1 2 1 2 1 2]
-assert_isn't [|>| 1 list 2 * 3] [list 1 6]
+assert_is [|>| 1 & 2 * 3] [& 1 2 1 2 1 2]
+assert_isn't [|>| 1 & 2 * 3] [& 1 6]
 "|>| can be used again to reverse the effect"
 |>| {
-    6 * [|>| [
-        product [range 1 5]
-    ]] assert_is [product [1 range 6]]
+  6 * [|>| [
+    product [range 1 5]
+  ]] assert_is [product [1 range 6]]
 }

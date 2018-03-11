@@ -1,7 +1,7 @@
 package hlaaftana.kismet.parser
 
 import groovy.transform.CompileStatic
-import groovy.transform.InheritConstructors
+import groovy.transform.EqualsAndHashCode
 import hlaaftana.kismet.*
 
 @CompileStatic abstract class Expression {
@@ -21,7 +21,7 @@ import hlaaftana.kismet.*
 	PathExpression(String t) { text = t; path = Path.parse(t) }
 	PathExpression(Path p) { text = p.raw; path = p }
 
-	String repr() { "path($text)" }
+	String repr() { text }
 
 	void setText(String t) {
 		this.@text = t
@@ -47,11 +47,84 @@ import hlaaftana.kismet.*
 	}
 }
 
+@CompileStatic class PathExpression2 extends Expression {
+	Expression root
+	List<Step> steps
+
+	PathExpression2(Expression root, List<Step> steps) {
+		this.root = root
+		this.steps = steps
+	}
+
+	KismetObject evaluate(Context c) {
+		if (null == root) {
+			Kismet.model(new Function() {
+				@Override
+				KismetObject call(KismetObject... args) {
+					KismetObject last = args[0]
+					for (step in steps) last = step.apply(c, last)
+					last
+				}
+			})
+		} else {
+			KismetObject last = root.evaluate(c)
+			for (step in steps) last = step.apply(c, last)
+			last
+		}
+	}
+
+	String repr() { root.repr() + steps.join(', ') }
+
+	interface Step {
+		KismetObject apply(Context c, KismetObject object)
+	}
+
+	static class PropertyStep implements Step {
+		String name
+
+		PropertyStep(String name) {
+			this.name = name
+		}
+
+		KismetObject apply(Context c, KismetObject object) {
+			object.getProperty(name)
+		}
+
+		String toString() { ".$name" }
+	}
+
+	static class SubscriptStep implements Step {
+		Expression expression
+
+		SubscriptStep(Expression expression) {
+			this.expression = expression
+		}
+
+		KismetObject apply(Context c, KismetObject object) {
+			Kismet.model(object.inner().invokeMethod('getAt', expression.evaluate(c).inner()))
+		}
+
+		String toString() { ".subscript[${expression.repr()}]" }
+	}
+}
+
+@CompileStatic @EqualsAndHashCode class NameExpression extends Expression {
+	String text
+
+	NameExpression(String text) { this.text = text }
+
+	KismetObject evaluate(Context c) {
+		c.get(text)
+	}
+
+	String repr() { text }
+}
+
 @CompileStatic class BlockExpression extends Expression {
 	List<Expression> content
 
 	String repr() { 'block{\n' +
-			content.collect { '  '.concat(it.repr()) }.join('\r\n') + '}' }
+			content*.repr().join('\r\n').readLines().collect('  '.&concat).join('\r\n') + '\r\n}' }
 
 	BlockExpression(List<Expression> exprs) { content = exprs }
 
@@ -65,18 +138,18 @@ import hlaaftana.kismet.*
 }
 
 @CompileStatic class CallExpression extends Expression {
-	Expression value
+	Expression callValue
 	List<Expression> arguments
 
 	CallExpression(List<Expression> expressions) {
-		setValue(expressions[0])
+		setCallValue(expressions[0])
 		arguments = expressions.drop(1)
 	}
 
-	String repr() { "call[${value.repr()}](${arguments*.repr().join(', ')})" }
+	String repr() { "[${callValue.repr()}](${arguments*.repr().join(', ')})" }
 
 	KismetObject evaluate(Context c) {
-		KismetObject obj = value.evaluate(c)
+		KismetObject obj = callValue.evaluate(c)
 		if (obj.inner() instanceof KismetCallable) {
 			final arr = new Expression[arguments.size()]
 			for (int i = 0; i < arr.length; ++i) arr[i] = arguments[i]
@@ -89,10 +162,10 @@ import hlaaftana.kismet.*
 	}
 
 	List<Expression> getExpressions() {
-		List<Expression> x = new ArrayList<>()
-		x.add(value)
-		x.addAll(arguments)
-		x
+		def r = new ArrayList<Expression>(1 + arguments.size())
+		if (callValue != null) r.add(callValue)
+		r.addAll(arguments)
+		r
 	}
 
 	boolean equals(obj) {
@@ -100,10 +173,10 @@ import hlaaftana.kismet.*
 	}
 }
 
-@CompileStatic class ConstantExpression<T> extends Expression {
+@CompileStatic trait ConstantExpression<T> {
 	KismetObject<T> value
 
-	String repr() { "constant{$value}" }
+	String repr() { "const($value)" }
 
 	void setValue(T obj) {
 		value = Kismet.model(obj)
@@ -114,7 +187,7 @@ import hlaaftana.kismet.*
 	}
 }
 
-@CompileStatic class NumberExpression extends ConstantExpression<Number> {
+@CompileStatic class NumberExpression extends Expression implements ConstantExpression<Number> {
 	String repr() { value.toString() }
 
 	NumberExpression(boolean type, StringBuilder[] arr) {
@@ -177,7 +250,7 @@ import hlaaftana.kismet.*
 		Parser.NumberBuilder b = new Parser.NumberBuilder()
 		char[] a = x.toCharArray()
 		for (int i = 0; i < a.length; ++i) b.doPush((int) a[i])
-		value = b.doPush(32).value
+		value = b.doPush(32).value.inner()
 	}
 
 	PathExpression percentize(Context p) {
@@ -190,7 +263,7 @@ import hlaaftana.kismet.*
 }
 
 @CompileStatic
-class StringExpression extends ConstantExpression<String> {
+class StringExpression extends Expression implements ConstantExpression<String> {
 	String raw
 	Exception exception
 
@@ -217,10 +290,10 @@ class StringExpression extends ConstantExpression<String> {
 }
 
 @CompileStatic
-class StaticExpression<T extends Expression> extends ConstantExpression<Object> {
+class StaticExpression<T extends Expression> extends Expression implements ConstantExpression<Object> {
 	T expression
 
-	String expr() { "static(${expression.repr()})" }
+	String expr() { expression ? "static[${expression.repr()}]($value)" : "static($value)" }
 
 	StaticExpression(T ex = null, KismetObject val) {
 		expression = ex
@@ -238,6 +311,8 @@ class StaticExpression<T extends Expression> extends ConstantExpression<Object> 
 }
 
 @CompileStatic class NoExpression extends Expression {
+	String repr() { "noexpr" }
+
 	KismetObject evaluate(Context c) {
 		Kismet.NULL
 	}
