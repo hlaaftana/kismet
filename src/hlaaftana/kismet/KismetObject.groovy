@@ -9,34 +9,34 @@ class KismetObject<T> {
 
 	T inner() { this.@inner }
 
-	KismetObject(T i, KismetObject<KismetClass> c){ this(i); this.@kclass = c }
-	KismetObject(T i){ this.@inner = i }
+	KismetObject(T i, KismetObject<KismetClass> c) { this(i); this.@kclass = c }
+	KismetObject(T i) { this.@inner = i }
 
-	def getProperty(String name) {
+	KismetObject getProperty(String name) {
 		kclass.inner().getter.call(this, Kismet.model(name))
 	}
 
-	void setProperty(String name, value){
+	void setProperty(String name, value) {
 		kclass.inner().setter.call(this, Kismet.model(name), Kismet.model(value))
 	}
 
-	def methodMissing(String name, ...args){
+	def methodMissing(String name, ...args) {
 		for (int i = 0; i < args.length; ++i)
 			if (args[i] instanceof KismetObject)
 				args[i] = ((KismetObject) args[i]).inner()
 		Kismet.model(args ? inner.invokeMethod(name, args) : inner.invokeMethod(name, null))
 	}
 
-	def methodMissing(String name, Collection args){ methodMissing(name, args as Object[]) }
-	def methodMissing(String name, args){ methodMissing(name, args instanceof Object[] ? (Object[]) args : [args] as Object[]) }
-	def methodMissing(String name, KismetObject args){ methodMissing(name, args.inner()) }
-	def methodMissing(String name, KismetObject... args){
+	def methodMissing(String name, Collection args) { methodMissing(name, args as Object[]) }
+	def methodMissing(String name, args) { methodMissing(name, args instanceof Object[] ? (Object[]) args : [args] as Object[]) }
+	def methodMissing(String name, KismetObject args) { methodMissing(name, args.inner()) }
+	def methodMissing(String name, KismetObject... args) {
 		Object[] arr = new Object[args.length]
 		for (int i = 0; i < args.length; ++i) arr[i] = args[i].inner()
 		methodMissing(name, (Object[]) arr)
 	}
 
-	KismetObject call(...args){
+	KismetObject call(...args) {
 		call(args.collect(Kismet.&model) as KismetObject[])
 	}
 
@@ -48,7 +48,7 @@ class KismetObject<T> {
 		kclass.inner().caller.call(x)
 	}
 
-	def "as"(Class c){
+	def "as"(Class c) {
 		KismetClass k = KismetClass.from(c)
 		def p = null == k ? (Function) null : kclass.inner().converters[k]
 		if (null != p) p(this)
@@ -56,7 +56,7 @@ class KismetObject<T> {
 		catch (ClassCastException ex) { if (c == Closure) this.&call else throw ex }
 	}
 
-	def "as"(KismetClass c){
+	def "as"(KismetClass c) {
 		if (c && kclass.inner().converters.containsKey(c)) kclass.inner().converters[c](this)
 		else throw new ClassCastException('Can\'t cast object with class ' +
 			kclass + ' to class ' + c)
@@ -67,12 +67,12 @@ class KismetObject<T> {
 		else inner == obj
 	}
 
-	boolean asBoolean(){
+	boolean asBoolean() {
 		kclass.inner().orig != KismetObject ? inner as boolean : this.as(boolean)
 	}
 
 	int hashCode() {
-		inner.hashCode()
+		null == inner ? 0 : inner.hashCode()
 	}
 
 	String toString() {

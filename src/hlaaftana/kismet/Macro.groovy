@@ -4,6 +4,7 @@ import groovy.transform.CompileStatic
 import hlaaftana.kismet.parser.Expression
 
 abstract class Macro implements KismetCallable {
+	boolean pure
 	int precedence
 }
 
@@ -28,11 +29,9 @@ class KismetMacro extends Macro {
 
 @CompileStatic
 class GroovyMacro extends Macro {
-	boolean convert = true
 	Closure x
 
-	GroovyMacro(boolean convert = true, Closure x) {
-		this.convert = convert
+	GroovyMacro(Closure x) {
 		this.x = x
 	}
 
