@@ -39,15 +39,16 @@ class KismetInner {
 			Tuple: new KismetClass(Tuple, 'Tuple').object,
 			Map: new KismetClass(Map, 'Map').object,
 			Expression: new KismetClass(Expression, 'Expression').object,
-			PathExpression: new KismetClass(PathExpression, 'PathExpression').object,
+			OldPathExpression: new KismetClass(PathExpression, 'OldPathExpression').object,
+			PathExpression: new KismetClass(PathExpression2, 'PathExpression').object,
 			CallExpression: new KismetClass(CallExpression, 'CallExpression').object,
 			BlockExpression: new KismetClass(BlockExpression, 'BlockExpression').object,
 			StringExpression: new KismetClass(StringExpression, 'StringExpression').object,
 			NumberExpression: new KismetClass(NumberExpression, 'NumberExpression').object,
 			FakeExpression: new KismetClass(StaticExpression, 'FakeExpression').object,
-			PathStep: new KismetClass(Path.PathStep, 'PathStep').object,
-			PropertyPathStep: new KismetClass(Path.PropertyPathStep, 'PropertyPathStep').object,
-			SubscriptPathStep: new KismetClass(Path.SubscriptPathStep, 'SubscriptPathStep').object,
+			PathStep: new KismetClass(PathExpression2.Step, 'PathStep').object,
+			PropertyPathStep: new KismetClass(PathExpression2.PropertyStep, 'PropertyPathStep').object,
+			SubscriptPathStep: new KismetClass(PathExpression2.SubscriptStep, 'SubscriptPathStep').object,
 			Block: new KismetClass(Block, 'Block').object,
 			Function: new KismetClass(Function, 'Function').object,
 			Macro: new KismetClass(Macro, 'Macro').object,
@@ -114,7 +115,7 @@ class KismetInner {
 				variables: new Macro() {
 					@CompileStatic
 					KismetObject call(Context c, Expression... args) {
-						Kismet.model(new HashMap(c.variables))
+						Kismet.model(c.variables)
 					}
 				},
 				current_context: new Macro() {
@@ -297,8 +298,8 @@ class KismetInner {
 					if (value instanceof BigDecimal) {
 						if (args.length > 1) {
 							Expression x = args[1]
-							String a = x instanceof PathExpression ?
-									((PathExpression) x).text : x.evaluate(c).toString()
+							String a = x instanceof NameExpression ?
+									((NameExpression) x).text : x.evaluate(c).toString()
 							RoundingMode mode = roundingModes[a]
 							if (null == mode) throw new UnexpectedValueException('Unknown rounding mode ' + a)
 							value.setScale(args.length > 2 ? args[2].evaluate(c) as int : 0, mode).stripTrailingZeros()
@@ -606,8 +607,12 @@ class KismetInner {
 						null == p ? x.call(a) : p
 					}
 				},
-				path: func { KismetObject... args -> new PathExpression(args[0].toString()) },
-				'path?': func { KismetObject... args -> args[0].inner() instanceof PathExpression },
+				name_expr: func { KismetObject... args -> new NameExpression(args[0].toString()) },
+				'name_expr?': func { KismetObject... args -> args[0].inner() instanceof NameExpression },
+				expr_to_name: func { KismetObject... args ->
+					def i = args[0].inner()
+					i instanceof Expression ? toAtom((Expression) i) : null
+				},
 				static_expr: funcc { ...args -> StaticExpression.class.newInstance(args) },
 				'static_expr?': func { KismetObject... args -> args[0].inner() instanceof StaticExpression },
 				number_expr: func { KismetObject... args -> new NumberExpression(args[0].toString()) },
@@ -706,9 +711,9 @@ class KismetInner {
 				denormalize: funcc { ...args -> args[0].toString().denormalize() },
 				normalize: funcc { ...args -> args[0].toString().normalize() },
 				hex: macr { Context c, Expression... x ->
-					if (x[0] instanceof NumberExpression || x[0] instanceof PathExpression) {
+					if (x[0] instanceof NumberExpression || x[0] instanceof NameExpression) {
 						String t = x[0] instanceof NumberExpression ? ((NumberExpression) x[0]).value.inner().toString()
-								: ((PathExpression) x[0]).text
+								: ((NameExpression) x[0]).text
 						new BigInteger(t, 16)
 					} else throw new UnexpectedSyntaxException('Expression after hex was not a hexadecimal number literal.'
 							+ ' To convert hex strings to integers do [from_base str 16], '
@@ -768,11 +773,11 @@ class KismetInner {
 				},
 				def: macr { Context c, Expression... x ->
 					if (x.length == 0) throw new UnexpectedSyntaxException('0 arguments for :=')
-					if (x[0] instanceof PathExpression) {
+					if (x[0] instanceof NameExpression) {
 						KismetObject value = x.length == 1 ? Kismet.NULL : x.last().evaluate(c)
 						int i = 1
 						for (a in x.init()) {
-							c.define(resolveName(a, c, ":= argument $i"), value)
+							c.define(resolveName(a, c, "def argument $i"), value)
 							++i
 						}
 						value
@@ -793,22 +798,24 @@ class KismetInner {
 				},
 				defmcr: macr { Context c, Expression... exprs ->
 					List<Expression> kill = new ArrayList<>()
-					kill.add(new PathExpression('mcr'))
+					kill.add(new NameExpression('mcr'))
 					for (int i = 1; i < exprs.length; ++i) kill.add(exprs[i])
-					def ex = new CallExpression([new PathExpression(':='), exprs[0],
+					def ex = new CallExpression([new NameExpression(':='), exprs[0],
 							new CallExpression(kill)])
 					ex.evaluate(c)
 				},
 				'fn*': macr { Context c, Expression... exprs ->
 					List<Expression> kill = new ArrayList<>()
-					kill.add(new PathExpression('fn'))
+					kill.add(new NameExpression('fn'))
 					kill.addAll(exprs)
 					StaticExpression fake = new StaticExpression(new CallExpression(kill), c)
-					def ex = new CallExpression([new PathExpression('fn'), new CallExpression([
-							new PathExpression('call'), fake, new PathExpression('$0')])])
+					def ex = new CallExpression([new NameExpression('fn'), new CallExpression([
+							new NameExpression('call'), fake, new NameExpression('$0')])])
 					ex.evaluate(c)
 				},
-				undef: macr { Context c, Expression... exprs -> c.getVariables().remove(exprs[0].evaluate(c)) },
+				undef: macr { Context c, Expression... exprs ->
+					c.getVariables().remove(c.getVariable(exprs[0].evaluate(c).toString()))
+				},
 				block: new Macro() {
 					@CompileStatic
 					KismetObject call(Context c, Expression... args) {
@@ -816,10 +823,10 @@ class KismetInner {
 					}
 				},
 				incr: macr { Context c, Expression... exprs ->
-					assign(c, exprs.take(1), new CallExpression([new PathExpression('next'), exprs[0]]).evaluate(c), 'increment')
+					assign(c, exprs.take(1), new CallExpression([new NameExpression('next'), exprs[0]]).evaluate(c), 'increment')
 				},
 				decr: macr { Context c, Expression... exprs ->
-					assign(c, exprs.take(1), new CallExpression([new PathExpression('prev'), exprs[0]]).evaluate(c), 'decrement')
+					assign(c, exprs.take(1), new CallExpression([new NameExpression('prev'), exprs[0]]).evaluate(c), 'decrement')
 				},
 				'|>=': macr { Context c, Expression... exprs ->
 					assign(c, exprs.take(1), pipeForward(c, exprs[0].evaluate(c), exprs.tail().toList()), '|>=')
@@ -838,8 +845,7 @@ class KismetInner {
 							Expression n = defs.next()
 							if (!defs.hasNext()) break
 							String name
-							if (n instanceof PathExpression) name = ((PathExpression) n).text
-							else if (n instanceof NameExpression) name = ((NameExpression) n).text
+							if (n instanceof NameExpression) name = ((NameExpression) n).text
 							else if (n instanceof NumberExpression) throw new UnexpectedSyntaxException('Cant define a number (let)')
 							else if (n instanceof CallExpression) {
 								final gr = (CallExpression) n
@@ -878,9 +884,9 @@ class KismetInner {
 					else if (x.inner() instanceof Path)
 						((Path) x.inner()).apply(a.length > 1 ? a[1].evaluate(c).inner() as Context : c)
 					else if (x.inner() instanceof String)
-						if (a.length > 1) Parser.parse(a.length > 2 ? a[2].evaluate(c).inner as Context : c, (String) x.inner())
+						if (a.length > 1) DumbParser.parse(a.length > 2 ? a[2].evaluate(c).inner as Context : c, (String) x.inner())
 								.evaluate(a[1].evaluate(c).inner() as Context)
-						else c.childEval(Parser.parse(c, (String) x.inner()))
+						else c.childEval(DumbParser.parse(c, (String) x.inner()))
 					else throw new UnexpectedValueException('Expected first callValue of eval to be an expression, block, path or string')
 				},
 				quote: macr { Context c, Expression... exprs ->
@@ -900,8 +906,8 @@ class KismetInner {
 						int i = 1
 						for (int s = exprs.length; i < s; ++i) {
 							def x = exprs[i]
-							if (x instanceof PathExpression) {
-								String text = ((PathExpression) x).text
+							if (x instanceof NameExpression) {
+								String text = ((NameExpression) x).text
 								if (text == 'else')
 									return cond ?
 											c.eval(Arrays.copyOfRange(exprs, b, i)) :
@@ -929,8 +935,8 @@ class KismetInner {
 						int i = 1
 						for (int s = exprs.length; i < s; ++i) {
 							def x = exprs[i]
-							if (x instanceof PathExpression) {
-								String text = ((PathExpression) x).text
+							if (x instanceof NameExpression) {
+								String text = ((NameExpression) x).text
 								if (text == 'else')
 									return !cond ?
 											c.eval(Arrays.copyOfRange(exprs, b, i)) :
@@ -1197,8 +1203,8 @@ class KismetInner {
 					def r = args[0].evaluate(c)
 					for (int i = 1; i < args.length; ++i) {
 						Expression x = args[i]
-						if (x instanceof PathExpression)
-							r = r.invokeMethod('getAt', ((PathExpression) x).text)
+						if (x instanceof NameExpression)
+							r = r.invokeMethod('getAt', ((NameExpression) x).text)
 						else r = r.invokeMethod('getAt', x.evaluate(c))
 					}
 					r
@@ -1227,7 +1233,7 @@ class KismetInner {
 				range: funcc { ...args -> args[0]..args[1] },
 				parse_independent_kismet: func { KismetObject... args -> Kismet.parse(args[0].toString()) },
 				parse_kismet: macr { Context c, Expression... args ->
-					Parser.parse(args.length > 1 ? (Context) args[1].evaluate(c).inner() : c.child(),
+					DumbParser.parse(args.length > 1 ? (Context) args[1].evaluate(c).inner() : c.child(),
 							args[0].evaluate(c).toString())
 				},
 				context_child: funcc { ...args ->
@@ -1536,7 +1542,7 @@ class KismetInner {
 
 	static String resolveName(Expression n, Context c, String op) {
 		String name
-		if (n instanceof PathExpression) name = ((PathExpression) n).text
+		if (n instanceof NameExpression) name = ((NameExpression) n).text
 		else if (n instanceof NumberExpression) throw new UnexpectedSyntaxException("Name in $op was a number, not allowed")
 		else {
 			KismetObject val = n.evaluate(c)
@@ -1553,17 +1559,16 @@ class KismetInner {
 				c.assign(((StringExpression) a).value.inner(), value)
 			else if (a instanceof NameExpression)
 				c.assign(((NameExpression) a).text, value)
-			else if (a instanceof PathExpression)
-				if (((PathExpression) a).path.expressions.size() == 1)
-					c.assign(((PathExpression) a).text, value)
-				else {
-					def b = ((PathExpression) a).path.dropLastAndLast()
-					def (Path.PathStep last, Path p) = [b.first, b.second]
-					KismetObject val = Kismet.model p.apply(c)
-					if (last instanceof Path.PropertyPathStep)
-						val.invokeMethod('putAt', [last.raw, value])
-					else val.invokeMethod('putAt', [((Path.SubscriptPathStep) last).val, value])
-				}
+			else if (a instanceof PathExpression2) {
+				def steps = ((PathExpression2) a).steps
+				def toApply = steps.init()
+				def toSet = steps.last()
+				KismetObject val = PathExpression2.applySteps(c, a.root.evaluate(c), toApply)
+				if (toSet instanceof PathExpression2.PropertyStep)
+					val.invokeMethod('putAt', [((PathExpression2.PropertyStep) toSet).name, value])
+				else val.invokeMethod('putAt',
+						[((PathExpression2.SubscriptStep) toSet).expression.evaluate(c).inner(), value])
+			}
 			else throw new UnexpectedSyntaxException(
 						"Did not expect expression type for argument $i of $op to be ${a.class.simpleName - 'Expression'}")
 			++i
@@ -1605,15 +1610,15 @@ class KismetInner {
 				List<Expression> exprs = new ArrayList<>()
 				exprs.add(((CallExpression) exp).callValue)
 				c.set('$_', val)
-				exprs.add(new PathExpression('$_'))
+				exprs.add(new NameExpression('$_'))
 				exprs.addAll(((CallExpression) exp).arguments)
 				def ex = new CallExpression(exprs)
 				val = ex.evaluate(c)
 			} else if (exp instanceof BlockExpression) {
 				val = pipeForward(c, val, ((BlockExpression) exp).content)
-			} else if (exp instanceof PathExpression) {
+			} else if (exp instanceof NameExpression) {
 				c.set('$_', val)
-				val = new CallExpression([exp, new PathExpression('$_')]).evaluate(c)
+				val = new CallExpression([exp, new NameExpression('$_')]).evaluate(c)
 			} else throw new UnexpectedSyntaxException('Did not expect ' + exp.class + ' in |>')
 		}
 		val
@@ -1626,14 +1631,14 @@ class KismetInner {
 				exprs.add(((CallExpression) exp).callValue)
 				exprs.addAll(((CallExpression) exp).arguments)
 				c.set('$_', val)
-				exprs.add(new PathExpression('$_'))
+				exprs.add(new NameExpression('$_'))
 				CallExpression x = new CallExpression(exprs)
 				val = x.evaluate(c)
 			} else if (exp instanceof BlockExpression) {
 				val = pipeBackward(c, val, ((BlockExpression) exp).content)
-			} else if (exp instanceof PathExpression) {
+			} else if (exp instanceof NameExpression) {
 				c.set('$_', val)
-				val = new CallExpression([exp, new PathExpression('$_')]).evaluate(c)
+				val = new CallExpression([exp, new NameExpression('$_')]).evaluate(c)
 			} else throw new UnexpectedSyntaxException('Did not expect ' + exp.class + ' in <|')
 		}
 		val
@@ -1656,7 +1661,7 @@ class KismetInner {
 		} else expr.evaluate(c)
 	}
 
-	private static final PathExpression INFIX_CALLS_LTR_PATH = new PathExpression('|>|')
+	private static final NameExpression INFIX_CALLS_LTR_PATH = new NameExpression('|>|')
 	static KismetObject infixCallsLTR(Context c, List<Expression> args) {
 		if (args.empty) return Kismet.NULL
 		else if (args.size() == 1) return evalInfixLTR(c, args[0])
@@ -1681,32 +1686,42 @@ class KismetInner {
 		}).evaluate(c)
 	}
 
-	static void putPathExpression(Map map, PathExpression path, value) {
-		final exprs = path.path.expressions
-		final key = exprs[0].raw
-		if (exprs.size() > 1) for (ps in exprs.tail().reverse()) {
-			if (ps instanceof Path.SubscriptPathStep) {
-				final list = new ArrayList()
-				list.set(((Path.SubscriptPathStep) ps).val, value)
-				value = list
-			} else if (ps instanceof Path.PropertyPathStep) {
+	static void putPathExpression(Context c, Map map, PathExpression2 path, value) {
+		final exprs = path.steps
+		final key = path.root instanceof NameExpression ? ((NameExpression) path.root).text : path.root.evaluate(c)
+		for (ps in exprs.reverse()) {
+			if (ps instanceof PathExpression2.SubscriptStep) {
+				def k = ((PathExpression2.SubscriptStep) ps).expression.evaluate(c).inner()
+				if (k instanceof Number) {
+					final list = new ArrayList()
+					list.set(k.intValue(), value)
+					value = list
+				} else {
+					final hash = new HashMap()
+					hash.put(k, value)
+					value = hash
+				}
+			} else if (ps instanceof PathExpression2.PropertyStep) {
 				final hash = new HashMap()
-				hash.put(((Path.PropertyPathStep) ps).raw, value)
+				hash.put(((PathExpression2.PropertyStep) ps).name, value)
 				value = hash
-			} else throw new UnexpectedSyntaxException("Tried to use path expression $ps as key")
+			} else throw new UnexpectedSyntaxException("Tried to use path step $ps as key")
 		}
 		map.put(key, value)
 	}
 
 	static void expressiveMap(Map map, Context c, Expression expr) {
-		if (expr instanceof PathExpression)
-			putPathExpression(map, (PathExpression) expr, c.eval(expr))
+		if (expr instanceof NameExpression) map.put(((NameExpression) expr).text, expr.evaluate(c))
+		else if (expr instanceof PathExpression2)
+			putPathExpression(c, map, (PathExpression2) expr, c.eval(expr))
 		else if (expr instanceof CallExpression) {
 			final exprs = ((CallExpression) expr).expressions
 			final value = exprs.last().evaluate(c)
 			for (x in exprs.init())
-				if (x instanceof PathExpression)
-					putPathExpression(map, (PathExpression) x, value)
+				if (x instanceof NameExpression)
+					map.put(((NameExpression) x).text, value)
+				else if (x instanceof PathExpression2)
+					putPathExpression(c, map, (PathExpression2) x, value)
 				else map.put(x.evaluate(c), value)
 		} else if (expr instanceof BlockExpression) {
 			final exprs = ((BlockExpression) expr).content
@@ -1717,13 +1732,26 @@ class KismetInner {
 		}
 	}
 
+	static boolean isAlpha(String string) {
+		for (char ch : string.toCharArray()) {
+			if (!((ch >= ((char) 'a') && ch <= ((char) 'z')) ||
+					(ch >= ((char) 'A') && ch <= ((char) 'Z')) ||
+					(ch >= ((char) '0') && ch <= ((char) '9')))) return false
+		}
+		true
+	}
+
 	static boolean check(Context c, KismetObject val, Expression exp) {
 		if (exp instanceof CallExpression) {
 			List<Expression> exprs = new ArrayList<>()
 			def valu = ((CallExpression) exp).callValue
-			exprs.add(valu instanceof PathExpression ? new PathExpression(((PathExpression) valu).text + '?') : valu)
+			if (valu instanceof NameExpression) {
+				def t = ((NameExpression) valu).text
+				exprs.add(new NameExpression(isAlpha(t) ? t + '?' : t))
+			}
+			exprs.add(valu instanceof NameExpression ? new NameExpression(((NameExpression) valu).text + '?') : valu)
 			c.set('$_', val)
-			exprs.add(new PathExpression('$_'))
+			exprs.add(new NameExpression('$_'))
 			exprs.addAll(((CallExpression) exp).arguments)
 			CallExpression x = new CallExpression(exprs)
 			x.evaluate(c)
@@ -1731,10 +1759,11 @@ class KismetInner {
 			boolean result = true
 			for (x in ((BlockExpression) exp).content) result = check(c, val, x)
 			result
-		} else if (exp instanceof PathExpression) {
+		} else if (exp instanceof NameExpression) {
 			c.set('$_', val)
-			new CallExpression([new PathExpression(((PathExpression) exp).text + '?'),
-					new PathExpression('$_')] as List<Expression>).evaluate(c)
+			def t = ((NameExpression) exp).text
+			new CallExpression([new NameExpression(isAlpha(t) ? t + '?' : t),
+					new NameExpression('$_')]).evaluate(c)
 		} else if (exp instanceof StringExpression) {
 			val.inner() == ((StringExpression) exp).value.inner()
 		} else if (exp instanceof NumberExpression) {
@@ -1774,13 +1803,13 @@ class KismetInner {
 	}
 
 	static String toAtom(Expression expression) {
-		if (expression instanceof PathExpression) {
-			def a = ((PathExpression) expression).path.expressions
-			if (a.size() == 1 && a[0] instanceof Path.PropertyPathStep) return a[0].raw
-		} else if (expression instanceof StringExpression) {
+		if (expression instanceof StringExpression) {
 			return ((StringExpression) expression).value
 		} else if (expression instanceof NameExpression) {
 			return ((NameExpression) expression).text
+		} else if (expression instanceof PathExpression) {
+			def a = ((PathExpression) expression).path.expressions
+			if (a.size() == 1 && a[0] instanceof Path.PropertyPathStep) return a[0].raw
 		}
 		null
 	}
@@ -1806,102 +1835,6 @@ class Block {
 	}
 }
 
-@CompileStatic
-class Context {
-	Context parent
-	Map<String, KismetObject> variables
-
-	Context(Context parent = null, Map<String, KismetObject> variables = [:]) {
-		this.parent = parent
-		setVariables variables
-	}
-
-	KismetObject getProperty(String name) {
-		get(name)
-	}
-
-	KismetObject get(String name) {
-		def ours = getVariables().get(name)
-		if (null != ours) ours
-		else if (null != parent) parent.get(name)
-		else throw new UndefinedVariableException(name)
-	}
-
-	KismetObject set(String name, KismetObject value) {
-		getVariables().put(name, value)
-	}
-
-	KismetObject define(String name, KismetObject value) {
-		def d = getVariables()
-		if (d.containsKey(name))
-			throw new VariableExistsException("Variable $name already exists")
-		d.put(name, value)
-	}
-
-	KismetObject assign(Context original = this, String name, KismetObject value) {
-		def d = getVariables()
-		if (d.containsKey(name)) d.put(name, value)
-		else if (null != parent)
-			parent.assign(original, name, value)
-		else original.set(name, value)
-	}
-
-	KismetObject change(String name, KismetObject value) {
-		def d = getVariables()
-		if (d.containsKey(name)) d.put(name, value)
-		else if (null != parent)
-			parent.change(name, value)
-		else throw new UndefinedVariableException(name)
-	}
-
-	Block child(Expression expr) {
-		new Block(expr, this)
-	}
-
-	Block child(Expression[] expr) {
-		new Block(new BlockExpression(expr.toList()), this)
-	}
-
-	Block child(List<Expression> expr) {
-		new Block(new BlockExpression(expr), this)
-	}
-
-	Context child() {
-		new Context(this)
-	}
-
-	KismetObject childEval(Expression expr) {
-		child(expr).evaluate()
-	}
-
-	KismetObject childEval(Expression[] expr) {
-		child(expr).evaluate()
-	}
-
-	KismetObject childEval(List<Expression> expr) {
-		child(expr).evaluate()
-	}
-
-	KismetObject eval(Expression expr) {
-		expr.evaluate this
-	}
-
-	KismetObject eval(Expression[] expr) {
-		def last = Kismet.NULL
-		for (e in expr) last = eval(e)
-		last
-	}
-
-	KismetObject eval(List<Expression> expr) {
-		def last = Kismet.NULL
-		for (e in expr) last = eval(e)
-		last
-	}
-
-	def clone() {
-		new Context(parent, new HashMap<>(getVariables()))
-	}
-}
 
 @InheritConstructors
 @CompileStatic

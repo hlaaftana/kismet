@@ -19,7 +19,7 @@ class Path {
 		raw = aaa
 		expressions = REGEX.matcher(raw).iterator().withIndex().collect { String it, int i ->
 			it.startsWith('[') ? new SubscriptPathStep(it[1 .. -2]) :
-								 new PropertyPathStep(it[(i == 0 ? 0 : 1) .. -1])
+					new PropertyPathStep(it[(i == 0 ? 0 : 1) .. -1])
 		}
 	}
 
@@ -66,4 +66,3 @@ class Path {
 		}
 	}
 }
-
