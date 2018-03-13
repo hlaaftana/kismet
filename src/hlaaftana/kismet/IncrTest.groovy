@@ -1,7 +1,7 @@
 package hlaaftana.kismet
 
 import groovy.transform.CompileStatic
-import hlaaftana.kismet.parser.ParserW
+import hlaaftana.kismet.parser.Parser
 
 import javax.imageio.ImageIO
 import java.awt.*
@@ -121,7 +121,7 @@ class IncrTest {
 	 */
 	static void bench() {
 		def a = now()
-		for (int i = 0; i < 5000; ++i) new ParserW(context: Kismet.DEFAULT_CONTEXT.child()).parse("""\
+		for (int i = 0; i < 5000; ++i) new Parser(context: Kismet.DEFAULT_CONTEXT.child()).parse("""\
 don't %'optimize'
 := x 0
 |>= x [+ 1]
@@ -129,7 +129,7 @@ x""").evaluate(Kismet.DEFAULT_CONTEXT.child())
 		optimizedPipePlus1 << now() - a
 
 		a = now()
-		for (int i = 0; i < 5000; ++i) new ParserW(context: Kismet.DEFAULT_CONTEXT.child()).parse("""\
+		for (int i = 0; i < 5000; ++i) new Parser(context: Kismet.DEFAULT_CONTEXT.child()).parse("""\
 don't %'optimize'
 := x 0
 |>= x next
@@ -137,7 +137,7 @@ x""").evaluate(Kismet.DEFAULT_CONTEXT.child())
 		optimizedPipeNext << now() - a
 
 		a = now()
-		for (int i = 0; i < 5000; ++i) new ParserW(context: Kismet.DEFAULT_CONTEXT.child()).parse("""\
+		for (int i = 0; i < 5000; ++i) new Parser(context: Kismet.DEFAULT_CONTEXT.child()).parse("""\
 don't %'optimize'
 := x 0
 = x [+ x 1]
@@ -145,7 +145,7 @@ x""").evaluate(Kismet.DEFAULT_CONTEXT.child())
 		optimizedPlus1 << now() - a
 
 		a = now()
-		for (int i = 0; i < 5000; ++i) new ParserW(context: Kismet.DEFAULT_CONTEXT.child()).parse("""\
+		for (int i = 0; i < 5000; ++i) new Parser(context: Kismet.DEFAULT_CONTEXT.child()).parse("""\
 don't %'optimize'
 := x 0
 = x [next x]
@@ -153,42 +153,42 @@ x""").evaluate(Kismet.DEFAULT_CONTEXT.child())
 		optimizedNext << now() - a
 
 		a = now()
-		for (int i = 0; i < 5000; ++i) new ParserW(context: Kismet.DEFAULT_CONTEXT.child()).parse("""\
+		for (int i = 0; i < 5000; ++i) new Parser(context: Kismet.DEFAULT_CONTEXT.child()).parse("""\
 := x 0
 |>= x [+ 1]
 x""").evaluate(Kismet.DEFAULT_CONTEXT.child())
 		pipePlus1 << now() - a
 
 		a = now()
-		for (int i = 0; i < 5000; ++i) new ParserW(context: Kismet.DEFAULT_CONTEXT.child()).parse("""\
+		for (int i = 0; i < 5000; ++i) new Parser(context: Kismet.DEFAULT_CONTEXT.child()).parse("""\
 := x 0
 |>= x next
 x""").evaluate(Kismet.DEFAULT_CONTEXT.child())
 		pipeNext << now() - a
 
 		a = now()
-		for (int i = 0; i < 5000; ++i) new ParserW(context: Kismet.DEFAULT_CONTEXT.child()).parse("""\
+		for (int i = 0; i < 5000; ++i) new Parser(context: Kismet.DEFAULT_CONTEXT.child()).parse("""\
 := x 0
 = x [+ x 1]
 x""").evaluate(Kismet.DEFAULT_CONTEXT.child())
 		plus1 << now() - a
 
 		a = now()
-		for (int i = 0; i < 5000; ++i) new ParserW(context: Kismet.DEFAULT_CONTEXT.child()).parse("""\
+		for (int i = 0; i < 5000; ++i) new Parser(context: Kismet.DEFAULT_CONTEXT.child()).parse("""\
 := x 0
 = x [next x]
 x""").evaluate(Kismet.DEFAULT_CONTEXT.child())
 		next << now() - a
 
 		a = now()
-		for (int i = 0; i < 5000; ++i) new ParserW(context: Kismet.DEFAULT_CONTEXT.child()).parse("""\
+		for (int i = 0; i < 5000; ++i) new Parser(context: Kismet.DEFAULT_CONTEXT.child()).parse("""\
 := x 0
 incr x
 x""").evaluate(Kismet.DEFAULT_CONTEXT.child())
 		incr << now() - a
 
 		a = now()
-		for (def i = 0; i < 5000; ++i) new ParserW(context: Kismet.DEFAULT_CONTEXT.child()).parse("""\
+		for (def i = 0; i < 5000; ++i) new Parser(context: Kismet.DEFAULT_CONTEXT.child()).parse("""\
 don't %'optimize'
 := x 0
 incr x

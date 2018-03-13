@@ -60,7 +60,7 @@ def skewness(l) {
 */
 
 @CompileStatic
-class UFCSParser {
+class UFCSParserWIP {
 	static Expression parse(Context context, List<Token> tokens) {
 		List<Expression> call = []
 

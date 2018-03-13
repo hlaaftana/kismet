@@ -61,16 +61,17 @@ import hlaaftana.kismet.*
 			Kismet.model(new Function() {
 				@Override
 				KismetObject call(KismetObject... args) {
-					KismetObject last = args[0]
-					for (step in steps) last = step.apply(c, last)
-					last
+					applySteps(c, args[0], steps)
 				}
 			})
 		} else {
-			KismetObject last = root.evaluate(c)
-			for (step in steps) last = step.apply(c, last)
-			last
+			applySteps(c, root.evaluate(c), steps)
 		}
+	}
+
+	static KismetObject applySteps(Context c, KismetObject object, List<Step> steps) {
+		for (step in steps) object = step.apply(c, object)
+		object
 	}
 
 	String repr() { root.repr() + steps.join(', ') }
@@ -247,7 +248,7 @@ import hlaaftana.kismet.*
 	NumberExpression(Number v) { setValue(v) }
 
 	NumberExpression(String x) {
-		Parser.NumberBuilder b = new Parser.NumberBuilder()
+		DumbParser.NumberBuilder b = new DumbParser.NumberBuilder()
 		char[] a = x.toCharArray()
 		for (int i = 0; i < a.length; ++i) b.doPush((int) a[i])
 		value = b.doPush(32).value.inner()

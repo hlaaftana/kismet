@@ -2,7 +2,7 @@ package hlaaftana.kismet
 
 import groovy.transform.CompileStatic
 import groovy.transform.InheritConstructors
-import hlaaftana.kismet.parser.PathExpression
+import hlaaftana.kismet.parser.NameExpression
 import hlaaftana.kismet.parser.BlockExpression
 import hlaaftana.kismet.parser.CallExpression
 import hlaaftana.kismet.parser.Expression
@@ -143,7 +143,7 @@ class KismetFunction extends Function implements Nameable {
 					first instanceof BlockExpression ? ((BlockExpression) first).content :
 							[first]
 			if (named) {
-				name = ((PathExpression) f[0]).text
+				name = ((NameExpression) f[0]).text
 				arguments = new Arguments(f.tail())
 			} else {
 				arguments = new Arguments(f)
@@ -176,7 +176,7 @@ class KismetFunction extends Function implements Nameable {
 
 		def parse(List<Expression> params) {
 			for (e in params) {
-				if (e instanceof PathExpression) parameters.add(new Parameter(name: ((PathExpression) e).text, index: last++))
+				if (e instanceof NameExpression) parameters.add(new Parameter(name: ((NameExpression) e).text, index: last++))
 				else if (e instanceof StringExpression)
 					  parameters.add(new Parameter(name: ((StringExpression) e).value.inner(), index: last++))
 				else if (e instanceof BlockExpression) parse(((BlockExpression) e).content)
@@ -188,20 +188,20 @@ class KismetFunction extends Function implements Nameable {
 			p = new HashMap(p)
 			BlockExpression block = null
 			for (e in exprs) {
-				if (e instanceof PathExpression) p.name = ((PathExpression) e).text
+				if (e instanceof NameExpression) p.name = ((NameExpression) e).text
 				else if (e instanceof StringExpression) p.name = ((StringExpression) e).value.inner()
 				else if (e instanceof BlockExpression) block = (BlockExpression) e
 				else if (e instanceof NumberExpression) p.index = ((NumberExpression) e).value.inner().intValue()
 				else if (e instanceof CallExpression) {
 					CallExpression b = (CallExpression) e
-					if (b.callValue instanceof PathExpression) {
-						def xx = ((PathExpression) b.callValue).text
+					if (b.callValue instanceof NameExpression) {
+						def xx = ((NameExpression) b.callValue).text
 						if (xx == 'slice') {
 							if (!b.arguments.empty) {
 								int i = b.arguments[0] instanceof NumberExpression ?
 										((NumberExpression) b.arguments[0]).value.inner().intValue() + 1 :
-										b.arguments[0] instanceof PathExpression ?
-												new Integer(((PathExpression) b.arguments[0]).text) :
+										b.arguments[0] instanceof NameExpression ?
+												new Integer(((NameExpression) b.arguments[0]).text) :
 												0
 								last += (p.slice = i) - 1
 							} else p.slice = (last = 0) - 1
@@ -209,8 +209,8 @@ class KismetFunction extends Function implements Nameable {
 							if (!b.arguments.empty) {
 								int i = b.arguments[0] instanceof NumberExpression ?
 										((NumberExpression) b.arguments[0]).value.inner().intValue() + 1 :
-										b.arguments[0] instanceof PathExpression ?
-										new Integer(((PathExpression) b.arguments[0]).text) + 1 :
+										b.arguments[0] instanceof NameExpression ?
+										new Integer(((NameExpression) b.arguments[0]).text) + 1 :
 										0
 								p.index = last = i
 							} else p.index = last = 0
@@ -225,8 +225,8 @@ class KismetFunction extends Function implements Nameable {
 						CallExpression d = (CallExpression) b.callValue
 						parseCall(p + [slice: -1, index: 0], d.expressions)
 						for (c in d.arguments) {
-							if (c instanceof PathExpression) {
-								def t = ((PathExpression) c).text
+							if (c instanceof NameExpression) {
+								def t = ((NameExpression) c).text
 								if (t == '$') doDollars = !doDollars
 								else if (t == '#') enforceLength = !enforceLength
 								else throw new UnexpectedSyntaxException('My bad but i dont know how to handle path '
@@ -297,10 +297,10 @@ class KismetFunction extends Function implements Nameable {
 			@SuppressWarnings('GroovyUnusedDeclaration')
 			void setTopLevelChecks(List<CallExpression> r) {
 				for (x in r) {
-					def n = ((PathExpression) x.callValue).text
+					def n = ((NameExpression) x.callValue).text
 					List<Expression> exprs = new ArrayList<>()
-					exprs.add new PathExpression(n + '?')
-					exprs.add new PathExpression(name)
+					exprs.add new NameExpression(KismetInner.isAlpha(n) ? n + '?' : n)
+					exprs.add new NameExpression(name)
 					exprs.addAll x.arguments
 					checks.add new CallExpression(exprs)
 				}
