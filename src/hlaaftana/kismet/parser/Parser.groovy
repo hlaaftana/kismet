@@ -7,10 +7,11 @@ import hlaaftana.kismet.GroovyFunction
 import hlaaftana.kismet.GroovyMacro
 import hlaaftana.kismet.Kismet
 import hlaaftana.kismet.KismetFunction
+import hlaaftana.kismet.KismetInner
 import hlaaftana.kismet.KismetObject
 import hlaaftana.kismet.Macro
 import hlaaftana.kismet.ParseException
-import hlaaftana.kismet.Path
+import hlaaftana.kismet.Template
 import hlaaftana.kismet.UndefinedVariableException
 import hlaaftana.kismet.UnexpectedSyntaxException
 import hlaaftana.kismet.UnexpectedValueException
@@ -24,7 +25,9 @@ class Parser {
 	boolean optimizePrelude
 	boolean optimizeClosure
 	boolean optimizePure
-	boolean path2
+	boolean fillTemplate
+	boolean path2 = true
+	String commentStart = ';;'
 
 	@SuppressWarnings('GroovyVariableNotAssigned')
 	BlockExpression parse(String code) {
@@ -40,7 +43,8 @@ class Parser {
 				comment = false
 			} else {
 				++cl
-				if (!comment) comment = c == ((char) ';') && builder.acceptsComment()
+				if (!comment && builder.warrior)
+					comment = Arrays.copyOfRange(arr, i, i+commentStart.length()) == commentStart.toCharArray()
 			}
 			if (comment) continue
 			try {
@@ -49,8 +53,11 @@ class Parser {
 				throw new ParseException(ex, ln, cl)
 			}
 		}
-		builder.push(10)
-		new BlockExpression(builder.expressions)
+		toBlock(builder.finish())
+	}
+
+	static BlockExpression toBlock(Expression expr) {
+		expr instanceof BlockExpression ? (BlockExpression) expr : new BlockExpression([expr])
 	}
 
 	abstract class ExprBuilder<T extends Expression> {
@@ -60,9 +67,21 @@ class Parser {
 		abstract T doPush(int cp)
 
 		Expression push(int cp) {
-			T x = doPush(cp)
+			fulfillResult(doPush(cp))
+		}
+
+		Expression fulfillResult(T x) {
 			null == x ? x : percent ? x.percentize(context) : x
 		}
+
+		T doFinish() { throw new UnsupportedOperationException('Can\'t finish') }
+
+		Expression finish() {
+			fulfillResult(doFinish())
+		}
+
+		boolean waitingForDelim() { false }
+		boolean isWarrior() { false }
 	}
 
 	class BlockBuilder extends ExprBuilder<BlockExpression> {
@@ -70,97 +89,120 @@ class Parser {
 		CallBuilder last = null
 		boolean lastPercent = false
 		boolean bracketed
+		boolean requireSeparator = false
+		char separator = (char) ';'
+		char bracket = (char) '}'
+		boolean isCallArgs
 
 		BlockBuilder(boolean b) { bracketed = b }
 
 		@Override
 		BlockExpression doPush(int cp) {
-			if (cp == 125 && bracketed && (null == last || (last.endOnDelim && !(last.anyBlocks())))) {
-				if (null != last) {
-					CallExpression x = last.doPush(10)
-					if (null == x)
-						throw new UnexpectedSyntaxException('Last call in block was bracketed but was not closed')
-					Expression a = !last.bracketed && !x.arguments ? x.callValue : x
-					expressions.add(last.percent ? a.percentize(context) :
-							x instanceof CallExpression && optimizePrelude ?
-									last.optimize((CallExpression) a) : a)
-				}
-				return new BlockExpression(expressions)
-			} else if (null == last) {
+			final lastNull = null == last
+			if (bracketed && cp == bracket && (lastNull || (last.endOnDelim && !last.anyBlocks()))) {
+				return doFinish()
+			} else if (cp == separator && (lastNull || (last.endOnDelim && !last.anyBlocks()))) {
+				def x = last?.finish()
+				add x
+				last = null
+			} else if (lastNull) {
 				if (cp == 91) last = new CallBuilder(true)
 				else if (cp == 37) lastPercent = true
-				else if (!Character.isWhitespace(cp)) (last = new CallBuilder(false)).push(cp)
-				if (lastPercent && null != last) last.percent = !(lastPercent = false)
+				else if (!Character.isWhitespace(cp)) {
+					if (requireSeparator) {
+						last = new CallBuilder(true)
+						last.bracket = separator
+						last.push(cp)
+					} else (last = new CallBuilder(false)).push(cp)
+				}
+				if (lastPercent && last != null) last.percent = !(lastPercent = false)
 			} else {
 				CallExpression x = last.doPush(cp)
 				if (null != x) {
-					Expression a = !last.bracketed && !x.arguments ? x.callValue : x
-					expressions.add(last.percent ? a.percentize(context) :
-							a instanceof CallExpression && optimizePrelude ?
-							last.optimize((CallExpression) a) : a)
+					add x
 					final back = last.goBack
 					last = null
 					if (back) return doPush(cp)
 				}
 			}
-			bracketed && cp == 125 && null == last ? new BlockExpression(expressions) : null
+			bracketed && cp == bracket && null == last ? doFinish() : null
 		}
 
-		boolean acceptsComment() {
-			null == last ? true : last.acceptsComment()
+		boolean isWarrior() {
+			null == last || last.warrior
+		}
+
+		boolean waitingForDelim() { bracketed }
+
+		BlockExpression doFinish() {
+			if (last != null) {
+				add last.finish()
+				last = null
+			}
+			new BlockExpression(expressions)
+		}
+
+		void add(Expression x) {
+			if (null == x) return
+			if (x instanceof CallExpression) {
+				Expression a = (!last.bracketed || last.bracket == separator) &&
+						!((CallExpression) x).arguments ? ((CallExpression) x).callValue : x
+				expressions.add(last.percent ? a.percentize(context) :
+						a instanceof CallExpression && optimizePrelude ?
+								last.optimize((CallExpression) a) : a)
+			} else expressions.add(x)
 		}
 	}
 
-	@CompileStatic
 	class CallBuilder extends ExprBuilder<CallExpression> {
 		List<Expression> expressions = []
 		ExprBuilder last = null
 		boolean lastPercent = false
 		boolean bracketed
-		int bracket
+		char bracket
 
-		CallBuilder(boolean b, int bracket = ((char) ']')) { bracketed = b; this.bracket = bracket }
+		CallBuilder(boolean b, char bracket = ((char) ']')) { bracketed = b; this.bracket = bracket }
 
 		@Override
 		CallExpression doPush(int cp) {
 			if ((bracketed ? cp == bracket : (cp == 10 || cp == 13)) && endOnDelim) {
-				if (null != last) {
-					Expression x = last.push(10)
-					if (null == x)
-						throw new IllegalStateException('Call was supposed to end with a ], last builder ' +
-								'which is nonbracketed path or num was pushed a newline but returned null ' + last)
-					expressions.add(x)
-				}
-				return new CallExpression(expressions)
+				return doFinish()
 			} else if (null == last) {
-				if (bracketed && cp == 93) return new CallExpression(expressions)
+				if (bracketed && cp == bracket) return new CallExpression(expressions)
 				else if (cp == 37) lastPercent = true
-				else if (cp == 40) last = new CallBuilder(true, (char) ')')
+				else if (cp == 40) {
+					final b = new BlockBuilder(true)
+					b.bracket = (char) ')'
+					b.requireSeparator = true
+					last = b
+				}
 				else if (cp == 91) last = new CallBuilder(true)
 				else if (cp == 123) last = new BlockBuilder(true)
 				else if (cp > 47 && cp < 58) (last = new NumberBuilder()).push(cp)
 				else if (cp == 34 || cp == 39) last = new StringExprBuilder(cp)
 				else if (cp == ((char) '`')) last = new QuoteAtomBuilder()
 				else if (cp == ((char) '.'))
-					(last = new PathBuilder2(expressions.empty ? null : expressions.pop())).push(cp)
-				else if (!Character.isWhitespace(cp)) (last = path2 ? new NameBuilder() : new PathBuilder(false)).push(cp)
+					(last = new PathBuilder(expressions.empty ? null : expressions.pop())).push(cp)
+				else if (!Character.isWhitespace(cp)) (last = path2 ? new NameBuilder() : new DumbPathBuilder(false)).push(cp)
 				if (lastPercent && null != last) last.percent = !(lastPercent = false)
 			} else {
 				Expression x = last.push(cp)
 				if (null != x) {
 					if (last instanceof NameBuilder && cp == ((char) '[')) {
-						(last = new PathBuilder2(x)).push(cp)
+						(last = new PathBuilder(x)).push(cp)
 					} else {
-						if (last instanceof CallBuilder && ((CallBuilder) last).bracket == ((char) ')')) {
-							def y = (CallExpression) x
-							if (y.arguments.empty)
-								x = new IdentityExpression(new CallExpression([
-										new NameExpression('identity'), y.callValue]))
-						}
-						expressions.add(x)
+						add x
 						final back = last.goBack
 						last = null
-						if (back) return doPush(cp)
+						if (back && cp != ((char) '(')) return doPush(cp)
+					}
+					if (cp == ((char) '(')) {
+						def bb = new BlockBuilder(true)
+						bb.bracket = (char) ')'
+						bb.separator = (char) ','
+						bb.isCallArgs = true
+						bb.requireSeparator = true
+						last = bb
 					}
 				}
 			}
@@ -168,28 +210,55 @@ class Parser {
 		}
 
 		@Override
-		Expression push(int cp) {
-			def x = doPush(cp)
+		Expression fulfillResult(CallExpression x) {
 			if (null == x) return x
-			if (percent) x = x.percentize(context)
-			else if (optimizePrelude) x = optimize(x)
-			x
+			Expression r = x
+			if (percent) r = r.percentize(context)
+			else if (optimizePrelude) r = optimize(x)
+			r
+		}
+
+		void add(Expression x) {
+			if (last instanceof BlockBuilder && ((BlockBuilder) last).isCallArgs) {
+				final p = expressions.pop()
+				List<Expression> t = new ArrayList<>()
+				if (p instanceof PathExpression) {
+					final pe = (PathExpression) p
+					final r = pe.steps.last()
+					if (r instanceof PathExpression.PropertyStep)
+						t.add(new NameExpression(((PathExpression.PropertyStep) r).name))
+					else if (r instanceof PathExpression.SubscriptStep)
+						t.add(((PathExpression.SubscriptStep) r).expression)
+					else throw new UnexpectedSyntaxException('Unknown step thing')
+					t.add new PathExpression(pe.root, pe.steps.init())
+				} else t.add p
+				final call = new CallExpression(t + ((BlockExpression) x).content)
+				x = optimizePrelude ? optimize(call) : call
+			}
+			expressions.add(x)
+		}
+
+		CallExpression doFinish() {
+			if (last != null) {
+				add last.finish()
+				last = null
+			}
+			new CallExpression(expressions)
 		}
 
 		boolean isEndOnDelim() {
-			!( last instanceof StringExprBuilder || last instanceof QuoteAtomBuilder
-					|| (last instanceof CallBuilder && ((CallBuilder) last).bracketed)
-					|| last instanceof BlockBuilder
-					|| (last instanceof PathBuilder && ((PathBuilder) last).bracketed))
+			last == null || !last.waitingForDelim()
 		}
 
-		boolean acceptsComment() {
-			!(last instanceof StringExprBuilder || last instanceof QuoteAtomBuilder)
+		boolean isWarrior() {
+			last == null || last.warrior
 		}
 
 		boolean anyBlocks() {
 			last instanceof BlockBuilder || (last instanceof CallBuilder && ((CallBuilder) last).anyBlocks())
 		}
+
+		boolean waitingForDelim() { bracketed }
 
 		Expression optimize(CallExpression expr) {
 			if (expr.callValue instanceof NameExpression) {
@@ -200,11 +269,14 @@ class Parser {
 				} catch (UndefinedVariableException ignored) {}
 				if (null != func) {
 					def inner = func.inner()
+					int equalsType = 0
+					if (inner instanceof Template && fillTemplate)
+						return optimize(((Template) inner).transform(expr.arguments as Expression[]))
 					if (inner instanceof Macro) {
 						Expression currentExpression = expr
 						switch (text) {
 						case "don't":
-							return new NoExpression()
+							return NoExpression.INSTANCE
 						case "round":
 							def p = expr.arguments[1]
 							RoundExpression rounder
@@ -217,43 +289,49 @@ class Parser {
 						case "hex": return new HexExpression(expr)
 						case "change":
 						case ":::=":
-							if (expr.arguments[0] instanceof NameExpression)
-								return new ChangeExpression(expr, ((NameExpression) expr.arguments[0]).text)
-							else if (expr.arguments[0] instanceof StringExpression)
-								return new ChangeExpression(expr, ((StringExpression) expr.arguments[0]).value.inner())
-							break
+							++equalsType
 						case "set_to":
 						case "::=":
-							if (expr.arguments[0] instanceof NameExpression)
-								return new ContextSetExpression(expr, ((NameExpression) expr.arguments[0]).text)
-							else if (expr.arguments[0] instanceof StringExpression)
-								return new ContextSetExpression(expr, ((StringExpression) expr.arguments[0]).value.inner())
-							break
+							++equalsType
 						case "define":
 						case ":=":
-							if (expr.arguments[0] instanceof NameExpression)
-								return new DefineExpression(expr, ((NameExpression) expr.arguments[0]).text)
-							else if (expr.arguments[0] instanceof StringExpression)
-								return new DefineExpression(expr, ((StringExpression) expr.arguments[0]).value.inner())
-							break
+							++equalsType
 						case "assign":
 						case "=":
-							if (expr.arguments[0] instanceof NameExpression)
-								return new AssignExpression(expr, ((NameExpression) expr.arguments[0]).text)
-							else if (expr.arguments[0] instanceof StringExpression)
-								return new AssignExpression(expr, ((StringExpression) expr.arguments[0]).value.inner())
-							break
+							final size = expr.arguments.size()
+							def last = expr.arguments[size - 1]
+							for (int i = size - 2; i >= 0; --i) {
+								def name = expr.arguments[i]
+								def atom = KismetInner.toAtom(name)
+								def orig = new CallExpression([expr.callValue, name, last])
+								if (null != atom) switch (equalsType) {
+									case 3: last = new ChangeExpression(orig, atom, last); break
+									case 2: last = new ContextSetExpression(orig, atom, last); break
+									case 1: last = new DefineExpression(orig, atom, last); break
+									case 0: last = new AssignExpression(orig, atom, last); break
+								} else if (name instanceof CallExpression)
+									last = new DefineFunctionExpression(orig)
+								else if (name instanceof PathExpression)
+									last = new PathStepExpression(orig, (PathExpression) name)
+								else throw new UnexpectedSyntaxException("During $text, got for name: ${name.repr()}")
+							}
+							if (last instanceof NameExpression)
+								last = new DefineExpression(expr, ((NameExpression) last).text, NoExpression.INSTANCE)
+							return (CallExpression) last
 						case "fn": return new FunctionExpression(expr)
 						case "defn": return new DefineFunctionExpression(expr)
 						case "fn*": return new FunctionSpreadExpression(expr)
-						case "incr": return new CallExpression([new NameExpression('='), expr.arguments[0],
-								new CallExpression([new NameExpression('next'), expr.arguments[0]])])
-						case "decr": return new CallExpression([new NameExpression('='), expr.arguments[0],
-								new CallExpression([new NameExpression('prev'), expr.arguments[0]])])
-						case "for": return new ForExpression(expr, context)
-						case "for<": return new ForLessExpression(expr, context)
-						case "&for": return new CollectForExpression(expr, context)
-						case "&for<": return new CollectForLessExpression(expr, context)
+						case "incr": return optimize(new CallExpression([new NameExpression('='), expr.arguments[0],
+								new CallExpression([new NameExpression('next'), expr.arguments[0]])]))
+						case "decr": return optimize(new CallExpression([new NameExpression('='), expr.arguments[0],
+								new CallExpression([new NameExpression('prev'), expr.arguments[0]])]))
+						case "for": return new ForExpression(expr, context, false, false)
+						case "for<": return new ForExpression(expr, context, false, true)
+						case "&for": return new ForExpression(expr, context, true, false)
+						case "&for<": return new ForExpression(expr, context, true, true)
+						case "for:": return new ForEachExpression(expr, context, false)
+						case "&for:": return new ForEachExpression(expr, context, true)
+						case "check": return new CheckExpression(expr)
 						default:
 							if (optimizeClosure && inner instanceof GroovyMacro)
 								currentExpression = new ClosureMacroExpression(expr, inner)
@@ -311,6 +389,71 @@ class Parser {
 			}
 
 			String repr() { "identity(${arguments*.repr().join(', ')})" }
+		}
+
+		static class PathStepExpression extends FakeCallExpression {
+			Expression value
+			PathExpression.Step step
+
+			PathStepExpression(CallExpression original, PathExpression path) {
+				super(original)
+				value = new PathExpression(path.root, path.steps.init())
+				step = path.steps.last()
+			}
+
+			KismetObject evaluate(Context c) {
+				step.apply(c, value.evaluate(c))
+			}
+		}
+
+		static class CheckExpression extends FakeCallExpression {
+			Expression value
+			List<Expression> branches
+			String name = 'it'
+
+			CheckExpression(CallExpression original) {
+				super(original)
+				value = original.arguments[0]
+				if (value instanceof DefineExpression) name = ((DefineExpression) value).name
+				branches = new ArrayList<>(original.arguments.size() - 1)
+				addBranches(original.arguments.tail())
+			}
+
+			void addBranches(List<Expression> orig) {
+				def iter = orig.iterator()
+				while (iter.hasNext()) {
+					def a = iter.next()
+					if (iter.hasNext()) {
+						if (a instanceof CallExpression) {
+							def ses = new ArrayList<Expression>(((CallExpression) a).expressions)
+							ses.add(1, new NameExpression(name))
+							branches.add new CallExpression(ses)
+						} else if (a instanceof NameExpression) {
+							final text = ((NameExpression) a).text
+							branches.add new CallExpression([new NameExpression(KismetInner.isAlpha(text) ? text + '?' : text),
+									new NameExpression(name)] as List<Expression>)
+						} else if (a instanceof BlockExpression) {
+							addBranches(((BlockExpression) a).content)
+							continue
+						} else branches.add(new CallExpression([new NameExpression('is?'), new NameExpression(name), a]))
+						branches.add(iter.next())
+					} else branches.add(a)
+				}
+			}
+
+			KismetObject evaluate(Context c) {
+				c = c.child()
+				c.set(name, value.evaluate(c))
+				def iter = branches.iterator()
+				while (iter.hasNext()) {
+					def a = iter.next()
+					if (iter.hasNext()) {
+						def b = iter.next()
+						if (a.evaluate(c)) return b.evaluate(c)
+					} else return a.evaluate(c)
+				}
+				Kismet.NULL
+			}
 		}
 
 		static class RoundExpression extends FakeCallExpression {
@@ -513,14 +656,20 @@ class Parser {
 			String repr() { "fn*(${arguments*.repr().join(', ')})" }
 		}
 
-		static class DefineExpression extends FakeCallExpression {
+		static class VariableModifyExpression extends FakeCallExpression {
 			String name
 			Expression expression
 
-			DefineExpression(CallExpression original, String name) {
+			VariableModifyExpression(CallExpression original, String name, Expression expression) {
 				super(original)
 				this.name = name
-				expression = original.arguments[1]
+				this.expression = expression
+			}
+		}
+
+		static class DefineExpression extends VariableModifyExpression {
+			DefineExpression(CallExpression original, String name, Expression expression) {
+				super(original, name, expression)
 			}
 
 			KismetObject evaluate(Context c) {
@@ -530,14 +679,9 @@ class Parser {
 			String repr() { "define[$name, ${expression.repr()}]" }
 		}
 
-		static class ChangeExpression extends FakeCallExpression {
-			String name
-			Expression expression
-
-			ChangeExpression(CallExpression original, String name) {
-				super(original)
-				this.name = name
-				expression = original.arguments[1]
+		static class ChangeExpression extends VariableModifyExpression {
+			ChangeExpression(CallExpression original, String name, Expression expression) {
+				super(original, name, expression)
 			}
 
 			KismetObject evaluate(Context c) {
@@ -547,14 +691,9 @@ class Parser {
 			String repr() { "change[$name, ${expression.repr()}]" }
 		}
 
-		static class AssignExpression extends FakeCallExpression {
-			String name
-			Expression expression
-
-			AssignExpression(CallExpression original, String name) {
-				super(original)
-				this.name = name
-				expression = original.arguments[1]
+		static class AssignExpression extends VariableModifyExpression {
+			AssignExpression(CallExpression original, String name, Expression expression) {
+				super(original, name, expression)
 			}
 
 			KismetObject evaluate(Context c) {
@@ -564,14 +703,9 @@ class Parser {
 			String repr() { "assign[$name, ${expression.repr()}]" }
 		}
 
-		static class ContextSetExpression extends FakeCallExpression {
-			String name
-			Expression expression
-
-			ContextSetExpression(CallExpression original, String name) {
-				super(original)
-				this.name = name
-				expression = original.arguments[1]
+		static class ContextSetExpression extends VariableModifyExpression {
+			ContextSetExpression(CallExpression original, String name, Expression expression) {
+				super(original, name, expression)
 			}
 
 			KismetObject evaluate(Context c) {
@@ -629,12 +763,17 @@ class Parser {
 			int bottom = 1, top = 0, step = 1
 			Expression nameExpr, bottomExpr, topExpr, stepExpr
 			Expression block
+			boolean collect = true
+			boolean less = false
 
-			ForExpression(CallExpression original, Context c) {
+			ForExpression(CallExpression original, Context c, boolean collect, boolean less) {
 				super(original)
 				def first = original.arguments[0]
 				def exprs = first instanceof CallExpression ? ((CallExpression) first).expressions : [first]
 				final size = exprs.size()
+				this.collect = collect
+				this.less = less
+				if (less) bottom = 0
 				if (size == 0) {
 					top = 2
 					step = 0
@@ -678,216 +817,99 @@ class Parser {
 				final top = topExpr == null ? top : topExpr.evaluate(c).inner() as int
 				final step = stepExpr == null ? step : stepExpr.evaluate(c).inner() as int
 				final name = nameExpr == null ? name : nameExpr.evaluate(c).toString()
-				for (; b <= top; b += step) {
+				def result = collect ? new ArrayList() : (ArrayList) null
+				for (; less ? b < top : b <= top; b += step) {
 					def k = c.child()
 					k.set(name, Kismet.model(b))
-					block.evaluate(c)
-				}
-				Kismet.NULL
-			}
-
-			String repr() { "for(${arguments*.repr().join(', ')})" }
-		}
-
-		static class CollectForExpression extends FakeCallExpression {
-			String name = 'it'
-			int bottom = 1, top = 0, step = 1
-			Expression nameExpr, bottomExpr, topExpr, stepExpr
-			Expression block
-
-			CollectForExpression(CallExpression original, Context c) {
-				super(original)
-				def first = original.arguments[0]
-				def exprs = first instanceof CallExpression ? ((CallExpression) first).expressions : [first]
-				final size = exprs.size()
-				if (size == 0) {
-					top = 2
-					step = 0
-				} else if (size == 1) {
-					if (exprs[0] instanceof ConstantExpression)
-						top = c.eval(exprs[0]).inner() as int
-					else topExpr = exprs[0]
-				} else if (size == 2) {
-					if (exprs[0] instanceof ConstantExpression)
-						bottom = c.eval(exprs[0]).inner() as int
-					else bottomExpr = exprs[0]
-
-					if (exprs[1] instanceof ConstantExpression)
-						top = c.eval(exprs[1]).inner() as int
-					else topExpr = exprs[1]
-				} else {
-					if (exprs[0] instanceof StringExpression)
-						name = (String) c.eval(exprs[0]).inner()
-					else if (exprs[0] instanceof NameExpression) {
-						name = ((NameExpression) exprs[0]).text
-					} else nameExpr = exprs[0]
-
-					if (exprs[1] instanceof ConstantExpression)
-						bottom = c.eval(exprs[1]).inner() as int
-					else bottomExpr = exprs[1]
-
-					if (exprs[2] instanceof ConstantExpression)
-						top = c.eval(exprs[2]).inner() as int
-					else topExpr = exprs[2]
-
-					if (exprs[3] instanceof ConstantExpression)
-						step = c.eval(exprs[3]).inner() as int
-					else stepExpr = exprs[3]
-				}
-				def tail = arguments.tail()
-				block = tail.size() == 1 ? tail[0] : new BlockExpression(tail)
-			}
-
-			KismetObject evaluate(Context c) {
-				int b = bottomExpr == null ? bottom : bottomExpr.evaluate(c).inner() as int
-				final top = topExpr == null ? top : topExpr.evaluate(c).inner() as int
-				final step = stepExpr == null ? step : stepExpr.evaluate(c).inner() as int
-				final name = nameExpr == null ? name : nameExpr.evaluate(c).toString()
-				def result = new ArrayList()
-				for (; b <= top; b += step) {
-					def k = c.child()
-					k.set(name, Kismet.model(b))
-					result.add(block.evaluate(c).inner())
+					if (collect) result.add(block.evaluate(c).inner())
+					else block.evaluate(c)
 				}
 				Kismet.model(result)
 			}
 
-			String repr() { "&for(${arguments*.repr().join(', ')})" }
+			String repr() { (collect ? '&' : '') + 'for' + (less ? '<' : '') + '(' + arguments*.repr().join(', ') + ')' }
 		}
 
-		static class ForLessExpression extends FakeCallExpression {
+		static class ForEachExpression extends FakeCallExpression {
+			String indexName
+			int indexStart = 0
 			String name = 'it'
-			int bottom = 0, top = 0, step = 1
-			Expression nameExpr, bottomExpr, topExpr, stepExpr
+			Iterator iterator = Collections.emptyIterator()
+			Expression indexNameExpr, indexStartExpr, nameExpr, iterExpr
 			Expression block
+			boolean collect = true
 
-			ForLessExpression(CallExpression original, Context c) {
+			ForEachExpression(CallExpression original, Context c, boolean collect) {
 				super(original)
 				def first = original.arguments[0]
 				def exprs = first instanceof CallExpression ? ((CallExpression) first).expressions : [first]
 				final size = exprs.size()
-				if (size == 0) {
-					top = 1
-					step = 0
-				} else if (size == 1) {
-					if (exprs[0] instanceof ConstantExpression)
-						top = c.eval(exprs[0]).inner() as int
-					else topExpr = exprs[0]
+				this.collect = collect
+				if (size == 1) {
+					final atom = KismetInner.toAtom(exprs[0])
+					if (atom == null) nameExpr = exprs[0]
+					else name = atom
 				} else if (size == 2) {
-					if (exprs[0] instanceof ConstantExpression)
-						bottom = c.eval(exprs[0]).inner() as int
-					else bottomExpr = exprs[0]
+					final atom = KismetInner.toAtom(exprs[0])
+					if (atom == null) nameExpr = exprs[0]
+					else name = atom
 
 					if (exprs[1] instanceof ConstantExpression)
-						top = c.eval(exprs[1]).inner() as int
-					else topExpr = exprs[1]
-				} else {
-					if (exprs[0] instanceof StringExpression)
-						name = (String) c.eval(exprs[0]).inner()
-					else if (exprs[0] instanceof NameExpression) {
-						name = ((NameExpression) exprs[0]).text
-					} else nameExpr = exprs[0]
+						iterator = KismetInner.toIterator(c.eval(exprs[1]).inner())
+					else iterExpr = exprs[1]
+				} else if (size >= 3) {
+					final f = exprs[0]
+					if (f instanceof CallExpression) {
+						final cf = ((CallExpression) f).expressions
+						indexName(cf[0])
+						indexStart(c, cf[cf.size() > 1 ? 1 : 0])
+					} else indexName(f)
 
-					if (exprs[1] instanceof ConstantExpression)
-						bottom = c.eval(exprs[1]).inner() as int
-					else bottomExpr = exprs[1]
+					final atom = KismetInner.toAtom(exprs[1])
+					if (atom == null) nameExpr = exprs[1]
+					else name = atom
 
 					if (exprs[2] instanceof ConstantExpression)
-						top = c.eval(exprs[2]).inner() as int
-					else topExpr = exprs[2]
-
-					if (exprs[3] instanceof ConstantExpression)
-						step = c.eval(exprs[3]).inner() as int
-					else stepExpr = exprs[3]
+						iterator = KismetInner.toIterator(c.eval(exprs[2]).inner())
+					else iterExpr = exprs[2]
 				}
 				def tail = arguments.tail()
 				block = tail.size() == 1 ? tail[0] : new BlockExpression(tail)
 			}
 
-			KismetObject evaluate(Context c) {
-				int b = bottomExpr == null ? bottom : bottomExpr.evaluate(c).inner() as int
-				final top = topExpr == null ? top : topExpr.evaluate(c).inner() as int
-				final step = stepExpr == null ? step : stepExpr.evaluate(c).inner() as int
-				final name = nameExpr == null ? name : nameExpr.evaluate(c).toString()
-				for (; b < top; b += step) {
-					def k = c.child()
-					k.set(name, Kismet.model(b))
-					block.evaluate(c)
-				}
-				Kismet.NULL
+			private void indexName(Expression expr) {
+				final atom = KismetInner.toAtom(expr)
+				if (atom == null) indexNameExpr = expr
+				else indexName = atom
 			}
 
-			String repr() { "for<(${arguments*.repr().join(', ')})" }
-		}
-
-		static class CollectForLessExpression extends FakeCallExpression {
-			String name = 'it'
-			int bottom = 0, top, step = 1
-			Expression nameExpr, bottomExpr, topExpr, stepExpr
-			Expression block
-
-			CollectForLessExpression(CallExpression original, Context c) {
-				super(original)
-				def first = original.arguments[0]
-				def exprs = first instanceof CallExpression ? ((CallExpression) first).expressions : [first]
-				final size = exprs.size()
-				if (size == 0) {
-					top = 1
-					step = 0
-				} else if (size == 1) {
-					if (exprs[0] instanceof ConstantExpression)
-						top = c.eval(exprs[0]).inner() as int
-					else topExpr = exprs[0]
-				} else if (size == 2) {
-					if (exprs[0] instanceof ConstantExpression)
-						bottom = c.eval(exprs[0]).inner() as int
-					else bottomExpr = exprs[0]
-
-					if (exprs[1] instanceof ConstantExpression)
-						top = c.eval(exprs[1]).inner() as int
-					else topExpr = exprs[1]
-				} else {
-					if (exprs[0] instanceof StringExpression)
-						name = (String) c.eval(exprs[0]).inner()
-					else if (exprs[0] instanceof NameExpression) {
-						name = ((NameExpression) exprs[0]).text
-					} else nameExpr = exprs[0]
-
-					if (exprs[1] instanceof ConstantExpression)
-						bottom = c.eval(exprs[1]).inner() as int
-					else bottomExpr = exprs[1]
-
-					if (exprs[2] instanceof ConstantExpression)
-						top = c.eval(exprs[2]).inner() as int
-					else topExpr = exprs[2]
-
-					if (exprs[3] instanceof ConstantExpression)
-						step = c.eval(exprs[3]).inner() as int
-					else stepExpr = exprs[3]
-				}
-				def tail = arguments.tail()
-				block = tail.size() == 1 ? tail[0] : new BlockExpression(tail)
+			private void indexStart(Context c, Expression expr) {
+				if (expr instanceof ConstantExpression) indexStart = (int) expr.evaluate(c).as(int)
+				else indexStartExpr = expr
 			}
 
 			KismetObject evaluate(Context c) {
-				int b = bottomExpr == null ? bottom : bottomExpr.evaluate(c).inner() as int
-				final top = topExpr == null ? top : topExpr.evaluate(c).inner() as int
-				final step = stepExpr == null ? step : stepExpr.evaluate(c).inner() as int
+				int i = indexStartExpr == null ? indexStart : indexStartExpr.evaluate(c).inner() as int
+				final iter = iterExpr == null ? iterator : KismetInner.toIterator(iterExpr.evaluate(c).inner())
+				final iName = indexNameExpr == null ? indexName : indexNameExpr.evaluate(c).toString()
 				final name = nameExpr == null ? name : nameExpr.evaluate(c).toString()
-				def result = new ArrayList()
-				for (; b < top; b += step) {
+				def result = collect ? new ArrayList() : (ArrayList) null
+				while (iter.hasNext()) {
+					final it = iter.next()
 					def k = c.child()
-					k.set(name, Kismet.model(b))
-					result.add(block.evaluate(c).inner())
+					k.set(name, Kismet.model(it))
+					if (null != iName) k.set(iName, Kismet.model(i))
+					if (collect) result.add(block.evaluate(c).inner())
+					else block.evaluate(c)
+					i++
 				}
 				Kismet.model(result)
 			}
 
-			String repr() { "&for<(${arguments*.repr().join(', ')})" }
+			String repr() { (collect ? '&' : '') + 'for:' + '(' + arguments*.repr().join(', ') + ')' }
 		}
 	}
 
-	@CompileStatic
 	class NumberBuilder extends ExprBuilder<NumberExpression> {
 		static final String[] stageNames = ['number', 'fraction', 'exponent', 'number type bits']
 		StringBuilder[] arr = [new StringBuilder(), null, null, null]
@@ -919,18 +941,21 @@ class Parser {
 					init 3
 				}
 			} else if (newlyStage && stage != 3) throw new NumberFormatException('Started number but wasnt number')
-			else return new NumberExpression(type, arr)
+			else { goBack = true; return new NumberExpression(type, arr) }
 			(NumberExpression) null
+		}
+
+		NumberExpression doFinish() {
+			new NumberExpression(type, arr)
 		}
 	}
 
-	@CompileStatic
-	class PathBuilder extends ExprBuilder {
+	class DumbPathBuilder extends ExprBuilder {
 		StringBuilder last = new StringBuilder()
 		boolean escaped = false
 		boolean bracketed
 
-		PathBuilder(boolean b) { bracketed = b }
+		DumbPathBuilder(boolean b) { bracketed = b }
 
 		Expression doPush(int cp) {
 			if ((bracketed && !escaped && cp == 41) || (!bracketed && Character.isWhitespace(cp)))
@@ -945,34 +970,39 @@ class Parser {
 		}
 
 		Expression convert(String str) {
-			def path = new Path(str)
+			def path = new DumbParser.Path(str)
 			def ex = path.expressions
 			NameExpression root = null
-			if (!str.startsWith('.') && ex[0] instanceof Path.PropertyPathStep) {
+			if (!str.startsWith('.') && ex[0] instanceof DumbParser.Path.PropertyPathStep) {
 				root = new NameExpression(ex[0].raw)
 				if (ex.size() == 1) return root
 				ex = ex.drop(1)
 			}
-			def newEx = new ArrayList<PathExpression2.Step>(ex.size())
+			def newEx = new ArrayList<PathExpression.Step>(ex.size())
 			for (e in ex) {
-				if (e instanceof Path.SubscriptPathStep) {
-					newEx.add(new PathExpression2.SubscriptStep(new StaticExpression(((Path.SubscriptPathStep) e).val)))
-				} else if (e instanceof Path.PropertyPathStep) {
-					newEx.add(new PathExpression2.PropertyStep(((Path.PropertyPathStep) e).raw))
+				if (e instanceof DumbParser.Path.SubscriptPathStep) {
+					newEx.add(new PathExpression.SubscriptStep(new StaticExpression(((DumbParser.Path.SubscriptPathStep) e).val)))
+				} else if (e instanceof DumbParser.Path.PropertyPathStep) {
+					newEx.add(new PathExpression.PropertyStep(((DumbParser.Path.PropertyPathStep) e).raw))
 				} else throw new UnexpectedSyntaxException("Unknown path step $e")
 			}
-			new PathExpression2(root, newEx)
+			new PathExpression(root, newEx)
+		}
+
+		boolean waitingForDelim() { bracketed }
+
+		Expression doFinish() {
+			convert(last.toString())
 		}
 	}
 
-	@CompileStatic
 	class NameBuilder extends ExprBuilder<NameExpression> {
 		StringBuilder builder = new StringBuilder()
 
 		static boolean isNotIdentifier(int cp) {
 			Character.isWhitespace(cp) || cp == ((char) '.') || cp == ((char) '[') ||
-				cp == ((char) '(') || cp == ((char) '{') || cp == ((char) ']') ||
-				cp == ((char) ')') || cp == ((char) '}')
+					cp == ((char) '(') || cp == ((char) '{') || cp == ((char) ']') ||
+					cp == ((char) ')') || cp == ((char) '}')
 		}
 
 		@Override
@@ -984,21 +1014,24 @@ class Parser {
 			builder.appendCodePoint(cp)
 			null
 		}
+
+		NameExpression doFinish() {
+			new NameExpression(builder.toString())
+		}
 	}
 
-	@CompileStatic
-	class PathBuilder2 extends ExprBuilder<PathExpression2> {
+	class PathBuilder extends ExprBuilder<PathExpression> {
 		Expression root
-		List<PathExpression2.Step> steps = []
+		List<PathExpression.Step> steps = []
 		ExprBuilder last
 		boolean inPropertyQueue
 
-		PathBuilder2(Expression root) {
+		PathBuilder(Expression root) {
 			this.root = root
 		}
 
 		@Override
-		PathExpression2 doPush(int cp) {
+		PathExpression doPush(int cp) {
 			if (inPropertyQueue) {
 				inPropertyQueue = false
 				if (cp == ((char) '[')) { last = new CallBuilder(true); return null }
@@ -1008,15 +1041,7 @@ class Parser {
 			if (null != last) {
 				def e = last.push(cp)
 				if (null != e) {
-					if (e instanceof NameExpression) {
-						steps.add(new PathExpression2.PropertyStep(((NameExpression) e).text))
-					} else if (e instanceof CallExpression) {
-						Expression a
-						final j = (CallExpression) e
-						if (j.arguments.empty) a = j.callValue
-						else a = e
-						steps.add(new PathExpression2.SubscriptStep(a))
-					} else throw new UnexpectedSyntaxException("Unkonown path expression type ${e.class}")
+					add e
 					final back = last.goBack
 					last = null
 					if (back) return doPush(cp)
@@ -1026,14 +1051,35 @@ class Parser {
 				else if (cp == ((char) '[')) last = new CallBuilder(true)
 				else {
 					goBack = true
-					return new PathExpression2(root, steps)
+					return new PathExpression(root, steps)
 				}
 			}
 			null
 		}
+
+		void add(Expression e) {
+			if (e instanceof NameExpression) {
+				steps.add(new PathExpression.PropertyStep(((NameExpression) e).text))
+			} else if (e instanceof CallExpression) {
+				Expression a
+				final j = (CallExpression) e
+				if (j.arguments.empty) a = j.callValue
+				else a = e
+				steps.add(new PathExpression.SubscriptStep(a))
+			} else throw new UnexpectedSyntaxException("Unkonown path expression type ${e.class}")
+		}
+
+		boolean waitingForDelim() { last == null || last.waitingForDelim() }
+
+		PathExpression doFinish() {
+			if (null != last) {
+				add last.finish()
+				last = null
+			}
+			new PathExpression(root, steps)
+		}
 	}
 
-	@CompileStatic
 	class StringExprBuilder extends ExprBuilder<StringExpression> {
 		StringBuilder last = new StringBuilder()
 		boolean escaped = false
@@ -1044,9 +1090,9 @@ class Parser {
 		}
 
 		StringExpression doPush(int cp) {
-			if (!escaped && cp == quote) return new StringExpression(last.toString())
-			if (escaped) escaped = false
-			else escaped = cp == 92
+			if (!escaped && cp == quote)
+				return new StringExpression(last.toString())
+			escaped = !escaped && cp == ((char) '\\')
 			last.appendCodePoint(cp)
 			(StringExpression) null
 		}
@@ -1084,9 +1130,15 @@ class Parser {
 			}
 			result
 		}
+
+		StringExpression doFinish() {
+			new StringExpression(last.toString())
+		}
+
+		boolean waitingForDelim() { true }
+		boolean isWarrior() { true }
 	}
 
-	@CompileStatic
 	class QuoteAtomBuilder extends ExprBuilder<NameExpression> {
 		StringBuilder last = new StringBuilder()
 		boolean escaped = false
@@ -1094,10 +1146,16 @@ class Parser {
 		NameExpression doPush(int cp) {
 			if (!escaped && cp == ((char) '`'))
 				return new NameExpression(last.toString())
-			if (escaped) escaped = false
-			else escaped = cp == 92
+			escaped = !escaped && cp == ((char) '\\')
 			last.appendCodePoint(cp)
 			(NameExpression) null
 		}
+
+		NameExpression doFinish() {
+			new NameExpression(last.toString())
+		}
+
+		boolean waitingForDelim() { true }
+		boolean isWarrior() { true }
 	}
 }

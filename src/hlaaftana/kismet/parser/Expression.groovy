@@ -12,20 +12,23 @@ import hlaaftana.kismet.*
 	}
 
 	String repr() { "expr(${this.class})" }
+
+	String toString() { repr() }
 }
 
-@CompileStatic class PathExpression extends Expression {
+@CompileStatic class DumbPathExpression extends Expression {
 	String text
-	Path path
+	DumbParser.Path path
 
-	PathExpression(String t) { text = t; path = Path.parse(t) }
-	PathExpression(Path p) { text = p.raw; path = p }
+	DumbPathExpression(String t) { text = t; path = DumbParser.Path.parse(t) }
+
+	DumbPathExpression(DumbParser.Path p) { text = p.raw; path = p }
 
 	String repr() { text }
 
 	void setText(String t) {
 		this.@text = t
-		path = Path.parse(t)
+		path = DumbParser.Path.parse(t)
 	}
 
 	KismetObject evaluate(Context c) {
@@ -33,12 +36,12 @@ import hlaaftana.kismet.*
 	}
 
 	boolean equals(obj) {
-		obj instanceof PathExpression && ((PathExpression) obj).text == text
+		obj instanceof DumbPathExpression && ((DumbPathExpression) obj).text == text
 	}
 
 	static class PathFunction extends Function {
-		Path path
-		PathFunction(Path p) { path = p }
+		DumbParser.Path path
+		PathFunction(DumbParser.Path p) { path = p }
 
 		@Override
 		KismetObject call(KismetObject... args) {
@@ -47,11 +50,11 @@ import hlaaftana.kismet.*
 	}
 }
 
-@CompileStatic class PathExpression2 extends Expression {
+@CompileStatic class PathExpression extends Expression {
 	Expression root
 	List<Step> steps
 
-	PathExpression2(Expression root, List<Step> steps) {
+	PathExpression(Expression root, List<Step> steps) {
 		this.root = root
 		this.steps = steps
 	}
@@ -74,7 +77,7 @@ import hlaaftana.kismet.*
 		object
 	}
 
-	String repr() { root.repr() + steps.join(', ') }
+	String repr() { root.repr() + steps.join('') }
 
 	interface Step {
 		KismetObject apply(Context c, KismetObject object)
@@ -105,7 +108,7 @@ import hlaaftana.kismet.*
 			Kismet.model(object.inner().invokeMethod('getAt', expression.evaluate(c).inner()))
 		}
 
-		String toString() { ".subscript[${expression.repr()}]" }
+		String toString() { ".[${expression.repr()}]" }
 	}
 }
 
@@ -124,7 +127,7 @@ import hlaaftana.kismet.*
 @CompileStatic class BlockExpression extends Expression {
 	List<Expression> content
 
-	String repr() { 'block{\n' +
+	String repr() { '{\n' +
 			content*.repr().join('\r\n').readLines().collect('  '.&concat).join('\r\n') + '\r\n}' }
 
 	BlockExpression(List<Expression> exprs) { content = exprs }
@@ -135,7 +138,7 @@ import hlaaftana.kismet.*
 		a
 	}
 
-	boolean equals(obj) { obj instanceof BlockExpression && obj.content == content }
+	boolean equals(obj) { obj instanceof BlockExpression && ((BlockExpression) obj).content == content }
 }
 
 @CompileStatic class CallExpression extends Expression {
@@ -147,9 +150,10 @@ import hlaaftana.kismet.*
 		arguments = expressions.drop(1)
 	}
 
-	String repr() { "[${callValue.repr()}](${arguments*.repr().join(', ')})" }
+	String repr() { "[${expressions*.repr().join(', ')}]" }
 
 	KismetObject evaluate(Context c) {
+		if (null == callValue) return Kismet.NULL
 		KismetObject obj = callValue.evaluate(c)
 		if (obj.inner() instanceof KismetCallable) {
 			final arr = new Expression[arguments.size()]
@@ -254,8 +258,8 @@ import hlaaftana.kismet.*
 		value = b.doPush(32).value.inner()
 	}
 
-	PathExpression percentize(Context p) {
-		new PathExpression(new Path(new Path.SubscriptPathStep(value.inner().intValue())))
+	DumbPathExpression percentize(Context p) {
+		new DumbPathExpression(new DumbParser.Path(new DumbParser.Path.SubscriptPathStep(value.inner().intValue())))
 	}
 
 	boolean equals(obj) {
@@ -276,8 +280,8 @@ class StringExpression extends Expression implements ConstantExpression<String> 
 		} catch (ex) { exception = ex }
 	}
 
-	PathExpression percentize(Context p) {
-		new PathExpression(new Path(new Path.PropertyPathStep(raw)))
+	DumbPathExpression percentize(Context p) {
+		new DumbPathExpression(new DumbParser.Path(new DumbParser.Path.PropertyPathStep(raw)))
 	}
 
 	boolean equals(obj) {
@@ -312,6 +316,10 @@ class StaticExpression<T extends Expression> extends Expression implements Const
 }
 
 @CompileStatic class NoExpression extends Expression {
+	static final NoExpression INSTANCE = new NoExpression()
+
+	private NoExpression() {}
+
 	String repr() { "noexpr" }
 
 	KismetObject evaluate(Context c) {

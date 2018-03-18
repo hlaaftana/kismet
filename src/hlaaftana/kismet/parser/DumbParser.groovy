@@ -1,10 +1,12 @@
 package hlaaftana.kismet.parser
 
 import groovy.transform.CompileStatic
+import groovy.transform.InheritConstructors
 import hlaaftana.kismet.Context
 import hlaaftana.kismet.ParseException
-import hlaaftana.kismet.Path
 import hlaaftana.kismet.UnexpectedSyntaxException
+
+import java.util.regex.Pattern
 
 @CompileStatic
 class DumbParser {
@@ -199,15 +201,15 @@ class DumbParser {
 				if (ex.size() == 1) return root
 				ex = ex.drop(1)
 			}
-			def newEx = new ArrayList<PathExpression2.Step>(ex.size())
+			def newEx = new ArrayList<PathExpression.Step>(ex.size())
 			for (e in ex) {
 				if (e instanceof Path.SubscriptPathStep) {
-					newEx.add(new PathExpression2.SubscriptStep(new StaticExpression(((Path.SubscriptPathStep) e).val)))
+					newEx.add(new PathExpression.SubscriptStep(new StaticExpression(((Path.SubscriptPathStep) e).val)))
 				} else if (e instanceof Path.PropertyPathStep) {
-					newEx.add(new PathExpression2.PropertyStep(((Path.PropertyPathStep) e).raw))
+					newEx.add(new PathExpression.PropertyStep(((Path.PropertyPathStep) e).raw))
 				} else throw new UnexpectedSyntaxException("Unknown path step $e")
 			}
-			new PathExpression2(root, newEx)
+			new PathExpression(root, newEx)
 		}
 	}
 
@@ -231,6 +233,68 @@ class DumbParser {
 
 		StringExpression push(int cp) {
 			doPush(cp)
+		}
+	}
+
+	@CompileStatic
+	static class Path {
+		static final Pattern REGEX = ~/(?:\[\d+])|(?:(?:\.|^)[^.\[]+)/
+		String raw
+		List<PathStep> expressions = []
+
+		Path(List<PathStep> exprs) { expressions = exprs }
+
+		Path(PathStep... exprs) { expressions = exprs.toList() }
+
+		Path(String aaa){
+			raw = aaa
+			expressions = REGEX.matcher(raw).iterator().withIndex().collect { String it, int i ->
+				it.startsWith('[') ? new SubscriptPathStep(it[1 .. -2]) :
+						new PropertyPathStep(it[(i == 0 ? 0 : 1) .. -1])
+			}
+		}
+
+		static Path parse(String aaa){ new Path(aaa) }
+
+		String toString() { raw }
+
+		def apply(c){
+			for (it in expressions) c = it.act(c)
+			c
+		}
+
+		Tuple2<PathStep, Path> dropLastAndLast() {
+			List x = new ArrayList(expressions)
+			new Tuple2<>(x.pop(), new Path(x))
+		}
+
+		static abstract class PathStep {
+			String raw
+
+			PathStep(String raw) {
+				this.raw = raw
+			}
+
+			abstract act(r)
+		}
+
+		@InheritConstructors
+		@CompileStatic
+		static class PropertyPathStep extends PathStep {
+			def act(r) {
+				null != raw ? r[raw] : r
+			}
+		}
+
+		@CompileStatic
+		static class SubscriptPathStep extends PathStep {
+			int val
+			SubscriptPathStep(String r) { super(r); val = Integer.parseInt(r) }
+			SubscriptPathStep(int r) { super(null); val = r }
+
+			def act(r) {
+				r.invokeMethod('getAt', val)
+			}
 		}
 	}
 }

@@ -24,12 +24,12 @@ defcmd tag {
   }
 
   "author" name {
-    string "Author for tag " name " is " [user [get guild_data.tags name "author"]]
+    string "Author for tag " name " is " [user guild_data.tags[name].author]
   }
 
   name {
     if [has_key_traverse? guild_data "tags" name] {
-      strip_mentions [get guild_data.tags name content]
+      strip_mentions guild_data.tags[name][content]
     } else {
       "Invalid tag"
     }

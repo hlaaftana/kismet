@@ -136,7 +136,7 @@ class ParserUpdate {
 					} else if (t instanceof CharacterToken) {
 						final ct = (CharacterToken) t
 						final k = ct.kind
-						if (k == CharKind.NEWLINE || k == CharKind.SEMICOLON) return new Result(new NoExpression())
+						if (k == CharKind.NEWLINE || k == CharKind.SEMICOLON) return new Result(NoExpression.INSTANCE)
 						else if (k == CharKind.DOT) throw new UnexpectedSyntaxException('Dot in start of line?')
 						else if (k == CharKind.OPEN_PAREN) recording = new ListRecording(CharKind.CLOSE_PAREN)
 						else if (k == CharKind.OPEN_BRACK) recording = new ListRecording(CharKind.CLOSE_BRACK)
@@ -156,7 +156,7 @@ class ParserUpdate {
 					} else if (t instanceof CharacterToken) {
 						final ct = (CharacterToken) t
 						final k = ct.kind
-						if (k == CharKind.NEWLINE || k == CharKind.SEMICOLON) return new Result(new NoExpression())
+						if (k == CharKind.NEWLINE || k == CharKind.SEMICOLON) return new Result(NoExpression.INSTANCE)
 						else if (k == CharKind.DOT) throw new UnexpectedSyntaxException('Dot in start of line?')
 						else if (k == CharKind.OPEN_PAREN) recording = new ListRecording(CharKind.CLOSE_PAREN)
 						else if (k == CharKind.OPEN_BRACK) recording = new ListRecording(CharKind.CLOSE_BRACK)
