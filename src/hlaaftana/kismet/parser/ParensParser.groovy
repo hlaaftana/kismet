@@ -129,7 +129,7 @@ class ParensParser {
 		Expression ex
 		char q
 		if (null == code || (code = code.trim()).empty)
-			ex = new NoExpression()
+			ex = NoExpression.INSTANCE
 		else if (code.number) ex = new NumberExpression(code)
 		else if (code.length() >= 2 && (q = code.charAt(0)) == code.charAt(code.length() - 1) &&
 				(q == ((char) '"') || q == (char) "'"))
