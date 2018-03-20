@@ -1,11 +1,9 @@
 defn [memoized f] {
     := cache [map]
-    fn [if_else [has_key? cache $all]
-                [get cache $all]
-                [put cache $all [call f $all]]]
+    fn [pick cache[$all] [= cache[$all] [call f $all]]]
 }
 
-defmcr memoize [eval [call_expr [path "::="] $0 [call_expr [path "memoized"] $0]] $block]
+defmcr memoize [eval [call_expr [name_expr "::="] $0 [call_expr [name_expr "memoized"] $0]] $block]
 
 defn [nth_fibonacci n] [check n
     zero 1

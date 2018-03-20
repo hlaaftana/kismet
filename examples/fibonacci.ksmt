@@ -11,7 +11,7 @@ defn [fibonacci_collect n] {
 
 defn [fibonacci_imperative n] {
   let [f 0 s 1 [result l] [new_list n]] {
-    for< n [set_at l it [= f [+ s [= s f]]]]
+    for< n [= l[it] f [+ s [= s f]]]
   }
 }
 

@@ -3,7 +3,7 @@ defn [mean l] [[/ sum size] l]
 defn [median l] {
   := s [size l]
   := d [div s 2]
-  if_else [odd? s] [get l d] [div [+ [get l d] [get l [prev d]]] 2]
+  if_else [odd? s] l[d] [div [+ l[d] l[prev d]] 2]
 }
 
 defn [standard_deviation l] {
@@ -15,4 +15,4 @@ defn [standard_deviation l] {
   sqrt [/ s [prev [size l]]]
 }
 
-defn [skewness l] [/ [* 3 [- [mean l] [median l]]] [standard_deviation l]]
+defn [skewness l] [/ [* 3 [- mean median](l)]] [standard_deviation l]]

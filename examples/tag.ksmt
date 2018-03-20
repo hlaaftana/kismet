@@ -1,37 +1,18 @@
-"tag command demonstrated with a custom command concept i want to make"
-
-don't {
-"\u is a little different in kismet than in java/groovy to allow for UTF-8 characters above \uFFFF"
-"\u can also be proceeded by one of xXdDoObB to allow for different bases than hexadecimal."
-"xX is hex, dD is decimal, oO is octal, bB is binary."}
-
-defn [strip_mentions content] [replace content "@" "@\u{200b}"]
-
-"however 0x or 0b literals aren't in kismet. instead you can use the (hex), (binary) and (octal) macros"
-"like [hex 6f27], [octal 77231], [binary 1001010110110]."
-
-"also to note: the results of those macros will be BigIntegers like numbers normally do in kismet"
-"there are the (int8), (int16), (int32), (int64), (float32), (float64), (char) functions to turn"
-"BigIntegers and BigDecimals to java primitives. you can use (integer) or (float) to turn them back."
-
-"defcmd will be a macro already defined when this script is run"
+defn strip_mentions(content) content.replace("@", "@\u{200b}")
 
 defcmd tag {
-  "set" name & content {
+  "set" name &(content) {
     unless guild_data.tags [= guild_data.tags [map]]
-    put guild_data.tags args[1] [## [content args[2]] [author message.author.id]]
+    = guild_data.tags[args[1]] ##(content args[2], author message.author.id)
     "Successful"
   }
 
   "author" name {
-    string "Author for tag " name " is " [user guild_data.tags[name].author]
+    string("Author for tag ", name, " is ", user guild_data.tags[name].author)
   }
 
   name {
-    if [has_key_traverse? guild_data "tags" name] {
-      strip_mentions guild_data.tags[name][content]
-    } else {
-      "Invalid tag"
-    }
+    := a [?? guild_data.tags[name].content]
+    if_else a strip_mentions(a) "Invalid tag"
   }
 }
