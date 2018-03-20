@@ -9,6 +9,6 @@ class Test {
 		//final text = new File('test.ksmt').text
 		def parser = new Parser()
 		parser.context = new Context(Kismet.DEFAULT_CONTEXT, [echo: Kismet.model(KismetInner.funcc(System.out.&println))])
-		println parser.parse(new File('old/soda.ksmt').text).repr()
+		println parser.parse(new File('test.ksmt').text).evaluate(parser.context)
 	}
 }

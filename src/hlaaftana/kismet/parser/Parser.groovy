@@ -1035,6 +1035,13 @@ class Parser {
 			if (inPropertyQueue) {
 				inPropertyQueue = false
 				if (cp == ((char) '[')) { last = new CallBuilder(true); return null }
+				else if (cp == ((char) '(')) {
+					final b = new BlockBuilder(true)
+					b.bracket = (char) ')'
+					b.requireSeparator = true
+					last = b
+					return null
+				}
 				else if (cp == ((char) '`')) { last = new QuoteAtomBuilder(); return null }
 				else last = new NameBuilder()
 			}
@@ -1061,11 +1068,10 @@ class Parser {
 			if (e instanceof NameExpression) {
 				steps.add(new PathExpression.PropertyStep(((NameExpression) e).text))
 			} else if (e instanceof CallExpression) {
-				Expression a
 				final j = (CallExpression) e
-				if (j.arguments.empty) a = j.callValue
-				else a = e
-				steps.add(new PathExpression.SubscriptStep(a))
+				steps.add(new PathExpression.SubscriptStep(j.arguments.empty ? j.callValue : e))
+			} else if (e instanceof BlockExpression) {
+				steps.add(new PathExpression.EnterStep(e))
 			} else throw new UnexpectedSyntaxException("Unkonown path expression type ${e.class}")
 		}
 

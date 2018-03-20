@@ -2,6 +2,7 @@ package hlaaftana.kismet.parser
 
 import groovy.transform.CompileStatic
 import groovy.transform.EqualsAndHashCode
+import groovy.transform.InheritConstructors
 import hlaaftana.kismet.*
 
 @CompileStatic abstract class Expression {
@@ -109,6 +110,36 @@ import hlaaftana.kismet.*
 		}
 
 		String toString() { ".[${expression.repr()}]" }
+	}
+
+	static class EnterStep implements Step {
+		Expression expression
+
+		EnterStep(Expression expression) {
+			this.expression = expression
+		}
+
+		@Override
+		KismetObject apply(Context c, KismetObject object) {
+			def ec = new EnterContext(c)
+			ec.set('it', ec.object = object)
+			expression.evaluate(ec)
+		}
+
+		String toString() { ".(${expression.repr()})" }
+
+		@InheritConstructors
+		static class EnterContext extends Context {
+			KismetObject object
+
+			KismetObject get(String name) {
+				try {
+					super.get(name)
+				} catch (UndefinedVariableException ignored) {
+					object.getProperty(name)
+				}
+			}
+		}
 	}
 }
 
@@ -298,7 +329,7 @@ class StringExpression extends Expression implements ConstantExpression<String> 
 class StaticExpression<T extends Expression> extends Expression implements ConstantExpression<Object> {
 	T expression
 
-	String expr() { expression ? "static[${expression.repr()}]($value)" : "static($value)" }
+	String repr() { expression ? "static[${expression.repr()}]($value)" : "static($value)" }
 
 	StaticExpression(T ex = null, KismetObject val) {
 		expression = ex
