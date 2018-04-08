@@ -3,7 +3,7 @@ defn [mean l] [[/ sum size] l]
 defn [median l] {
   := s [size l]
   := d [div s 2]
-  or [odd? s] l[d] [div [+ l[d] l[prev d]] 2]
+  or? [odd? s] l[d] [div [+ l[d] l[prev d]] 2]
 }
 
 defn [standard_deviation l] {
