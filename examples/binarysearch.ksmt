@@ -1,9 +1,9 @@
 defn [binary_search a k] {
   := b c [size a]
   := i 0
-  [while [< i b]
-     [check a.[:= mid [half [+ i b]]]
-         [< k] [= i [next mid]]
-         [= b mid]]]
-  if [and [< i c] [is? a[i] k]] i else [negative 1]
+  while [< i b] {
+    := mid [half [+ i b]]
+    or? [< a[mid] k] [= i [next mid]] [= b mid]
+  }
+  or? [and [< i c] [is? a[i] k]] i [negative 1]
 }

@@ -848,11 +848,17 @@ class KismetInner {
 				decr: macr { Context c, Expression... exprs ->
 					assign(c, exprs.take(1), new CallExpression([new NameExpression('prev'), exprs[0]]).evaluate(c), 'decrement')
 				},
-				'|>=': macr { Context c, Expression... exprs ->
-					assign(c, exprs.take(1), pipeForward(c, exprs[0].evaluate(c), exprs.tail().toList()), '|>=')
+				'|>=': new Template() {
+					@CompileStatic
+					CallExpression transform(Expression... args) {
+						new CallExpression([new NameExpression('='), args[0], pipeForwardExpr(args[0], args.tail().toList())])
+					}
 				},
-				'<|=': macr { Context c, Expression... exprs ->
-					assign(c, exprs.take(1), pipeBackward(c, exprs[0].evaluate(c), exprs.tail().toList()), '|>=')
+				'<|=': new Template() {
+					@CompileStatic
+					CallExpression transform(Expression... args) {
+						new CallExpression([new NameExpression('='), args[0], pipeBackwardExpr(args[0], args.tail().toList())])
+					}
 				},
 				let: macr { Context c, Expression... exprs ->
 					Expression cnt = exprs[0]
@@ -995,8 +1001,8 @@ class KismetInner {
 					}
 					x
 				},
-				if_else: macr { Context c, Expression... x -> x[0].evaluate(c) ? c.childEval(x[1]) : c.childEval(x[2]) },
-				unless_else: macr { Context c, Expression... x -> !x[0].evaluate(c) ? c.childEval(x[1]) :
+				'or?': macr { Context c, Expression... x -> x[0].evaluate(c) ? c.childEval(x[1]) : c.childEval(x[2]) },
+				'not_or?': macr { Context c, Expression... x -> !x[0].evaluate(c) ? c.childEval(x[1]) :
 						c.childEval(x[2]) },
 				check: macr { Context c, Expression... ab ->
 					Iterator<Expression> a = ab.iterator()
@@ -1456,11 +1462,17 @@ class KismetInner {
 					}
 				},
 				'number?': funcc { ...args -> args[0] instanceof Number },
-				'|>': macr { Context c, Expression... args ->
-					pipeForward(c, args[0].evaluate(c), args.tail().toList())
+				'|>': new Template() {
+					@CompileStatic
+					CallExpression transform(Expression... args) {
+						pipeForwardExpr(args[0], args.tail().toList())
+					}
 				},
-				'<|': macr { Context c, Expression... args ->
-					pipeBackward(c, args[0].evaluate(c), args.tail().toList())
+				'<|': new Template() {
+					@CompileStatic
+					CallExpression transform(Expression... args) {
+						pipeBackwardExpr(args[0], args.tail().toList())
+					}
 				},
 				gcd: funcc { ...args -> gcd(args[0] as Number, args[1] as Number) },
 				lcm: funcc { ...args -> lcm(args[0] as Number, args[1] as Number) },
@@ -1701,6 +1713,44 @@ class KismetInner {
 			} else throw new UnexpectedSyntaxException('Did not expect ' + exp.class + ' in |>')
 		}
 		val
+	}
+
+	static CallExpression pipeForwardExpr(Expression base, List<Expression> args) {
+		if (args.empty) throw new UnexpectedSyntaxException('no |> for epic!')
+		for (exp in args) {
+			if (exp instanceof CallExpression) {
+				List<Expression> exprs = new ArrayList<>()
+				exprs.add(((CallExpression) exp).callValue)
+				exprs.add(base)
+				exprs.addAll(((CallExpression) exp).arguments)
+				def ex = new CallExpression(exprs)
+				base = ex
+			} else if (exp instanceof BlockExpression) {
+				base = pipeForwardExpr(base, ((BlockExpression) exp).content)
+			} else if (exp instanceof NameExpression) {
+				base = new CallExpression([exp, base])
+			} else throw new UnexpectedSyntaxException('Did not expect ' + exp.class + ' in |>')
+		}
+		(CallExpression) base
+	}
+
+	static CallExpression pipeBackwardExpr(Expression base, List<Expression> args) {
+		if (args.empty) throw new UnexpectedSyntaxException('no |> for epic!')
+		for (exp in args) {
+			if (exp instanceof CallExpression) {
+				List<Expression> exprs = new ArrayList<>()
+				exprs.add(((CallExpression) exp).callValue)
+				exprs.addAll(((CallExpression) exp).arguments)
+				exprs.add(base)
+				def ex = new CallExpression(exprs)
+				base = ex
+			} else if (exp instanceof BlockExpression) {
+				base = pipeBackwardExpr(base, ((BlockExpression) exp).content)
+			} else if (exp instanceof NameExpression) {
+				base = new CallExpression([exp, base])
+			} else throw new UnexpectedSyntaxException('Did not expect ' + exp.class + ' in |>')
+		}
+		(CallExpression) base
 	}
 
 	static KismetObject pipeBackward(Context c, KismetObject val, List<Expression> args) {
