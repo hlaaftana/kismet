@@ -1127,10 +1127,15 @@ class Parser {
 				case '?optimize_pure':
 					result = new StaticExpression(x, optimizePure)
 					break
-				case 'optimize': optimizePure = optimizePrelude = true; break
-				case '!optimize': optimizePure = optimizeClosure = optimizePrelude = false; break
+				case 'fill_templates': fillTemplate = true; break
+				case '!fill_templates': fillTemplate = false; break
+				case '?fill_templates':
+					result = new StaticExpression(x, fillTemplate)
+					break
+				case 'optimize': fillTemplate = optimizePure = optimizePrelude = true; break
+				case '!optimize': fillTemplate = optimizePure = optimizeClosure = optimizePrelude = false; break
 				case '?optimize':
-					result = new StaticExpression(x, optimizePure || optimizeClosure || optimizePrelude)
+					result = new StaticExpression(x, fillTemplate || optimizePure || optimizeClosure || optimizePrelude)
 					break
 				case 'parser': result = new StaticExpression(x, Parser.this); break
 			}
