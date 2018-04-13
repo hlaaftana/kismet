@@ -1,9 +1,9 @@
 defn [memoized f] {
-    := cache [map]
-    fn [pick cache[$all] [= cache[$all] [call f $all]]]
+  := cache [map]
+  fn [get_or_set cache $all [call f $all]]
 }
 
-defmcr memoize [eval [call_expr [name_expr "::="] $0 [call_expr [name_expr "memoized"] $0]] $block]
+defmcr memoize [eval [call_expr [name_expr "::="] $0 [call_expr [name_expr "memoized"] $0]] $context]
 
 defn [nth_fibonacci n] [check n
     zero 1
@@ -12,3 +12,5 @@ defn [nth_fibonacci n] [check n
        [nth_fibonacci [- n 2]]]]
 
 memoize nth_fibonacci
+
+assert_is [nth_fibonacci 40] 102334155

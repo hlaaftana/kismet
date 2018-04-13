@@ -18,7 +18,7 @@ abstract class Function implements KismetCallable {
 		{ setPure(true) }
 
 		@CompileStatic
-		KismetObject call(KismetObject... args) {
+		IKismetObject call(IKismetObject... args) {
 			args[0]
 		}
 	}
@@ -26,23 +26,23 @@ abstract class Function implements KismetCallable {
 		{ setPure(true) }
 
 		@CompileStatic
-		KismetObject call(KismetObject... args) { Kismet.NULL }
+		IKismetObject call(IKismetObject... args) { Kismet.NULL }
 	}
 
-	KismetObject call(Context c, Expression... args) {
-		final arr = new KismetObject[args.length]
+	IKismetObject call(Context c, Expression... args) {
+		final arr = new IKismetObject[args.length]
 		for (int i = 0; i < arr.length; ++i) {
 			arr[i] = args[i].evaluate(c)
 		}
 		call(arr)
 	}
 
-	abstract KismetObject call(KismetObject... args)
+	abstract IKismetObject call(IKismetObject... args)
 
 	def plus(final Function b) {
 		new Function() {
 			@CompileStatic
-			KismetObject call(KismetObject... args) {
+			IKismetObject call(IKismetObject... args) {
 				Kismet.model(Function.this.call(args).inner().invokeMethod('plus', b(args).inner()))
 			}
 		}
@@ -51,7 +51,7 @@ abstract class Function implements KismetCallable {
 	def minus(final Function b) {
 		new Function() {
 			@CompileStatic
-			KismetObject call(KismetObject... args) {
+			IKismetObject call(IKismetObject... args) {
 				Kismet.model(Function.this.call(args).inner().invokeMethod('minus', b(args).inner()))
 			}
 		}
@@ -60,7 +60,7 @@ abstract class Function implements KismetCallable {
 	def multiply(final Function b) {
 		new Function() {
 			@CompileStatic
-			KismetObject call(KismetObject... args) {
+			IKismetObject call(IKismetObject... args) {
 				Kismet.model(Function.this.call(args).inner().invokeMethod('multiply', b(args).inner()))
 			}
 		}
@@ -69,7 +69,7 @@ abstract class Function implements KismetCallable {
 	def div(final Function b) {
 		new Function() {
 			@CompileStatic
-			KismetObject call(KismetObject... args) {
+			IKismetObject call(IKismetObject... args) {
 				Kismet.model(Function.this.call(args).inner().invokeMethod('div', b(args).inner()))
 			}
 		}
@@ -78,7 +78,7 @@ abstract class Function implements KismetCallable {
 	def mod(final Function b) {
 		new Function() {
 			@CompileStatic
-			KismetObject call(KismetObject... args) {
+			IKismetObject call(IKismetObject... args) {
 				Kismet.model(Function.this.call(args).inner().invokeMethod('mod', b(args).inner()))
 			}
 		}
@@ -87,7 +87,7 @@ abstract class Function implements KismetCallable {
 	def pow(final Function b) {
 		new Function() {
 			@CompileStatic
-			KismetObject call(KismetObject... args) {
+			IKismetObject call(IKismetObject... args) {
 				Kismet.model(Function.this.call(args).inner().invokeMethod('pow', b(args).inner()))
 			}
 		}
@@ -104,7 +104,7 @@ abstract class Function implements KismetCallable {
 		final a = Math.abs(times)
 		new Function() {
 			@CompileStatic
-			KismetObject call(KismetObject... args) {
+			IKismetObject call(IKismetObject... args) {
 				if (a == 0) args[0]
 				else {
 					def r = m.call(args)
@@ -126,6 +126,26 @@ interface Invertable {
 @CompileStatic
 interface Nameable {
 	String getName()
+}
+
+@CompileStatic
+class KismetMethod extends Function implements Nameable {
+	String name = 'anonymousMethod'
+	List<KismetFunction> functions = []
+
+	IKismetObject call(IKismetObject... args) {
+		for (f in functions) {
+			Context c
+			try {
+				c = f.block.context
+				f.arguments.setArgs(c, args)
+			} catch (CheckFailedException ignored) {
+				continue
+			}
+			return f.block.expression.evaluate(c)
+		}
+		throw new CheckFailedException("No method matched for $name with arguments $args")
+	}
 }
 
 @CompileStatic
@@ -154,7 +174,7 @@ class KismetFunction extends Function implements Nameable {
 
 	KismetFunction() {}
 
-	KismetObject call(KismetObject... args){
+	IKismetObject call(IKismetObject... args){
 		Block c = block.child()
 		arguments.setArgs(c.context, args)
 		c()
@@ -252,8 +272,8 @@ class KismetFunction extends Function implements Nameable {
 			else for (c in block.content) parseCall(p, ((CallExpression) c).expressions)
 		}
 
-		void setArgs(Context c, KismetObject[] args) {
-			List<KismetObject> lis = args.toList()
+		void setArgs(Context c, IKismetObject[] args) {
+			List<IKismetObject> lis = args.toList()
 			if (doDollars) {
 				for (int it = 0; it < args.length; ++it) {
 					c.set('$'.concat(String.valueOf(it)), args[it])
@@ -267,7 +287,7 @@ class KismetFunction extends Function implements Nameable {
 					if (p.index + p.slice + 1 > max) max = p.index + p.slice + 1
 					if (p.slice < 0) variadic = true
 				}
-				if (variadic ? max < args.length : max != args.length)
+				if (variadic ? args.length < max : max != args.length)
 					throw new CheckFailedException("Got argument length $args.length which wasn't " +
 							(variadic ? '>= ' : '== ') + max)
 			}
@@ -323,7 +343,7 @@ class GroovyFunction extends Function {
 		this.x = x
 	}
 
-	KismetObject call(KismetObject... args){
+	IKismetObject call(IKismetObject... args){
 		Kismet.model(cc(convert ? args*.inner() as Object[] : args))
 	}
 

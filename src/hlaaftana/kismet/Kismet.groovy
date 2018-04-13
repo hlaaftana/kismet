@@ -7,14 +7,14 @@ import hlaaftana.kismet.parser.Parser
 
 @CompileStatic
 class Kismet {
-	static final KismetObject NULL = KismetModels.KISMET_NULL
+	static final IKismetObject NULL = KismetModels.KISMET_NULL
 	static Context DEFAULT_CONTEXT = new Context(null, new HashMap(KismetInner.defaultContext))
 
 	static Block parse(String code, Context ctxt = new Context(DEFAULT_CONTEXT)) {
 		new Block(new Parser(context: ctxt).parse(code), ctxt)
 	}
 	
-	static KismetObject eval(String code, Context ctxt = new Context(DEFAULT_CONTEXT)) {
+	static IKismetObject eval(String code, Context ctxt = new Context(DEFAULT_CONTEXT)) {
 		parse(code, ctxt).evaluate()
 	}
 
@@ -22,7 +22,7 @@ class Kismet {
 		new Block(ParensParser.parse(code), ctxt)
 	}
 
-	static KismetObject evalParens(String code, Context ctxt = new Context(DEFAULT_CONTEXT)) {
+	static IKismetObject evalParens(String code, Context ctxt = new Context(DEFAULT_CONTEXT)) {
 		parseParens(code, ctxt).evaluate()
 	}
 
@@ -30,9 +30,9 @@ class Kismet {
 		new Block(DumbParser.parse(ctxt, code), ctxt)
 	}
 
-	static KismetObject evalDumb(String code, Context ctxt = new Context(DEFAULT_CONTEXT)) {
+	static IKismetObject evalDumb(String code, Context ctxt = new Context(DEFAULT_CONTEXT)) {
 		parseParens(code, ctxt).evaluate()
 	}
 
-	static KismetObject model(x) { null == x ? NULL : (KismetObject) ((Object) KismetModels).invokeMethod('model', x) }
+	static IKismetObject model(x) { null == x ? NULL : (IKismetObject) ((Object) KismetModels).invokeMethod('model', x) }
 }

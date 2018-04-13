@@ -1,10 +1,12 @@
-block "functional" {
+:= functional [let [] {
   defn [factorial n] [permutation n n]
   defn [permutation n r] [product [range [next [- n r]] n]]
   defn [combination n r] [div [permutation n r] [factorial r]]
-}
 
-block "imperative" {
+  ##(factorial, permutation, combination)
+}]
+
+:= imperative [let [] {
   defn [factorial n] {
     := x 1
     for n [= x [* x it]]
@@ -20,4 +22,10 @@ block "imperative" {
   }
 
   defn [combination n r] [let [[result x] 1] [for< [i 0 r] [= x [/ [* x [- n i]] [- r i]]]]]
-}
+
+  ##(factorial, permutation, combination)
+}]
+
+assert_is [functional.factorial 5] [imperative.factorial 5] 120
+assert_is [functional.permutation 4 2] [imperative.permutation 4 2] 12
+assert_is [functional.combination 6 3] [imperative.combination 6 3] 20
