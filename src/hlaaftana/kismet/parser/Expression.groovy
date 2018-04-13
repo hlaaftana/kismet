@@ -6,7 +6,7 @@ import groovy.transform.InheritConstructors
 import hlaaftana.kismet.*
 
 @CompileStatic abstract class Expression {
-	abstract KismetObject evaluate(Context c)
+	abstract IKismetObject evaluate(Context c)
 
 	Expression percentize(Context p) {
 		new StaticExpression(this, p)
@@ -32,7 +32,7 @@ import hlaaftana.kismet.*
 		path = DumbParser.Path.parse(t)
 	}
 
-	KismetObject evaluate(Context c) {
+	IKismetObject evaluate(Context c) {
 		Kismet.model(path.expressions[0].raw.empty ? new PathFunction(path) : path.apply(c))
 	}
 
@@ -45,7 +45,7 @@ import hlaaftana.kismet.*
 		PathFunction(DumbParser.Path p) { path = p }
 
 		@Override
-		KismetObject call(KismetObject... args) {
+		IKismetObject call(IKismetObject... args) {
 			Kismet.model(path.apply(args[0]))
 		}
 	}
@@ -60,11 +60,11 @@ import hlaaftana.kismet.*
 		this.steps = steps
 	}
 
-	KismetObject evaluate(Context c) {
+	IKismetObject evaluate(Context c) {
 		if (null == root) {
 			Kismet.model(new Function() {
 				@Override
-				KismetObject call(KismetObject... args) {
+				IKismetObject call(IKismetObject... args) {
 					applySteps(c, args[0], steps)
 				}
 			})
@@ -73,7 +73,7 @@ import hlaaftana.kismet.*
 		}
 	}
 
-	static KismetObject applySteps(Context c, KismetObject object, List<Step> steps) {
+	static IKismetObject applySteps(Context c, IKismetObject object, List<Step> steps) {
 		for (step in steps) object = step.apply(c, object)
 		object
 	}
@@ -81,7 +81,7 @@ import hlaaftana.kismet.*
 	String repr() { root.repr() + steps.join('') }
 
 	interface Step {
-		KismetObject apply(Context c, KismetObject object)
+		IKismetObject apply(Context c, IKismetObject object)
 	}
 
 	static class PropertyStep implements Step {
@@ -91,7 +91,7 @@ import hlaaftana.kismet.*
 			this.name = name
 		}
 
-		KismetObject apply(Context c, KismetObject object) {
+		IKismetObject apply(Context c, IKismetObject object) {
 			object.getProperty(name)
 		}
 
@@ -105,7 +105,7 @@ import hlaaftana.kismet.*
 			this.expression = expression
 		}
 
-		KismetObject apply(Context c, KismetObject object) {
+		IKismetObject apply(Context c, IKismetObject object) {
 			Kismet.model(object.inner().invokeMethod('getAt', expression.evaluate(c).inner()))
 		}
 
@@ -120,7 +120,7 @@ import hlaaftana.kismet.*
 		}
 
 		@Override
-		KismetObject apply(Context c, KismetObject object) {
+		IKismetObject apply(Context c, IKismetObject object) {
 			def ec = new EnterContext(c)
 			ec.set('it', ec.object = object)
 			expression.evaluate(ec)
@@ -130,9 +130,9 @@ import hlaaftana.kismet.*
 
 		@InheritConstructors
 		static class EnterContext extends Context {
-			KismetObject object
+			IKismetObject object
 
-			KismetObject get(String name) {
+			IKismetObject get(String name) {
 				try {
 					super.get(name)
 				} catch (UndefinedVariableException ignored) {
@@ -148,7 +148,7 @@ import hlaaftana.kismet.*
 
 	NameExpression(String text) { this.text = text }
 
-	KismetObject evaluate(Context c) {
+	IKismetObject evaluate(Context c) {
 		c.get(text)
 	}
 
@@ -163,8 +163,8 @@ import hlaaftana.kismet.*
 
 	BlockExpression(List<Expression> exprs) { content = exprs }
 
-	KismetObject evaluate(Context c) {
-		KismetObject a = Kismet.NULL
+	IKismetObject evaluate(Context c) {
+		IKismetObject a = Kismet.NULL
 		for (e in content) a = e.evaluate(c)
 		a
 	}
@@ -174,24 +174,33 @@ import hlaaftana.kismet.*
 
 @CompileStatic class CallExpression extends Expression {
 	Expression callValue
-	List<Expression> arguments
+	List<Expression> arguments = []
 
 	CallExpression(List<Expression> expressions) {
+		if (null == expressions || expressions.empty) return
 		setCallValue(expressions[0])
-		arguments = expressions.drop(1)
+		arguments = expressions.tail()
 	}
+
+	CallExpression(Expression... exprs) {
+		if (null == exprs || exprs.length == 0) return
+		callValue = exprs[0]
+		arguments = exprs.tail().toList()
+	}
+
+	CallExpression() {}
 
 	String repr() { "[${expressions*.repr().join(', ')}]" }
 
-	KismetObject evaluate(Context c) {
+	IKismetObject evaluate(Context c) {
 		if (null == callValue) return Kismet.NULL
-		KismetObject obj = callValue.evaluate(c)
+		IKismetObject obj = callValue.evaluate(c)
 		if (obj.inner() instanceof KismetCallable) {
 			final arr = new Expression[arguments.size()]
 			for (int i = 0; i < arr.length; ++i) arr[i] = arguments[i]
 			((KismetCallable) obj.inner()).call(c, arr)
 		} else {
-			final arr = new KismetObject[arguments.size()]
+			final arr = new IKismetObject[arguments.size()]
 			for (int i = 0; i < arr.length; ++i) arr[i] = arguments[i].evaluate(c)
 			obj.call(arr)
 		}
@@ -209,8 +218,21 @@ import hlaaftana.kismet.*
 	}
 }
 
+@CompileStatic class CallSubstituteExpression extends CallExpression {
+	Expression inner
+
+	CallSubstituteExpression(Expression inner) {
+		this.inner = inner
+	}
+
+	@Override
+	IKismetObject evaluate(Context c) {
+		inner.evaluate(c)
+	}
+}
+
 @CompileStatic trait ConstantExpression<T> {
-	KismetObject<T> value
+	IKismetObject<T> value
 
 	String repr() { "const($value)" }
 
@@ -218,7 +240,7 @@ import hlaaftana.kismet.*
 		value = Kismet.model(obj)
 	}
 
-	KismetObject<T> evaluate(Context c) {
+	IKismetObject<T> evaluate(Context c) {
 		value
 	}
 }
@@ -319,7 +341,7 @@ class StringExpression extends Expression implements ConstantExpression<String> 
 		obj instanceof StringExpression && obj.value.inner() == value.inner()
 	}
 
-	KismetObject<String> evaluate(Context c) {
+	IKismetObject<String> evaluate(Context c) {
 		if (null == exception) value
 		else throw exception
 	}
@@ -331,7 +353,7 @@ class StaticExpression<T extends Expression> extends Expression implements Const
 
 	String repr() { expression ? "static[${expression.repr()}]($value)" : "static($value)" }
 
-	StaticExpression(T ex = null, KismetObject val) {
+	StaticExpression(T ex = null, IKismetObject val) {
 		expression = ex
 		value = val
 	}
@@ -353,7 +375,7 @@ class StaticExpression<T extends Expression> extends Expression implements Const
 
 	String repr() { "noexpr" }
 
-	KismetObject evaluate(Context c) {
+	IKismetObject evaluate(Context c) {
 		Kismet.NULL
 	}
 }

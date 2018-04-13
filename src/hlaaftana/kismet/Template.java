@@ -1,13 +1,13 @@
 package hlaaftana.kismet;
 
-import hlaaftana.kismet.parser.CallExpression;
 import hlaaftana.kismet.parser.Expression;
 
 public interface Template extends KismetCallable {
-	CallExpression transform(Expression... args);
+	default boolean isConstant() { return true; }
+	Expression transform(Expression... args);
 
 	@Override
-	default KismetObject call(Context c, Expression... args) {
+	default IKismetObject call(Context c, Expression... args) {
 		return transform(args).evaluate(c);
 	}
 }

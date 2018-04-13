@@ -2,8 +2,8 @@ package hlaaftana.kismet.parser
 
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.Context
+import hlaaftana.kismet.IKismetObject
 import hlaaftana.kismet.Kismet
-import hlaaftana.kismet.KismetObject
 import hlaaftana.kismet.UnexpectedSyntaxException
 import hlaaftana.kismet.parser.CharacterToken.Kind as CharKind
 import hlaaftana.kismet.parser.TextToken.Kind as TextKind
@@ -247,8 +247,8 @@ class TupleExpression extends Expression {
 	}
 
 	@Override
-	KismetObject evaluate(Context c) {
-		final arr = new KismetObject[expressions.size()]
+	IKismetObject evaluate(Context c) {
+		final arr = new IKismetObject[expressions.size()]
 		for (int i = 0; i < arr.length; ++i) arr[i] = expressions[i].evaluate(c)
 		Kismet.model(new Tuple(arr))
 	}
@@ -263,7 +263,7 @@ class ListExpression extends Expression {
 	}
 
 	@Override
-	KismetObject evaluate(Context c) {
+	IKismetObject evaluate(Context c) {
 		Kismet.model(expressions*.evaluate(c))
 	}
 }

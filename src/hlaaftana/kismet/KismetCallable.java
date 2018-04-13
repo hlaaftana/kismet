@@ -9,5 +9,5 @@ public interface KismetCallable {
 
 	default int getPrecedence() { return 0; }
 
-	KismetObject call(Context c, Expression... args);
+	IKismetObject call(Context c, Expression... args);
 }

@@ -10,14 +10,14 @@ abstract class Macro implements KismetCallable {
 
 @CompileStatic
 class KismetMacro extends Macro {
-	KismetObject<Block> b
+	Block b
 
-	KismetMacro(KismetObject<Block> b) {
+	KismetMacro(Block b) {
 		this.b = b
 	}
 
-	KismetObject call(Context s, Expression... args){
-		Block c = b.inner().child()
+	IKismetObject call(Context s, Expression... args){
+		Block c = b.child()
 		for (int it = 0; it < args.length; ++it) {
 			c.context.set('$'.concat(String.valueOf(it)), Kismet.model(args[it]))
 		}
@@ -35,7 +35,7 @@ class GroovyMacro extends Macro {
 		this.x = x
 	}
 
-	KismetObject call(Context c, Expression... expressions){
+	IKismetObject call(Context c, Expression... expressions){
 		Kismet.model(expressions.length != 0 ? x.call(c, expressions) : x.call(c))
 	}
 }

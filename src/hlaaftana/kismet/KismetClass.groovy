@@ -3,9 +3,10 @@ package hlaaftana.kismet
 import groovy.transform.CompileStatic
 import groovy.transform.InheritConstructors
 import groovy.transform.Memoized
+import hlaaftana.kismet.obj.CannotOperateException
 
 @CompileStatic
-class KismetClass<T> {
+class KismetClass<T> implements IKismetClass<KismetObject> {
 	static final Set<String> DEFAULT_FORBIDDEN = (['class', 'metaClass', 'properties',
 			'metaPropertyValues'] as Set<String>).asImmutable()
 	static List<KismetClass> instances = []
@@ -15,7 +16,7 @@ class KismetClass<T> {
 	String name = 'anonymous_'.concat(instances.size().toString())
 	Function getter = new Function() {
 		@CompileStatic
-		KismetObject call(KismetObject... args) {
+		IKismetObject call(IKismetObject... args) {
 			final name = (String) args[1].inner()
 			if (forbidden.contains(name))
 				throw new ForbiddenAccessException("Forbidden property $name for $this")
@@ -24,7 +25,7 @@ class KismetClass<T> {
 	}
 	Function setter = new Function() {
 		@CompileStatic
-		KismetObject call(KismetObject... args) {
+		IKismetObject call(IKismetObject... args) {
 			final name = (String) args[1].inner()
 			if (forbidden.contains(name))
 				throw new ForbiddenAccessException("Forbidden property $name for $this")
@@ -33,26 +34,26 @@ class KismetClass<T> {
 	}
 	Function subscriptGet = new Function() {
 		@CompileStatic
-		KismetObject call(KismetObject... args) {
-			Kismet.model(args[0].invokeMethod('getAt', args.tail()))
+		IKismetObject call(IKismetObject... args) {
+			Kismet.model(((KismetObject) args[0]).methodMissing('getAt', args.tail()))
 		}
 	}
 	Function subscriptSet = new Function() {
 		@CompileStatic
-		KismetObject call(KismetObject... args) {
-			Kismet.model(args[0].invokeMethod('putAt', args.tail()))
+		IKismetObject call(IKismetObject... args) {
+			Kismet.model(((KismetObject) args[0]).methodMissing('putAt', args.tail()))
 		}
 	}
 	Function caller = new Function() {
 		@CompileStatic
-		KismetObject call(KismetObject... args) {
+		IKismetObject call(IKismetObject... args) {
 			Kismet.model(args[0].inner().invokeMethod('call', args.tail()))
 		}
 	}
 	Function constructor = Function.NOP
 	Set<String> forbidden = DEFAULT_FORBIDDEN
 	List<KismetClass> parents = []
-	Map<KismetClass, Function> converters = [:]
+	Map<IKismetClass, Function> converters = [:]
 
 	@Memoized
 	static KismetClass from(Class c) {
@@ -73,11 +74,15 @@ class KismetClass<T> {
 		instances.add this
 	}
 
-	KismetClass(Class orig = KismetObject, String name, boolean allowConstructor = true) {
+	KismetClass(Class orig = IKismetObject, String name, boolean allowConstructor = true) {
 		this()
 		this.orig = orig
 		this.name = name
 		this.allowConstructor = allowConstructor
+	}
+
+	KismetObject defaultValue() {
+		null
 	}
 
 	boolean isChild(KismetClass kclass) {
@@ -100,11 +105,13 @@ class KismetClass<T> {
 	}
 
 	@Memoized
-	KismetObject<KismetClass> getObject() {
-		new KismetObject<KismetClass>(this, META.object)
+	IKismetObject<KismetClass> getObject() {
+		new ClassObject(this)
 	}
 
-	static final MetaKismetClass META = new MetaKismetClass()
+	KismetObject cast(IKismetObject object) {
+		new KismetObject(object.inner().asType(orig), this.object)
+	}
 
 	static KismetClass fromName(String name) {
 		int hash = name.hashCode()
@@ -112,7 +119,7 @@ class KismetClass<T> {
 		null
 	}
 
-	KismetObject call(KismetObject... args){
+	IKismetObject call(IKismetObject... args){
 		if (orig == KismetObject) {
 			KismetObject[] arr = new KismetObject[args.length + 1]
 			arr[0] = new KismetObject(new Expando(), this.object)
@@ -126,8 +133,8 @@ class KismetClass<T> {
 				"Forbidden constructor for original class $orig with kismet class $this")
 	}
 
-	boolean isInstance(KismetObject x) {
-		if (orig == KismetObject) x.kclass.inner() == this || parents.any { it.isInstance(x) }
+	boolean isInstance(IKismetObject x) {
+		if (orig == KismetObject) x.kismetClass() == this || parents.any { it.isInstance(x) }
 		else if (null == orig) null == x.inner()
 		else orig.isInstance(x.inner())
 	}
@@ -136,24 +143,53 @@ class KismetClass<T> {
 }
 
 @CompileStatic
-class MetaKismetClass extends KismetClass {
-	{
-		name = 'Class'
-		orig = KismetClass
-		constructor = new Function() {
-			@CompileStatic
-			KismetObject call(KismetObject... args) {
-				final x = new KismetClass()
-				args[0].@inner = x
-				x.object
-			}
-		}
+class MetaKismetClass implements IKismetClass {
+	static final MetaKismetClass INSTANCE = new MetaKismetClass()
+	static final ClassObject OBJECT = new ClassObject(INSTANCE)
+
+	private MetaKismetClass() {}
+
+	boolean isInstance(IKismetObject object) {
+		object.kismetClass() == this
 	}
 
-	KismetObject<KismetClass> getObject() {
-		def x = new KismetObject<KismetClass>(this)
-		x.@kclass = x
-		x
+	IKismetObject cast(IKismetObject object) {
+		if (!isInstance(object)) throw new CannotOperateException('cast to class', 'non-class')
+		object
+	}
+
+	String getName() { 'Class' }
+}
+
+@CompileStatic
+class ClassObject<T extends IKismetClass> implements IKismetObject<T> {
+	T it
+
+	ClassObject(T it) { this.it = it }
+
+	MetaKismetClass kismetClass() { MetaKismetClass.INSTANCE }
+	T inner() { it }
+
+	IKismetObject getProperty(String name) {
+		if (name == "name") Kismet.model(it.name)
+		else throw new UnexpectedValueException('Unknown property ' + name + ' for class object')
+	}
+
+	IKismetObject setProperty(String name, IKismetObject value) {
+		throw new CannotOperateException('set property', 'class object')
+	}
+
+	IKismetObject getAt(IKismetObject obj) {
+		if (obj.toString() == "name") Kismet.model(it)
+		else throw new CannotOperateException('subscript get', 'class object')
+	}
+
+	IKismetObject putAt(IKismetObject obj, IKismetObject value) {
+		throw new CannotOperateException('subscript set', 'class object')
+	}
+
+	IKismetObject call(IKismetObject... args) {
+		throw new CannotOperateException('call', 'class object')
 	}
 }
 
