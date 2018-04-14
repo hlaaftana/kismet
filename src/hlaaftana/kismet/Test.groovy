@@ -2,6 +2,8 @@ package hlaaftana.kismet
 
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.parser.Parser
+import hlaaftana.kismet.prelude.Prelude
+import hlaaftana.kismet.vm.Context
 
 @CompileStatic
 class Test {
@@ -11,7 +13,7 @@ class Test {
 		println p.repr()
 		println p.evaluate(parser.context)*/
 		def parser = new Parser()
-		parser.context = new Context(Kismet.DEFAULT_CONTEXT, [echo: Kismet.model(KismetInner.funcc(System.out.&println))])
+		parser.context = new Context(Kismet.DEFAULT_CONTEXT, [echo: Kismet.model(Prelude.funcc(System.out.&println))])
 		for (f in ['binarysearch', 'compareignorecase', 'factorial', 'fibonacci', 'fizzbuzz', 'memoize']) {
 			println "file: $f"
 			final file = new File("Kismet/examples/${f}.ksmt")
