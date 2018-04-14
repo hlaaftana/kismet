@@ -1,21 +1,16 @@
 package hlaaftana.kismet.parser
 
 import groovy.transform.CompileStatic
-import hlaaftana.kismet.Context
-import hlaaftana.kismet.Function
-import hlaaftana.kismet.GroovyFunction
-import hlaaftana.kismet.GroovyMacro
-import hlaaftana.kismet.IKismetObject
 import hlaaftana.kismet.Kismet
-import hlaaftana.kismet.KismetFunction
-import hlaaftana.kismet.KismetInner
-import hlaaftana.kismet.KismetObject
-import hlaaftana.kismet.Macro
-import hlaaftana.kismet.ParseException
-import hlaaftana.kismet.Template
-import hlaaftana.kismet.UndefinedVariableException
-import hlaaftana.kismet.UnexpectedSyntaxException
-import hlaaftana.kismet.UnexpectedValueException
+import hlaaftana.kismet.call.*
+import hlaaftana.kismet.exceptions.ParseException
+import hlaaftana.kismet.exceptions.UndefinedVariableException
+import hlaaftana.kismet.exceptions.UnexpectedSyntaxException
+import hlaaftana.kismet.exceptions.UnexpectedValueException
+import hlaaftana.kismet.prelude.Prelude
+import hlaaftana.kismet.vm.Context
+import hlaaftana.kismet.vm.IKismetObject
+import hlaaftana.kismet.vm.WrapperKismetObject
 
 import java.math.RoundingMode
 
@@ -28,7 +23,6 @@ class Parser {
 	boolean optimizeClosure
 	boolean optimizePure
 	boolean fillTemplate
-	boolean path2 = true
 	String commentStart = ';;'
 
 	@SuppressWarnings('GroovyVariableNotAssigned')
@@ -117,7 +111,10 @@ class Parser {
 						last.push(cp)
 					} else (last = new CallBuilder(false)).push(cp)
 				}
-				if (lastPercent && last != null) last.percent = !(lastPercent = false)
+				if (lastPercent && last != null) {
+					last.percent = true
+					lastPercent = false
+				}
 			} else {
 				CallExpression x = last.doPush(cp)
 				if (null != x) {
@@ -185,8 +182,11 @@ class Parser {
 				else if (cp == ((char) '`')) last = new QuoteAtomBuilder()
 				else if (cp == ((char) '.'))
 					(last = new PathBuilder(expressions.empty ? null : expressions.pop())).push(cp)
-				else if (!Character.isWhitespace(cp)) (last = path2 ? new NameBuilder() : new DumbPathBuilder(false)).push(cp)
-				if (lastPercent && null != last) last.percent = !(lastPercent = false)
+				else if (!Character.isWhitespace(cp)) new NameBuilder().push(cp)
+				if (lastPercent && null != last) {
+					last.percent = true
+					lastPercent = false
+				}
 			} else {
 				Expression x = last.push(cp)
 				if (null != x) {
@@ -263,7 +263,7 @@ class Parser {
 		boolean waitingForDelim() { bracketed }
 	}
 
-	class NumberBuilder extends ExprBuilder<NumberExpression> {
+	static class NumberBuilder extends ExprBuilder<NumberExpression> {
 		static final String[] stageNames = ['number', 'fraction', 'exponent', 'number type bits']
 		StringBuilder[] arr = [new StringBuilder(), null, null, null]
 		int stage = 0
@@ -300,52 +300,6 @@ class Parser {
 
 		NumberExpression doFinish() {
 			new NumberExpression(type, arr)
-		}
-	}
-
-	class DumbPathBuilder extends ExprBuilder {
-		StringBuilder last = new StringBuilder()
-		boolean escaped = false
-		boolean bracketed
-
-		DumbPathBuilder(boolean b) { bracketed = b }
-
-		Expression doPush(int cp) {
-			if ((bracketed && !escaped && cp == 41) || (!bracketed && Character.isWhitespace(cp)))
-				return convert(last.toString())
-			if (escaped) {
-				escaped = false
-				if (cp == 41) last.deleteCharAt(last.length() - 1)
-			}
-			else escaped = cp == 92
-			last.appendCodePoint(cp)
-			(Expression) null
-		}
-
-		Expression convert(String str) {
-			def path = new DumbParser.Path(str)
-			def ex = path.expressions
-			NameExpression root = null
-			if (!str.startsWith('.') && ex[0] instanceof DumbParser.Path.PropertyPathStep) {
-				root = new NameExpression(ex[0].raw)
-				if (ex.size() == 1) return root
-				ex = ex.drop(1)
-			}
-			def newEx = new ArrayList<PathExpression.Step>(ex.size())
-			for (e in ex) {
-				if (e instanceof DumbParser.Path.SubscriptPathStep) {
-					newEx.add(new PathExpression.SubscriptStep(new StaticExpression(((DumbParser.Path.SubscriptPathStep) e).val)))
-				} else if (e instanceof DumbParser.Path.PropertyPathStep) {
-					newEx.add(new PathExpression.PropertyStep(((DumbParser.Path.PropertyPathStep) e).raw))
-				} else throw new UnexpectedSyntaxException("Unknown path step $e")
-			}
-			new PathExpression(root, newEx)
-		}
-
-		boolean waitingForDelim() { bracketed }
-
-		Expression doFinish() {
-			convert(last.toString())
 		}
 	}
 
@@ -581,7 +535,7 @@ class Parser {
 								def last = expr.arguments[size - 1]
 								for (int i = size - 2; i >= 0; --i) {
 									def name = expr.arguments[i]
-									def atom = KismetInner.toAtom(name)
+									def atom = Prelude.toAtom(name)
 									def orig = new CallExpression([expr.callValue, name, last])
 									if (null != atom) switch (equalsType) {
 										case 3: last = new ChangeExpression(orig, atom, last); break
@@ -732,7 +686,7 @@ class Parser {
 							branches.add new CallExpression(ses)
 						} else if (a instanceof NameExpression) {
 							final text = ((NameExpression) a).text
-							branches.add new CallExpression([new NameExpression(KismetInner.isAlpha(text) ? text + '?' : text),
+							branches.add new CallExpression([new NameExpression(Prelude.isAlpha(text) ? text + '?' : text),
 									new NameExpression(name)] as List<Expression>)
 						} else if (a instanceof BlockExpression) {
 							addBranches(((BlockExpression) a).content)
@@ -950,7 +904,7 @@ class Parser {
 
 					@Override
 					IKismetObject call(IKismetObject... args) {
-						function.call(((KismetObject) args[0]).as(List) as IKismetObject[])
+						function.call(((WrapperKismetObject) args[0]).as(List) as IKismetObject[])
 					}
 				})
 			}
@@ -1148,16 +1102,16 @@ class Parser {
 				final size = exprs.size()
 				this.collect = collect
 				if (size == 1) {
-					final atom = KismetInner.toAtom(exprs[0])
+					final atom = Prelude.toAtom(exprs[0])
 					if (atom == null) nameExpr = exprs[0]
 					else name = atom
 				} else if (size == 2) {
-					final atom = KismetInner.toAtom(exprs[0])
+					final atom = Prelude.toAtom(exprs[0])
 					if (atom == null) nameExpr = exprs[0]
 					else name = atom
 
 					if (exprs[1] instanceof ConstantExpression)
-						iterator = KismetInner.toIterator(c.eval(exprs[1]).inner())
+						iterator = Prelude.toIterator(c.eval(exprs[1]).inner())
 					else iterExpr = exprs[1]
 				} else if (size >= 3) {
 					final f = exprs[0]
@@ -1167,12 +1121,12 @@ class Parser {
 						indexStart(c, cf[cf.size() > 1 ? 1 : 0])
 					} else indexName(f)
 
-					final atom = KismetInner.toAtom(exprs[1])
+					final atom = Prelude.toAtom(exprs[1])
 					if (atom == null) nameExpr = exprs[1]
 					else name = atom
 
 					if (exprs[2] instanceof ConstantExpression)
-						iterator = KismetInner.toIterator(c.eval(exprs[2]).inner())
+						iterator = Prelude.toIterator(c.eval(exprs[2]).inner())
 					else iterExpr = exprs[2]
 				}
 				def tail = arguments.tail()
@@ -1180,20 +1134,20 @@ class Parser {
 			}
 
 			private void indexName(Expression expr) {
-				final atom = KismetInner.toAtom(expr)
+				final atom = Prelude.toAtom(expr)
 				if (atom == null) indexNameExpr = expr
 				else indexName = atom
 			}
 
 			private void indexStart(Context c, Expression expr) {
 				if (expr instanceof ConstantExpression)
-					indexStart = (int) ((KismetObject) expr.evaluate(c)).as(int)
+					indexStart = (int) ((WrapperKismetObject) expr.evaluate(c)).as(int)
 				else indexStartExpr = expr
 			}
 
 			IKismetObject evaluate(Context c) {
 				int i = indexStartExpr == null ? indexStart : indexStartExpr.evaluate(c).inner() as int
-				final iter = iterExpr == null ? iterator : KismetInner.toIterator(iterExpr.evaluate(c).inner())
+				final iter = iterExpr == null ? iterator : Prelude.toIterator(iterExpr.evaluate(c).inner())
 				final iName = indexNameExpr == null ? indexName : indexNameExpr.evaluate(c).toString()
 				final name = nameExpr == null ? name : nameExpr.evaluate(c).toString()
 				def result = collect ? new ArrayList() : (ArrayList) null
