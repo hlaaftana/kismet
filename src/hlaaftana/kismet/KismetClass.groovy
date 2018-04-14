@@ -170,12 +170,12 @@ class ClassObject<T extends IKismetClass> implements IKismetObject<T> {
 	MetaKismetClass kismetClass() { MetaKismetClass.INSTANCE }
 	T inner() { it }
 
-	IKismetObject getProperty(String name) {
+	IKismetObject propertyGet(String name) {
 		if (name == "name") Kismet.model(it.name)
 		else throw new UnexpectedValueException('Unknown property ' + name + ' for class object')
 	}
 
-	IKismetObject setProperty(String name, IKismetObject value) {
+	IKismetObject propertySet(String name, IKismetObject value) {
 		throw new CannotOperateException('set property', 'class object')
 	}
 

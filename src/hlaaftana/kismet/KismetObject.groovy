@@ -13,7 +13,7 @@ class KismetObject<T> implements IKismetObject<T> {
 	KismetObject(T i, IKismetObject<KismetClass> c) { this(i); this.@kclass = c }
 	KismetObject(T i) { this.@inner = i }
 
-	IKismetObject getProperty(String name) {
+	IKismetObject propertyGet(String name) {
 		kclass.inner().getter.call(this, Kismet.model(name))
 	}
 
@@ -21,7 +21,7 @@ class KismetObject<T> implements IKismetObject<T> {
 		kclass.inner().setter.call(this, Kismet.model(name), Kismet.model(value))
 	}
 
-	IKismetObject setProperty(String name, IKismetObject value) {
+	IKismetObject propertySet(String name, IKismetObject value) {
 		kclass.inner().setter.call(this, Kismet.model(name), value)
 	}
 

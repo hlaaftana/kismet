@@ -702,7 +702,7 @@ class Parser {
 				if (step instanceof PathExpression.SubscriptStep)
 					return v.putAt(((PathExpression.SubscriptStep) step).expression.evaluate(c), toSet.evaluate(c))
 				else if (step instanceof PathExpression.PropertyStep)
-					return v.setProperty(((PathExpression.PropertyStep) step).name, toSet.evaluate(c))
+					return v.propertySet(((PathExpression.PropertyStep) step).name, toSet.evaluate(c))
 				else println "Unknown pathstep"
 				Kismet.NULL
 			}

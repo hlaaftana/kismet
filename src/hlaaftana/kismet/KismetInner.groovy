@@ -24,17 +24,18 @@ class KismetInner {
 			Class: MetaKismetClass.OBJECT,
 			Object: new KismetClass(IKismetObject, 'Object').object,
 			Null: new KismetClass(null, 'Null').object,
-			Integer: new ClassObject(IntClass.INSTANCE),
-			Float: new ClassObject(FloatClass.INSTANCE),
-			String: new KismetClass(String, 'String').object,
+			UnknownNumber: NonPrimitiveNumClass.INSTANCE,
+			Integer: IntClass.INSTANCE,
+			Float: FloatClass.INSTANCE,
+			String: new ClassObject(KismetString.CLASS),
 			Boolean: new KismetClass(Boolean, 'Boolean').object,
-			Int8: new ClassObject(Int8Class.INSTANCE),
-			Int16: new ClassObject(Int16Class.INSTANCE),
-			Int32: new ClassObject(Int32Class.INSTANCE),
-			Int64: new ClassObject(Int64Class.INSTANCE),
-			Float32: new ClassObject(Float32Class.INSTANCE),
-			Float64: new ClassObject(Float64Class.INSTANCE),
-			Character: new KismetClass(Character, 'Character').object,
+			Int8: Int8Class.INSTANCE,
+			Int16: Int16Class.INSTANCE,
+			Int32: Int32Class.INSTANCE,
+			Int64: Int64Class.INSTANCE,
+			Float32: Float32Class.INSTANCE,
+			Float64: Float64Class.INSTANCE,
+			Character: CharClass.INSTANCE,
 			DumbPath: new KismetClass(DumbParser.Path, 'DumbPath').object,
 			Set: new KismetClass(Set, 'Set').object,
 			List: new KismetClass(List, 'List').object,
@@ -826,6 +827,18 @@ class KismetInner {
 				defn: macr { Context c, Expression... exprs ->
 					final x = new KismetFunction(c, true, exprs)
 					c.define(x.name, Kismet.model(x))
+				},
+				tmpl: macr { Context c, Expression... exprs ->
+					new Template() {
+						@CompileStatic
+						Expression transform(Expression... args) {
+							final co = c.child(exprs)
+							for (int i = 0; i < args.length; ++i) {
+								co.context.set("\$$i", Kismet.model(args[i]))
+							}
+							co().inner() as Expression
+						}
+					}
 				},
 				defmcr: macr { Context c, Expression... exprs ->
 					List<Expression> kill = new ArrayList<>()
