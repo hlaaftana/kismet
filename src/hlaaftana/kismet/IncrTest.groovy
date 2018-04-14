@@ -1,6 +1,7 @@
 package hlaaftana.kismet
 
 import groovy.transform.CompileStatic
+import hlaaftana.kismet.parser.NumberExpression
 import hlaaftana.kismet.parser.Parser
 
 import javax.imageio.ImageIO
@@ -53,27 +54,10 @@ class IncrTest {
 		def p = new Parser(context: Kismet.DEFAULT_CONTEXT.child()).parse("""\
 don't %'optimize'
 := x 0
-= x [+ x 1]
-x""")
-		def a = now()
-		for (int i = 0; i < 5000; ++i) assert p.evaluate(Kismet.DEFAULT_CONTEXT.child()).inner() == 1
-		optimizedPlus1 << now() - a
-
-		p = new Parser(context: Kismet.DEFAULT_CONTEXT.child()).parse("""\
-:= x 0
-= x [+ x 1]
-x""")
-		a = now()
-		for (int i = 0; i < 5000; ++i) assert p.evaluate(Kismet.DEFAULT_CONTEXT.child()).inner() == 1
-		plus1 << now() - a
-
-		p = new Parser(context: Kismet.DEFAULT_CONTEXT.child()).parse("""\
-don't %'optimize'
-:= x 5
 = x[1] null
 x""")
-		a = now()
-		for (int i = 0; i < 5000; ++i) assert p.evaluate(Kismet.DEFAULT_CONTEXT.child()).inner() == 1
+		def a = now()
+		for (int i = 0; i < 20000; ++i) assert p.evaluate(Kismet.DEFAULT_CONTEXT.child()).inner() == 1
 		optimizedSubsPlus1 << now() - a
 
 		p = new Parser(context: Kismet.DEFAULT_CONTEXT.child()).parse("""\
@@ -81,7 +65,24 @@ x""")
 = x[1] null
 x""")
 		a = now()
-		for (int i = 0; i < 5000; ++i) assert p.evaluate(Kismet.DEFAULT_CONTEXT.child()).inner() == 1
+		for (int i = 0; i < 20000; ++i) assert p.evaluate(Kismet.DEFAULT_CONTEXT.child()).inner() == 1
 		subsPlus1 << now() - a
+
+		p = new Parser(context: Kismet.DEFAULT_CONTEXT.child()).parse("""\
+don't %'optimize'
+:= x 0
+= x [+ x 1]
+x""")
+		a = now()
+		for (int i = 0; i < 20000; ++i) assert p.evaluate(Kismet.DEFAULT_CONTEXT.child()).inner() == 1
+		optimizedPlus1 << now() - a
+
+		p = new Parser(context: Kismet.DEFAULT_CONTEXT.child()).parse("""\
+:= x 0
+= x [+ x 1]
+x""")
+		a = now()
+		for (int i = 0; i < 20000; ++i) assert p.evaluate(Kismet.DEFAULT_CONTEXT.child()).inner() == 1
+		plus1 << now() - a
 	}
 }

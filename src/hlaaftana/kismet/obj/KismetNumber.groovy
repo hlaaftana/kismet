@@ -3,14 +3,15 @@ package hlaaftana.kismet.obj
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.IKismetObject
 import hlaaftana.kismet.IKismetClass
+import hlaaftana.kismet.MetaKismetClass
 
 @CompileStatic
 abstract class KismetNumber<T extends Number> extends Number implements IKismetObject<T>, Comparable<KismetNumber<T>> {
-	IKismetObject getProperty(String name) {
+	IKismetObject propertyGet(String name) {
 		throw new CannotOperateException("get property", "number")
 	}
 
-	IKismetObject setProperty(String name, IKismetObject value) {
+	IKismetObject propertySet(String name, IKismetObject value) {
 		throw new CannotOperateException("set property", "number")
 	}
 
@@ -78,13 +79,45 @@ abstract class KismetNumber<T extends Number> extends Number implements IKismetO
 }
 
 @CompileStatic
-abstract class KismetNumberClass<T extends Number> implements IKismetClass<KismetNumber<T>> {
+abstract class KismetNumberClass<T extends Number> implements IKismetClass<KismetNumber<T>>, IKismetObject<KismetNumberClass<T>> {
 	KismetNumber<T> cast(IKismetObject object) {
 		if (!(object instanceof KismetNumber)) throw new CannotOperateException("cast to non number", "number")
 		instantiate(((KismetNumber) object).inner())
 	}
 
 	abstract KismetNumber<T> instantiate(Number num)
+	abstract int bits()
+
+	IKismetClass kismetClass() { MetaKismetClass.INSTANCE }
+	KismetNumberClass<T> inner() { this }
+
+	IKismetObject propertyGet(String name) {
+		switch (name) {
+		case "bits": return new KInt32(bits())
+		case "name": return new KismetString(name)
+		default: throw new CannotOperateException("get property $name", "number class ${this.name}")
+		}
+	}
+
+	IKismetObject propertySet(String name, IKismetObject value) {
+		throw new CannotOperateException("set property $name", "number class ${this.name}")
+	}
+
+	@Override
+	IKismetObject getAt(IKismetObject obj) {
+		if (obj.inner() instanceof String) propertyGet((String) obj.inner())
+		else throw new CannotOperateException("get at", "number class ${this.name}")
+	}
+
+	@Override
+	IKismetObject putAt(IKismetObject obj, IKismetObject value) {
+		throw new CannotOperateException("set at", "number class ${this.name}")
+	}
+
+	@Override
+	IKismetObject call(IKismetObject[] args) {
+		instantiate(args[0].inner() as Number)
+	}
 }
 
 @CompileStatic
@@ -100,6 +133,8 @@ class NonPrimitiveNumClass extends KismetNumberClass {
 	boolean isInstance(IKismetObject object) {
 		object instanceof KNonPrimitiveNum
 	}
+
+	int bits() { 0 }
 }
 
 @CompileStatic
@@ -157,6 +192,7 @@ class IntClass extends KismetNumberClass<BigInteger> {
 		new KInt(BigInteger.ZERO)
 	}
 
+	int bits() { 0 }
 	String getName() { 'Integer' }
 }
 
@@ -213,6 +249,7 @@ class FloatClass extends KismetNumberClass<BigDecimal> {
 		new KFloat(0)
 	}
 
+	int bits() { 0 }
 	String getName() { 'Float' }
 }
 
@@ -262,6 +299,7 @@ class Float64Class extends KismetNumberClass<Double> {
 		new KFloat64((double) 0)
 	}
 
+	int bits() { 64 }
 	String getName() { 'Float64' }
 }
 
@@ -310,6 +348,7 @@ class Float32Class extends KismetNumberClass<Float> {
 		new KFloat32((float) 0)
 	}
 
+	int bits() { 32 }
 	String getName() { 'Float32' }
 }
 
@@ -358,6 +397,7 @@ class Int64Class extends KismetNumberClass<Long> {
 		new KInt64((long) 0)
 	}
 
+	int bits() { 64 }
 	String getName() { 'Int64' }
 }
 
@@ -406,6 +446,7 @@ class Int32Class extends KismetNumberClass<Integer> {
 		new KInt32((int) 0)
 	}
 
+	int bits() { 32 }
 	String getName() { 'Int32' }
 }
 
@@ -454,6 +495,7 @@ class Int16Class extends KismetNumberClass<Short> {
 		new KInt16((short) 0)
 	}
 
+	int bits() { 16 }
 	String getName() { 'Int16' }
 }
 
@@ -487,6 +529,55 @@ final class KInt16 extends KismetNumber<Short> {
 }
 
 @CompileStatic
+class CharClass extends KismetNumberClass<Integer> {
+	static final CharClass INSTANCE = new CharClass()
+
+	private CharClass() {}
+
+	KismetNumber<Integer> instantiate(Number num) { new KChar((char) num.intValue()) }
+
+	boolean isInstance(IKismetObject object) {
+		object instanceof KChar
+	}
+
+	KChar defaultValue() {
+		new KChar((char) 0)
+	}
+
+	int bits() { 16 }
+	String getName() { 'Character' }
+}
+
+@CompileStatic
+final class KChar extends KismetNumber<Integer> {
+	char inner
+
+	KChar(char inner) { this.inner = inner }
+
+	CharClass kismetClass() { CharClass.INSTANCE }
+	Integer inner() { Integer.valueOf((int) inner) }
+	void set(Number value) { inner = (char) value.intValue() }
+
+	KChar plus(KismetNumber obj) { new KChar((char) (((int) inner) + obj.intValue()).intValue()) }
+	KChar minus(KismetNumber obj) { new KChar((char) (((int) inner) - obj.intValue()).intValue()) }
+	KChar multiply(KismetNumber obj) { new KChar((char) (((int) inner) * obj.intValue()).intValue()) }
+	KChar div(KismetNumber obj) { new KChar((char) (((int) inner) / obj.intValue()).intValue()) }
+	KChar intdiv(KismetNumber obj) { new KChar((char) ((int) inner).intdiv(obj.intValue()).intValue()) }
+	KChar mod(KismetNumber obj) { new KChar((char) (((int) inner) % obj.intValue()).intValue()) }
+	KChar unaryPlus() { new KChar(inner) }
+	KChar unaryMinus() { new KChar(-inner) }
+
+	int compareTo(KismetNumber obj) { inner.compareTo(obj.inner()) }
+
+	KChar leftShift(KismetNumber obj) { new KChar((char) (((int) inner) << obj.intValue()).intValue()) }
+	KChar rightShift(KismetNumber obj) { new KChar((char) (((int) inner) >> obj.intValue()).intValue()) }
+	KChar rightShiftUnsigned(KismetNumber obj) { new KChar((char) (((int) inner) >>> obj.intValue()).intValue()) }
+	KChar and(KismetNumber obj) { new KChar((char) (((int) inner) & obj.intValue()).intValue()) }
+	KChar or(KismetNumber obj) { new KChar((char) (((int) inner) | obj.intValue()).intValue()) }
+	KChar xor(KismetNumber obj) { new KChar((char) (((int) inner) ^ obj.intValue()).intValue()) }
+}
+
+@CompileStatic
 class Int8Class extends KismetNumberClass<Byte> {
 	static final Int8Class INSTANCE = new Int8Class()
 
@@ -502,6 +593,7 @@ class Int8Class extends KismetNumberClass<Byte> {
 		new KInt8((byte) 0)
 	}
 
+	int bits() { 8 }
 	String getName() { 'Int8' }
 }
 

@@ -92,7 +92,7 @@ import hlaaftana.kismet.*
 		}
 
 		IKismetObject apply(Context c, IKismetObject object) {
-			object.getProperty(name)
+			object.propertyGet(name)
 		}
 
 		String toString() { ".$name" }
@@ -136,7 +136,7 @@ import hlaaftana.kismet.*
 				try {
 					super.get(name)
 				} catch (UndefinedVariableException ignored) {
-					object.getProperty(name)
+					object.propertyGet(name)
 				}
 			}
 		}
@@ -242,6 +242,7 @@ import hlaaftana.kismet.*
 
 	IKismetObject<T> evaluate(Context c) {
 		value
+		//Kismet.model(value.inner())
 	}
 }
 
