@@ -1,5 +1,5 @@
 defn [compare_ignore_case? [x [slice]]] {
-  every? [consecutives [collect x lower] 2] [fn* [a b] [is? a b]]
+  |> x ~ [collect lower] [consecutives 2] [every? [fn* [a b] [is? a b]]
 }
 
 assert [compare_ignore_case? 'abcD' 'AbCD' 'ABCd' 'ABCD' 'abcd']

@@ -2,8 +2,8 @@ package hlaaftana.kismet.vm
 
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.call.GroovyFunction
-import hlaaftana.kismet.prelude.IteratorIterable
-import hlaaftana.kismet.prelude.Prelude
+import hlaaftana.kismet.scope.IteratorIterable
+import hlaaftana.kismet.scope.Prelude
 
 @CompileStatic
 class KismetModels {

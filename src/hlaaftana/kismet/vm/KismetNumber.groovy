@@ -91,7 +91,7 @@ abstract class KismetNumberClass<T extends Number> implements IKismetClass<Kisme
 
 	IKismetObject propertyGet(String name) {
 		switch (name) {
-		case "bits": return new KInt32(bits())
+		case "getBits": return new KInt32(bits())
 		case "name": return new KismetString(name)
 		default: throw new CannotOperateException("get property $name", "number class ${this.name}")
 		}

@@ -2,7 +2,7 @@ package hlaaftana.kismet
 
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.parser.Parser
-import hlaaftana.kismet.prelude.Prelude
+import hlaaftana.kismet.scope.Prelude
 import hlaaftana.kismet.vm.Context
 
 @CompileStatic
