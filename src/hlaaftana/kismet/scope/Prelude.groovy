@@ -1,4 +1,4 @@
-package hlaaftana.kismet.prelude
+package hlaaftana.kismet.scope
 
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
@@ -72,25 +72,26 @@ class Prelude {
 	static {
 		Map<String, Object> toConvert = [
 				euler_constant: Math.E.toBigDecimal(), pi: Math.PI.toBigDecimal(),
-				now_nanos: funcc { ...args -> System.nanoTime() },
-				now_millis: funcc { ...args -> System.currentTimeMillis() },
-				now_seconds: funcc { ...args -> System.currentTimeSeconds() },
-				now_date: funcc { ...args -> new Date() },
+				now_nanos: func { IKismetObject... args -> System.nanoTime() },
+				now_millis: func { IKismetObject... args -> System.currentTimeMillis() },
+				now_seconds: func { IKismetObject... args -> System.currentTimeSeconds() },
+				now_date: func { IKismetObject... args -> new Date() },
 				new_date: funcc { ...args -> Date.invokeMethod('newInstance', args) },
 				parse_date_from_format: funcc(true) { ...args -> new SimpleDateFormat(args[1].toString()).parse(args[0].toString()) },
-				format_date: funcc(true) { ...args -> new SimpleDateFormat(args[1].toString()).format(args[0] as File) },
+				format_date: funcc(true) { ...args -> new SimpleDateFormat(args[1].toString()).format(args[0].toString()) },
 				true: true, false: false, null: null,
 				yes: true, no: false, on: true, off: false,
 				class: func(true) { IKismetObject... a -> a[0].kismetClass() },
 				class_from_name: func { IKismetObject... a -> WrapperKismetClass.fromName(a[0].toString()) },
-				'instance?': func(true) { IKismetObject... a ->
-					final a0 = a[0]
-					final b = a0.inner()
-					final c = b instanceof IKismetClass ? (IKismetClass) b : a0.kismetClass()
-					for (int i = 1; i < a.length; ++i) {
-						if (c.isInstance(a[i])) return true
+				'instance?': new Function() {
+					{ this.pure = true }
+
+					IKismetObject call(IKismetObject... a) {
+						final b = a[0].inner()
+						final c = b instanceof IKismetClass ? (IKismetClass) b : a[0].kismetClass()
+						for (int i = 1; i < a.length; ++i) if (c.isInstance(a[i])) return Kismet.model(true)
+						Kismet.model(false)
 					}
-					false
 				},
 				'of?': func(true) { IKismetObject... a ->
 					final a0 = a[0]
@@ -125,13 +126,11 @@ class Prelude {
 							: c.getVariable(name)
 				},
 				variables: new Macro() {
-					@CompileStatic
 					IKismetObject call(Context c, Expression... args) {
 						Kismet.model(c.variables)
 					}
 				},
 				current_context: new Macro() {
-					@CompileStatic
 					IKismetObject call(Context c, Expression... args) {
 						Kismet.model(c)
 					}

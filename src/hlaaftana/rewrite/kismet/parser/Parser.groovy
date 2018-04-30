@@ -1,16 +1,16 @@
-package hlaaftana.kismet.parser
+package hlaaftana.rewrite.kismet.parser
 
 import groovy.transform.CompileStatic
-import hlaaftana.kismet.Kismet
-import hlaaftana.kismet.call.*
-import hlaaftana.kismet.exceptions.ParseException
-import hlaaftana.kismet.exceptions.UndefinedVariableException
-import hlaaftana.kismet.exceptions.UnexpectedSyntaxException
-import hlaaftana.kismet.exceptions.UnexpectedValueException
-import hlaaftana.kismet.scope.Prelude
-import hlaaftana.kismet.vm.Context
-import hlaaftana.kismet.vm.IKismetObject
-import hlaaftana.kismet.vm.WrapperKismetObject
+import hlaaftana.rewrite.kismet.Kismet
+import hlaaftana.rewrite.kismet.call.*
+import hlaaftana.rewrite.kismet.exceptions.ParseException
+import hlaaftana.rewrite.kismet.exceptions.UndefinedVariableException
+import hlaaftana.rewrite.kismet.exceptions.UnexpectedSyntaxException
+import hlaaftana.rewrite.kismet.exceptions.UnexpectedValueException
+import hlaaftana.rewrite.kismet.scope.Prelude
+import hlaaftana.rewrite.kismet.vm.Context
+import hlaaftana.rewrite.kismet.vm.IKismetObject
+import hlaaftana.rewrite.kismet.vm.WrapperKismetObject
 
 import java.math.RoundingMode
 
@@ -40,7 +40,7 @@ class Parser {
 			} else {
 				++cl
 				if (!comment && builder.warrior)
-					comment = Arrays.copyOfRange(arr, i, i+commentStart.length()) == commentStart.toCharArray()
+					comment = Arrays.copyOfRange(arr, i, i + commentStart.length()) == commentStart.toCharArray()
 			}
 			if (comment) continue
 			try {
@@ -67,7 +67,7 @@ class Parser {
 		}
 
 		Expression fulfillResult(T x) {
-			null == x ? x : percent ? x.percentize(context) : x
+			null == x ? x : percent ? x.percentize(Parser.this) : x
 		}
 
 		T doFinish() { throw new UnsupportedOperationException('Can\'t finish') }
@@ -77,6 +77,7 @@ class Parser {
 		}
 
 		boolean waitingForDelim() { false }
+
 		boolean isWarrior() { false }
 	}
 
@@ -146,7 +147,7 @@ class Parser {
 			if (x instanceof CallExpression) {
 				Expression a = (!last.bracketed || last.bracket == separator) &&
 						!((CallExpression) x).arguments ? ((CallExpression) x).callValue : x
-				expressions.add(last.percent ? a.percentize(context) :
+				expressions.add(last.percent ? a.percentize(Parser.this) :
 						a instanceof CallExpression && optimizePrelude ?
 								optimizer.optimize((CallExpression) a) : a)
 			} else expressions.add(x)
@@ -174,8 +175,7 @@ class Parser {
 					b.bracket = (char) ')'
 					b.requireSeparator = true
 					last = b
-				}
-				else if (cp == 91) last = new CallBuilder(true)
+				} else if (cp == 91) last = new CallBuilder(true)
 				else if (cp == 123) last = new BlockBuilder(true)
 				else if (cp > 47 && cp < 58) (last = new NumberBuilder()).push(cp)
 				else if (cp == 34 || cp == 39) last = new StringExprBuilder(cp)
@@ -215,7 +215,7 @@ class Parser {
 		Expression fulfillResult(CallExpression x) {
 			if (null == x) return x
 			Expression r = x
-			if (percent) r = r.percentize(context)
+			if (percent) r = r.percentize(Parser.this)
 			else if (optimizePrelude) r = optimizer.optimize(x)
 			r
 		}
@@ -282,8 +282,11 @@ class Parser {
 				newlyStage = false
 				arr[stage].appendCodePoint(cp)
 			} else if (cp == 46) {
-				if (stage == 0) { if (newlyStage) { arr[0].append('0') }; init 1 }
-				else throw new NumberFormatException('Tried to put fraction after ' + stageNames[stage])
+				if (stage == 0) {
+					if (newlyStage) {
+						arr[0].append('0')
+					}; init 1
+				} else throw new NumberFormatException('Tried to put fraction after ' + stageNames[stage])
 			} else if (!newlyStage && (cp == 101 || cp == 69)) {
 				if (stage < 2) init 2
 				else throw new NumberFormatException('Tried to put exponent after ' + stageNames[stage])
@@ -294,7 +297,9 @@ class Parser {
 					init 3
 				}
 			} else if (newlyStage && stage != 3) throw new NumberFormatException('Started number but wasnt number')
-			else { goBack = true; return new NumberExpression(type, arr) }
+			else {
+				goBack = true; return new NumberExpression(type, arr)
+			}
 			(NumberExpression) null
 		}
 
@@ -341,16 +346,17 @@ class Parser {
 		PathExpression doPush(int cp) {
 			if (inPropertyQueue) {
 				inPropertyQueue = false
-				if (cp == ((char) '[')) { last = new CallBuilder(true); return null }
-				else if (cp == ((char) '(')) {
+				if (cp == ((char) '[')) {
+					last = new CallBuilder(true); return null
+				} else if (cp == ((char) '(')) {
 					final b = new BlockBuilder(true)
 					b.bracket = (char) ')'
 					b.requireSeparator = true
 					last = b
 					return null
-				}
-				else if (cp == ((char) '`')) { last = new QuoteAtomBuilder(); return null }
-				else last = new NameBuilder()
+				} else if (cp == ((char) '`')) {
+					last = new QuoteAtomBuilder(); return null
+				} else last = new NameBuilder()
 			}
 			if (null != last) {
 				def e = last.push(cp)
@@ -454,6 +460,7 @@ class Parser {
 		}
 
 		boolean waitingForDelim() { true }
+
 		boolean isWarrior() { true }
 	}
 
@@ -482,6 +489,7 @@ class Parser {
 		}
 
 		boolean waitingForDelim() { true }
+
 		boolean isWarrior() { true }
 	}
 
@@ -499,7 +507,8 @@ class Parser {
 				IKismetObject func
 				try {
 					func = context?.get(text)
-				} catch (UndefinedVariableException ignored) {}
+				} catch (UndefinedVariableException ignored) {
+				}
 				if (null != func) {
 					def inner = func.inner()
 					int equalsType = 0
@@ -654,9 +663,9 @@ class Parser {
 			IKismetObject evaluate(Context c) {
 				final v = value.evaluate(c)
 				if (step instanceof PathExpression.SubscriptStep)
-					return v.putAt(((PathExpression.SubscriptStep) step).expression.evaluate(c), toSet.evaluate(c))
+					return v.kismetClass().subscriptSet(v, ((PathExpression.SubscriptStep) step).expression.evaluate(c), toSet.evaluate(c))
 				else if (step instanceof PathExpression.PropertyStep)
-					return v.propertySet(((PathExpression.PropertyStep) step).name, toSet.evaluate(c))
+					return v.kismetClass().propertySet(v, ((PathExpression.PropertyStep) step).name, toSet.evaluate(c))
 				else println "Unknown pathstep"
 				Kismet.NULL
 			}
@@ -752,8 +761,7 @@ class Parser {
 					mode = roundingModes[name]
 					if (null == mode) throw new UnexpectedValueException("Unknown rounding mode $name")
 					modeExpression = path
-				}
-				else modeExpression = original.arguments[1]
+				} else modeExpression = original.arguments[1]
 				if (modeExpression instanceof ConstantExpression) mode = roundingMode(c, modeExpression)
 				scaleExpression = original.arguments[2]
 				if (null == scaleExpression) scale = 0
@@ -1083,7 +1091,9 @@ class Parser {
 				Kismet.model(result)
 			}
 
-			String repr() { (collect ? '&' : '') + 'for' + (less ? '<' : '') + '(' + arguments*.repr().join(', ') + ')' }
+			String repr() {
+				(collect ? '&' : '') + 'for' + (less ? '<' : '') + '(' + arguments*.repr().join(', ') + ')'
+			}
 		}
 
 		static class ForEachExpression extends FakeCallExpression {

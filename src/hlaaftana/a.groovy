@@ -1,6 +1,8 @@
-t = 0
-l = 0
-new File('kismet/').eachFileRecurse(groovy.io.FileType.FILES) { it ->
+import groovy.io.FileType
+
+def t = 0, l = 0
+new File('kismet/').eachFileRecurse(FileType.FILES) { it ->
+  l += it.readLines().findAll().size()
   t += it.text.size()
 }
 println """$l lines

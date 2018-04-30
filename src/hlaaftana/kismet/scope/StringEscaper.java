@@ -1,4 +1,4 @@
-package hlaaftana.kismet.prelude;
+package hlaaftana.kismet.scope;
 
 import java.util.HashMap;
 import java.util.Map;

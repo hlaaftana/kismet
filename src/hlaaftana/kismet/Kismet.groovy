@@ -3,7 +3,7 @@ package hlaaftana.kismet
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.call.Block
 import hlaaftana.kismet.parser.Parser
-import hlaaftana.kismet.prelude.Prelude
+import hlaaftana.kismet.scope.Prelude
 import hlaaftana.kismet.vm.Context
 import hlaaftana.kismet.vm.IKismetObject
 import hlaaftana.kismet.vm.KismetModels

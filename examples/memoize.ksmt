@@ -3,13 +3,12 @@ defn [memoized f] {
   fn [get_or_set cache $all [call f $all]]
 }
 
-defmcr memoize [eval [call_expr [name_expr "::="] $0 [call_expr [name_expr "memoized"] $0]] $context]
+:= memoize [tmpl [call_expr [static_expr ::=] $0 [call_expr [name_expr "memoized"] $0]]]
 
 defn [nth_fibonacci n] [check n
-    zero 1
-    one 1
-    [+ [nth_fibonacci [- n 1]]
-       [nth_fibonacci [- n 2]]]]
+  zero 1
+  one 1
+  [sum [map [range [decr n] [decr n]] nth_fibonacci]]]
 
 memoize nth_fibonacci
 

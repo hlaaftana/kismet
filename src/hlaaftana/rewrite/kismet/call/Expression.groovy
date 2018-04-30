@@ -1,18 +1,19 @@
-package hlaaftana.kismet.call
+package hlaaftana.rewrite.kismet.call
 
 import groovy.transform.CompileStatic
 import groovy.transform.InheritConstructors
-import hlaaftana.kismet.Kismet
-import hlaaftana.kismet.exceptions.UndefinedVariableException
-import hlaaftana.kismet.parser.Parser
-import hlaaftana.kismet.scope.StringEscaper
-import hlaaftana.kismet.vm.Context
-import hlaaftana.kismet.vm.IKismetObject
+import hlaaftana.rewrite.kismet.Kismet
+import hlaaftana.rewrite.kismet.exceptions.UndefinedVariableException
+import hlaaftana.rewrite.kismet.parser.Parser
+import hlaaftana.rewrite.kismet.scope.StringEscaper
+import hlaaftana.rewrite.kismet.vm.Context
+import hlaaftana.rewrite.kismet.vm.IKismetObject
 
-@CompileStatic abstract class Expression {
+@CompileStatic
+abstract class Expression {
 	abstract IKismetObject evaluate(Context c)
 
-	Expression percentize(Context p) {
+	Expression percentize(Parser p) {
 		new StaticExpression(this, p)
 	}
 
@@ -21,7 +22,8 @@ import hlaaftana.kismet.vm.IKismetObject
 	String toString() { repr() }
 }
 
-@CompileStatic class PathExpression extends Expression {
+@CompileStatic
+class PathExpression extends Expression {
 	Expression root
 	List<Step> steps
 
@@ -71,7 +73,7 @@ import hlaaftana.kismet.vm.IKismetObject
 		}
 
 		IKismetObject apply(Context c, IKismetObject object) {
-			object.propertyGet(name)
+			object.kismetClass().propertyGet(object, name)
 		}
 
 		String toString() { ".$name" }
@@ -85,7 +87,7 @@ import hlaaftana.kismet.vm.IKismetObject
 		}
 
 		IKismetObject apply(Context c, IKismetObject object) {
-			Kismet.model(object.inner().invokeMethod('getAt', expression.evaluate(c).inner()))
+			Kismet.model(object.kismetClass().subscriptGet(object, expression.evaluate(c)))
 		}
 
 		String toString() { ".[${expression.repr()}]" }
@@ -114,14 +116,15 @@ import hlaaftana.kismet.vm.IKismetObject
 				try {
 					super.get(name)
 				} catch (UndefinedVariableException ignored) {
-					object.propertyGet(name)
+					object.kismetClass().propertyGet(object, name)
 				}
 			}
 		}
 	}
 }
 
-@CompileStatic class NameExpression extends Expression {
+@CompileStatic
+class NameExpression extends Expression {
 	String text
 
 	NameExpression(String text) { this.text = text }
@@ -133,11 +136,29 @@ import hlaaftana.kismet.vm.IKismetObject
 	String repr() { text }
 }
 
-@CompileStatic class BlockExpression extends Expression {
+@CompileStatic
+class DiveExpression extends Expression {
+	Expression inner
+
+	DiveExpression(Expression inner) {
+		this.inner = inner
+	}
+
+	String repr() { "dive[$inner]" }
+
+	IKismetObject evaluate(Context c) {
+		c.childEval(inner)
+	}
+}
+
+@CompileStatic
+class BlockExpression extends Expression {
 	List<Expression> content
 
-	String repr() { '{\n' +
-			content*.repr().join('\r\n').readLines().collect('  '.&concat).join('\r\n') + '\r\n}' }
+	String repr() {
+		'{\n' +
+				content*.repr().join('\r\n').readLines().collect('  '.&concat).join('\r\n') + '\r\n}'
+	}
 
 	BlockExpression(List<Expression> exprs) { content = exprs }
 
@@ -148,7 +169,8 @@ import hlaaftana.kismet.vm.IKismetObject
 	}
 }
 
-@CompileStatic class CallExpression extends Expression {
+@CompileStatic
+class CallExpression extends Expression {
 	Expression callValue
 	List<Expression> arguments = []
 
@@ -169,7 +191,7 @@ import hlaaftana.kismet.vm.IKismetObject
 	String repr() { "[${expressions*.repr().join(', ')}]" }
 
 	Expression getAt(int i) {
-		i < 0 ? this[arguments.size()+i+1] : i == 0 ? callValue : arguments[i-1]
+		i < 0 ? this[arguments.size() + i + 1] : i == 0 ? callValue : arguments[i - 1]
 	}
 
 	IKismetObject evaluate(Context c) {
@@ -182,7 +204,7 @@ import hlaaftana.kismet.vm.IKismetObject
 		} else {
 			final arr = new IKismetObject[arguments.size()]
 			for (int i = 0; i < arr.length; ++i) arr[i] = arguments[i].evaluate(c)
-			obj.call(arr)
+			obj.kismetClass().call(obj, arr)
 		}
 	}
 
@@ -194,7 +216,8 @@ import hlaaftana.kismet.vm.IKismetObject
 	}
 }
 
-@CompileStatic trait ConstantExpression<T> {
+@CompileStatic
+trait ConstantExpression<T> {
 	IKismetObject<T> value
 
 	String repr() { "const($value)" }
@@ -209,14 +232,19 @@ import hlaaftana.kismet.vm.IKismetObject
 	}
 }
 
-@CompileStatic class NumberExpression extends Expression implements ConstantExpression<Number> {
+@CompileStatic
+class NumberExpression extends Expression implements ConstantExpression<Number> {
 	String repr() { value.toString() }
 
 	NumberExpression(boolean type, StringBuilder[] arr) {
 		StringBuilder x = arr[0]
 		boolean t = false
-		if (null != arr[1]) { x.append((char) '.').append(arr[1]); t = true }
-		if (null != arr[2]) { x.append((char) 'e').append(arr[2]); t = true }
+		if (null != arr[1]) {
+			x.append((char) '.').append(arr[1]); t = true
+		}
+		if (null != arr[2]) {
+			x.append((char) 'e').append(arr[2]); t = true
+		}
 		String r = x.toString()
 		if (null == arr[3]) setValue(t ? new BigDecimal(r) : new BigInteger(r)) else {
 			if (type) {
@@ -247,8 +275,7 @@ import hlaaftana.kismet.vm.IKismetObject
 						else if (b == 65) setValue(-v.longValue())
 						else throw new NumberFormatException("Invalid number of getBits $b for explicit integer")
 					}
-				}
-				else if (arr[3].length() == 0) setValue(new BigInteger(r))
+				} else if (arr[3].length() == 0) setValue(new BigInteger(r))
 				else {
 					int b = new Integer(arr[3].toString())
 					if (b == 1) setValue(-new BigInteger(r))
@@ -275,7 +302,7 @@ import hlaaftana.kismet.vm.IKismetObject
 		value = b.doPush(32).value.inner()
 	}
 
-	VariableIndexExpression percentize(Context p) {
+	VariableIndexExpression percentize(Parser p) {
 		new VariableIndexExpression(value.inner().intValue())
 	}
 
@@ -303,10 +330,12 @@ class StringExpression extends Expression implements ConstantExpression<String> 
 	StringExpression(String v) {
 		try {
 			setValue(StringEscaper.unescapeSoda(raw = v))
-		} catch (ex) { exception = ex }
+		} catch (ex) {
+			exception = ex
+		}
 	}
 
-	NameExpression percentize(Context p) {
+	NameExpression percentize(Parser p) {
 		new NameExpression(raw)
 	}
 
@@ -337,7 +366,8 @@ class StaticExpression<T extends Expression> extends Expression implements Const
 	}
 }
 
-@CompileStatic class NoExpression extends Expression {
+@CompileStatic
+class NoExpression extends Expression {
 	static final NoExpression INSTANCE = new NoExpression()
 
 	private NoExpression() {}
