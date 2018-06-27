@@ -228,7 +228,7 @@ class KismetFunction extends Function implements Nameable {
 								int i = b.arguments[0] instanceof NumberExpression ?
 										((NumberExpression) b.arguments[0]).value.inner().intValue() + 1 :
 										b.arguments[0] instanceof NameExpression ?
-												new Integer(((NameExpression) b.arguments[0]).text) :
+												Integer.valueOf(((NameExpression) b.arguments[0]).text) :
 												0
 								last += (p.slice = i) - 1
 							}
@@ -239,7 +239,7 @@ class KismetFunction extends Function implements Nameable {
 								int i = b.arguments[0] instanceof NumberExpression ?
 										((NumberExpression) b.arguments[0]).value.inner().intValue() + 1 :
 										b.arguments[0] instanceof NameExpression ?
-												new Integer(((NameExpression) b.arguments[0]).text) + 1 :
+												Integer.valueOf(((NameExpression) b.arguments[0]).text) + 1 :
 												0
 								p.index = last = i
 							}

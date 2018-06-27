@@ -251,7 +251,7 @@ class NumberExpression extends Expression implements ConstantExpression<Number> 
 			if (type) {
 				if (arr[3].length() == 0) setValue(new BigDecimal(r))
 				else {
-					int b = new Integer(arr[3].toString())
+					int b = Integer.valueOf(arr[3].toString())
 					if (b == 1) setValue(-new BigDecimal(r))
 					else if (b == 32) setValue(new Float(r))
 					else if (b == 33) setValue(-new Float(r))
@@ -264,7 +264,7 @@ class NumberExpression extends Expression implements ConstantExpression<Number> 
 					def v = new BigDecimal(r)
 					if (arr[3].length() == 0) setValue(v.toBigInteger())
 					else {
-						int b = new Integer(arr[3].toString())
+						int b = Integer.valueOf(arr[3].toString())
 						if (b == 1) setValue(-v.toBigInteger())
 						else if (b == 8) setValue(v.byteValue())
 						else if (b == 9) setValue(-v.byteValue())
@@ -278,7 +278,7 @@ class NumberExpression extends Expression implements ConstantExpression<Number> 
 					}
 				} else if (arr[3].length() == 0) setValue(new BigInteger(r))
 				else {
-					int b = new Integer(arr[3].toString())
+					int b = Integer.valueOf(arr[3].toString())
 					if (b == 1) setValue(-new BigInteger(r))
 					else if (b == 8) setValue(new Byte(r))
 					else if (b == 9) setValue(-new Byte(r))
