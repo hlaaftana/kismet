@@ -10,6 +10,7 @@ class WrapperKismetObject<T> implements IKismetObject<T> {
 	T inner
 
 	WrapperKismetClass kismetClass() { kclass.inner() }
+
 	T inner() { this.@inner }
 
 	WrapperKismetObject(T i, IKismetObject<WrapperKismetClass> c) { this(i); this.@kclass = c }
@@ -44,7 +45,7 @@ class WrapperKismetObject<T> implements IKismetObject<T> {
 		kclass.inner().subscriptSet.call(this, Kismet.model(obj), Kismet.model(val))
 	}
 
-	def methodMissing(String name, ...args) {
+	def methodMissing(String name, ... args) {
 		for (int i = 0; i < args.length; ++i)
 			if (args[i] instanceof IKismetObject)
 				args[i] = ((IKismetObject) args[i]).inner()
@@ -52,15 +53,20 @@ class WrapperKismetObject<T> implements IKismetObject<T> {
 	}
 
 	def methodMissing(String name, Collection args) { methodMissing(name, args as Object[]) }
-	def methodMissing(String name, args) { methodMissing(name, args instanceof Object[] ? (Object[]) args : [args] as Object[]) }
+
+	def methodMissing(String name, args) {
+		methodMissing(name, args instanceof Object[] ? (Object[]) args : [args] as Object[])
+	}
+
 	def methodMissing(String name, IKismetObject args) { methodMissing(name, args.inner()) }
+
 	def methodMissing(String name, IKismetObject... args) {
 		Object[] arr = new Object[args.length]
 		for (int i = 0; i < args.length; ++i) arr[i] = args[i].inner()
 		methodMissing(name, (Object[]) arr)
 	}
 
-	IKismetObject call(...args) {
+	IKismetObject call(... args) {
 		call(args.collect(Kismet.&model) as IKismetObject[])
 	}
 
@@ -76,14 +82,18 @@ class WrapperKismetObject<T> implements IKismetObject<T> {
 		WrapperKismetClass k = WrapperKismetClass.from(c)
 		def p = null == k ? (Function) null : kclass.inner().converters[k]
 		if (null != p) p(this)
-		else try { inner.asType(c) }
-		catch (ClassCastException ex) { if (c == Closure) this.&call else throw ex }
+		else try {
+			inner.asType(c)
+		}
+		catch (ClassCastException ex) {
+			if (c == Closure) this.&call else throw ex
+		}
 	}
 
 	def "as"(WrapperKismetClass c) {
 		if (c && kclass.inner().converters.containsKey(c)) kclass.inner().converters[c](this)
 		else throw new ClassCastException('Can\'t cast object with class ' +
-			kclass + ' to class ' + c)
+				kclass + ' to class ' + c)
 	}
 
 	IKismetObject convert(IKismetClass c) {

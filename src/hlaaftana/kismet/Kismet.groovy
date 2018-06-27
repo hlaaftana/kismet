@@ -16,10 +16,12 @@ class Kismet {
 	static Block parse(String code, Context ctxt = new Context(DEFAULT_CONTEXT)) {
 		new Block(new Parser(context: ctxt).parse(code), ctxt)
 	}
-	
+
 	static IKismetObject eval(String code, Context ctxt = new Context(DEFAULT_CONTEXT)) {
 		parse(code, ctxt).evaluate()
 	}
 
-	static IKismetObject model(x) { null == x ? NULL : (IKismetObject) ((Object) KismetModels).invokeMethod('model', x) }
+	static IKismetObject model(x) {
+		null == x ? NULL : (IKismetObject) ((Object) KismetModels).invokeMethod('model', [x] as Object[])
+	}
 }

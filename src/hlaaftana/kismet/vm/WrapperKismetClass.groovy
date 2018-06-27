@@ -4,6 +4,7 @@ import groovy.transform.CompileStatic
 import groovy.transform.Memoized
 import hlaaftana.kismet.Kismet
 import hlaaftana.kismet.call.Function
+import hlaaftana.kismet.exceptions.CannotOperateException
 import hlaaftana.kismet.exceptions.ForbiddenAccessException
 
 @CompileStatic
@@ -14,7 +15,7 @@ class WrapperKismetClass<T> implements IKismetClass<WrapperKismetObject> {
 
 	Class<T> orig
 	boolean allowConstructor = true
-	String name = 'anonymous_'.concat(instances.size().toString())
+	String name = 'anonymous_'.concat(String.valueOf(instances.size()))
 	Function getter = new Function() {
 		@CompileStatic
 		IKismetObject call(IKismetObject... args) {
@@ -82,10 +83,6 @@ class WrapperKismetClass<T> implements IKismetClass<WrapperKismetObject> {
 		this.allowConstructor = allowConstructor
 	}
 
-	WrapperKismetObject defaultValue() {
-		null
-	}
-
 	boolean isChild(WrapperKismetClass kclass) {
 		for (p in kclass.parents)
 			if (p == this) return true
@@ -100,7 +97,7 @@ class WrapperKismetClass<T> implements IKismetClass<WrapperKismetObject> {
 		c == orig ? 0 : relationScore(c.superclass) + 1
 	}
 
-	void setName(String n){
+	void setName(String n) {
 		if (n in instances*.name) throw new IllegalArgumentException("Class with name $n already exists")
 		this.@name = n
 	}
@@ -120,7 +117,7 @@ class WrapperKismetClass<T> implements IKismetClass<WrapperKismetObject> {
 		null
 	}
 
-	IKismetObject call(IKismetObject... args){
+	IKismetObject call(IKismetObject... args) {
 		if (orig == WrapperKismetObject) {
 			WrapperKismetObject[] arr = new WrapperKismetObject[args.length + 1]
 			arr[0] = new WrapperKismetObject(new Expando(), this.object)
@@ -135,13 +132,39 @@ class WrapperKismetClass<T> implements IKismetClass<WrapperKismetObject> {
 	}
 
 	boolean isInstance(IKismetObject x) {
-		if (orig == WrapperKismetObject) x.kismetClass() == this || parents.any { it.isInstance(x) }
+		if (orig == WrapperKismetObject) x.kismetClass() == this || parents.any {
+			it.isInstance(x)
+		}
 		else if (null == orig) null == x.inner()
 		else orig.isInstance(x.inner())
 	}
 
-	String toString(){ "class($name)" }
+	String toString() { "class($name)" }
+
+	IKismetObject propertyGet(WrapperKismetObject obj, String name) {
+		Kismet.model obj.inner().getAt(name)
+	}
+
+	IKismetObject propertySet(WrapperKismetObject obj, String name, IKismetObject value) {
+		obj.inner().putAt(name, value.inner())
+		value
+	}
+
+	IKismetObject subscriptGet(WrapperKismetObject obj, IKismetObject key) {
+		Kismet.model obj.inner().invokeMethod('getAt', [key.inner()] as Object[])
+	}
+
+	IKismetObject subscriptSet(WrapperKismetObject obj, IKismetObject key, IKismetObject value) {
+		Kismet.model obj.inner().invokeMethod('putAt', [key.inner(), value.inner()] as Object[])
+	}
+
+	IKismetObject call(WrapperKismetObject obj, IKismetObject[] args) {
+		if (obj.inner() instanceof Function)
+			((Function) obj.inner()).call(args)
+		else Kismet.model obj.inner().invokeMethod('call', args*.inner())
+	}
+
+	WrapperKismetObject construct(IKismetObject[] args) {
+		throw new CannotOperateException('construct', "wrapper class $name")
+	}
 }
-
-
-

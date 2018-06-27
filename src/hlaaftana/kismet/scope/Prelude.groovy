@@ -29,7 +29,7 @@ class Prelude {
 			UnknownNumber: NonPrimitiveNumClass.INSTANCE,
 			Integer: IntClass.INSTANCE,
 			Float: FloatClass.INSTANCE,
-			String: new ClassObject(KismetString.CLASS),
+			String: StringClass.INSTANCE,
 			Boolean: new WrapperKismetClass(Boolean, 'Boolean').object,
 			Int8: Int8Class.INSTANCE,
 			Int16: Int16Class.INSTANCE,
@@ -76,15 +76,15 @@ class Prelude {
 				now_millis: func { IKismetObject... args -> System.currentTimeMillis() },
 				now_seconds: func { IKismetObject... args -> System.currentTimeSeconds() },
 				now_date: func { IKismetObject... args -> new Date() },
-				new_date: funcc { ...args -> Date.invokeMethod('newInstance', args) },
-				parse_date_from_format: funcc(true) { ...args -> new SimpleDateFormat(args[1].toString()).parse(args[0].toString()) },
-				format_date: funcc(true) { ...args -> new SimpleDateFormat(args[1].toString()).format(args[0].toString()) },
+				new_date: funcc { ... args -> Date.invokeMethod('newInstance', args) },
+				parse_date_from_format: funcc(true) { ... args -> new SimpleDateFormat(args[1].toString()).parse(args[0].toString()) },
+				format_date: funcc(true) { ... args -> new SimpleDateFormat(args[1].toString()).format(args[0].toString()) },
 				true: true, false: false, null: null,
 				yes: true, no: false, on: true, off: false,
 				class: func(true) { IKismetObject... a -> a[0].kismetClass() },
 				class_from_name: func { IKismetObject... a -> WrapperKismetClass.fromName(a[0].toString()) },
 				'instance?': new Function() {
-					{ this.pure = true }
+					{ setPure(true) }
 
 					IKismetObject call(IKismetObject... a) {
 						final b = a[0].inner()
@@ -115,28 +115,33 @@ class Prelude {
 					}
 					true
 				},
-				variable: macr { Context c, Expression... exprs ->
-					final first = exprs[0].evaluate(c)
-					if (first.inner() instanceof Variable) {
-						((Variable) first.inner()).value = exprs[1].evaluate(c)
-						return
+				variable: new Macro() {
+					@CompileStatic
+					IKismetObject call(Context c, Expression... args) {
+						if (args.length == 0) throw new UnexpectedSyntaxException('No arguments for variable')
+						final first = args[0].evaluate(c)
+						if (first.inner() instanceof String) {
+							final name = (String) first.inner()
+							args.length == 2 ? c.set(name, args[1].evaluate(c)) : c.get(name)
+						} else if (first.inner() instanceof Variable && args.length == 2) {
+							final val = args[1].evaluate(c)
+							((Variable) first.inner()).value = val
+							val
+						} else throw new UnexpectedSyntaxException("weird argument for variable: " + first)
 					}
-					String name = first.toString()
-					exprs.length > 1 ? c.set(name, exprs[1].evaluate(c))
-							: c.getVariable(name)
 				},
-				variables: new Macro() {
+				variables: new KismetCallable() {
 					IKismetObject call(Context c, Expression... args) {
 						Kismet.model(c.variables)
 					}
 				},
-				current_context: new Macro() {
+				current_context: new KismetCallable() {
 					IKismetObject call(Context c, Expression... args) {
 						Kismet.model(c)
 					}
 				},
-				java_class_name: funcc(true) { ...args -> args[0].class.name },
-				'<=>': funcc(true) { ...a -> a[0].invokeMethod('compareTo', a[1]) as int },
+				java_class_name: funcc(true) { ... args -> args[0].class.name },
+				'<=>': funcc(true) { ... a -> a[0].invokeMethod('compareTo', [a[1]] as Object[]) as int },
 				try: macr { Context c, Expression... exprs ->
 					try {
 						exprs[0].evaluate(c)
@@ -146,12 +151,19 @@ class Prelude {
 						exprs[2].evaluate(c)
 					}
 				},
-				raise: func { ...args ->
-					if (args[0] instanceof Throwable) throw (Throwable) args[0]
+				raise: func { ... args ->
+					if (args.length == 0) throw new KismetException()
+					else if (args[0] instanceof String) throw new KismetException((String) args[0])
+					else if (args[0] instanceof Throwable) throw (Throwable) args[0]
 					else throw new UnexpectedValueException('raise called with non-throwable ' + args[0])
 				},
 				do: Function.NOP,
-				'don\'t': macr(true) { Context c, Expression... args -> },
+				'don\'t': new AbstractTemplate() {
+					@CompileStatic
+					Expression transform(Expression... args) {
+						NoExpression.INSTANCE
+					}
+				},
 				assert: macr { Context c, Expression... exprs ->
 					IKismetObject val
 					for (e in exprs) if (!(val = e.evaluate(c)))
@@ -211,19 +223,19 @@ class Prelude {
 									val + ' and of class ' + val.kismetClass())
 					}
 				},
-				'!%': funcc { ...a -> a[0].hashCode() },
-				percent: funcc(true) { ...a -> a[0].invokeMethod 'div', 100 },
-				to_percent: funcc(true) { ...a -> a[0].invokeMethod 'multiply', 100 },
-				strip_trailing_zeros: funcc(true) { ...a -> ((BigDecimal) a[0]).stripTrailingZeros() },
-				as: func { IKismetObject... a -> a[0].invokeMethod('as', a[1].inner()) },
-				'is?': funcc { ...args -> args.inject { a, b -> a == b } },
-				'isn\'t?': funcc { ...args -> args.inject { a, b -> a != b } },
-				'same?': funcc { ...a -> a[0].is(a[1]) },
-				'not_same?': funcc { ...a -> !a[0].is(a[1]) },
-				'empty?': funcc { ...a -> a[0].invokeMethod('isEmpty', null) },
-				'in?': funcc { ...a -> a[0] in a[1] },
-				'not_in?': funcc { ...a -> !(a[0] in a[1]) },
-				not: funcc(true) { ...a -> !(a[0]) },
+				hash: funcc { ... a -> a[0].hashCode() },
+				percent: funcc(true) { ... a -> a[0].invokeMethod 'div', 100 },
+				to_percent: funcc(true) { ... a -> a[0].invokeMethod 'multiply', 100 },
+				strip_trailing_zeros: funcc(true) { ... a -> ((BigDecimal) a[0]).stripTrailingZeros() },
+				as: func { IKismetObject... a -> a[0].invokeMethod('as', [a[1].inner()] as Object[]) },
+				'is?': funcc { ... args -> args.inject { a, b -> a == b } },
+				'isn\'t?': funcc { ... args -> args.inject { a, b -> a != b } },
+				'same?': funcc { ... a -> a[0].is(a[1]) },
+				'not_same?': funcc { ... a -> !a[0].is(a[1]) },
+				'empty?': funcc { ... a -> a[0].invokeMethod('isEmpty', null) },
+				'in?': funcc { ... a -> a[0] in a[1] },
+				'not_in?': funcc { ... a -> !(a[0] in a[1]) },
+				not: funcc(true) { ... a -> !(a[0]) },
 				and: macr(true) { Context c, Expression... exprs ->
 					IKismetObject last = Kismet.model(true)
 					for (it in exprs) if (!(last = it.evaluate(c))) return last; last
@@ -241,7 +253,7 @@ class Prelude {
 					if (null == p.root) {
 						new CallExpression([new NameExpression('fn'), new CallExpression([
 								new NameExpression('??'), new PathExpression(new NameExpression('$0'),
-										p.steps)])]).evaluate(c)
+								p.steps)])]).evaluate(c)
 					} else {
 						IKismetObject result = p.root.evaluate(c)
 						def iter = p.steps.iterator()
@@ -252,73 +264,73 @@ class Prelude {
 						result
 					}
 				},
-				xor: funcc { ...args -> args.inject { a, b -> a.invokeMethod 'xor', b } },
-				bool: funcc(true) { ...a -> a[0] as boolean },
-				bit_not: funcc(true) { ...a -> a[0].invokeMethod 'bitwiseNegate', null },
-				bit_and: funcc(true) { ...args -> args.inject { a, b -> a.invokeMethod 'and', b } },
-				bit_or: funcc(true) { ...args -> args.inject { a, b -> a.invokeMethod 'or', b } },
-				bit_xor: funcc(true) { ...args -> args.inject { a, b -> a.invokeMethod 'xor', b } },
-				left_shift: funcc(true) { ...args -> args.inject { a, b -> a.invokeMethod 'leftShift', b } },
-				right_shift: funcc(true) { ...args -> args.inject { a, b -> a.invokeMethod 'rightShift', b } },
-				unsigned_right_shift: funcc(true) { ...args -> args.inject { a, b -> a.invokeMethod 'rightShiftUnsigned', b } },
-				'<': funcc(true) { ...args ->
+				xor: funcc { ... args -> args.inject { a, b -> a.invokeMethod('xor', [b] as Object[]) } },
+				bool: funcc(true) { ... a -> a[0] as boolean },
+				bit_not: funcc(true) { ... a -> a[0].invokeMethod 'bitwiseNegate', null },
+				bit_and: funcc(true) { ... args -> args.inject { a, b -> a.invokeMethod('and', [b] as Object[]) } },
+				bit_or: funcc(true) { ... args -> args.inject { a, b -> a.invokeMethod('or', [b] as Object[]) } },
+				bit_xor: funcc(true) { ... args -> args.inject { a, b -> a.invokeMethod('xor', [b] as Object[]) } },
+				left_shift: funcc(true) { ... args -> args.inject { a, b -> a.invokeMethod('leftShift', [b] as Object[]) } },
+				right_shift: funcc(true) { ... args -> args.inject { a, b -> a.invokeMethod('rightShift', [b] as Object[]) } },
+				unsigned_right_shift: funcc(true) { ... args -> args.inject { a, b -> a.invokeMethod('rightShiftUnsigned', [b] as Object[]) } },
+				'<': funcc(true) { ... args ->
 					for (int i = 1; i < args.length; ++i) {
-						if (((int) args[i-1].invokeMethod('compareTo', args[i])) >= 0)
+						if (((int) args[i - 1].invokeMethod('compareTo', [args[i]] as Object[])) >= 0)
 							return false
 					}
 					true
 				},
-				'>': funcc(true) { ...args ->
+				'>': funcc(true) { ... args ->
 					for (int i = 1; i < args.length; ++i) {
-						if (((int) args[i-1].invokeMethod('compareTo', args[i])) <= 0)
+						if (((int) args[i - 1].invokeMethod('compareTo', [args[i]] as Object[])) <= 0)
 							return false
 					}
 					true
 				},
-				'<=': funcc(true) { ...args ->
+				'<=': funcc(true) { ... args ->
 					for (int i = 1; i < args.length; ++i) {
-						if (((int) args[i-1].invokeMethod('compareTo', args[i])) > 0)
+						if (((int) args[i - 1].invokeMethod('compareTo', [args[i]] as Object[])) > 0)
 							return false
 					}
 					true
 				},
-				'>=': funcc(true) { ...args ->
+				'>=': funcc(true) { ... args ->
 					for (int i = 1; i < args.length; ++i) {
-						if (((int) args[i-1].invokeMethod('compareTo', args[i])) < 0)
+						if (((int) args[i - 1].invokeMethod('compareTo', [args[i]] as Object[])) < 0)
 							return false
 					}
 					true
 				},
-				positive: funcc(true) { ...a -> a[0].invokeMethod 'unaryPlus', null },
-				negative: funcc(true) { ...a -> a[0].invokeMethod 'unaryMinus', null },
-				'positive?': funcc(true) { ...args -> ((int) args[0].invokeMethod('compareTo', 0)) > 0 },
-				'negative?': funcc(true) { ...args -> ((int) args[0].invokeMethod('compareTo', 0)) < 0 },
-				'null?': funcc(true) { ...args -> null == args[0] },
-				'not_null?': funcc(true) { ...args -> null != args[0] },
-				'false?': funcc(true) { ...args -> !args[0].asBoolean() },
-				'bool?': funcc(true) { ...args -> args[0] instanceof boolean },
-				'zero?': funcc(true) { ...args -> args[0] == 0 },
-				'one?': funcc(true) { ...args -> args[0] == 1 },
-				'even?': funcc(true) { ...args -> args[0].invokeMethod('mod', 2) == 0 },
-				'odd?': funcc(true) { ...args -> args[0].invokeMethod('mod', 2) != 0 },
-				'divisible_by?': funcc(true) { ...args -> args[0].invokeMethod('mod', args[1]) == 0 },
-				'integer?': funcc(true) { ...args -> args[0].invokeMethod('mod', 1) == 0 },
-				'decimal?': funcc(true) { ...args -> args[0].invokeMethod('mod', 1) != 0 },
-				'natural?': funcc(true) { ...args -> args[0].invokeMethod('mod', 1) == 0 && ((int) args[0].invokeMethod('compareTo', 0)) >= 0 },
-				absolute: funcc(true) { ...a -> a[0].invokeMethod('abs', null) },
-				squared: funcc(true) { ...a -> a[0].invokeMethod 'multiply', a[0] },
-				square_root: funcc(true) { ...args -> ((Object) Math).invokeMethod('sqrt', args[0]) },
-				cube_root: funcc(true) { ...args -> ((Object) Math).invokeMethod('cbrt', args[0]) },
-				sine: funcc(true) { ...args -> ((Object) Math).invokeMethod('sin', args[0]) },
-				cosine: funcc(true) { ...args -> ((Object) Math).invokeMethod('cos', args[0]) },
-				tangent: funcc(true) { ...args -> ((Object) Math).invokeMethod('tan', args[0]) },
-				hyperbolic_sine: funcc(true) { ...args -> ((Object) Math).invokeMethod('sinh', args[0]) },
-				hyperbolic_cosine: funcc(true) { ...args -> ((Object) Math).invokeMethod('cosh', args[0]) },
-				hyperbolic_tangent: funcc(true) { ...args -> ((Object) Math).invokeMethod('tanh', args[0]) },
-				arcsine: funcc(true) { ...args -> Math.asin(args[0] as double) },
-				arccosine: funcc(true) { ...args -> Math.acos(args[0] as double) },
-				arctangent: funcc(true) { ...args -> Math.atan(args[0] as double) },
-				arctan2: funcc(true) { ...args -> Math.atan2(args[0] as double, args[1] as double) },
+				positive: funcc(true) { ... a -> a[0].invokeMethod 'unaryPlus', null },
+				negative: funcc(true) { ... a -> a[0].invokeMethod 'unaryMinus', null },
+				'positive?': funcc(true) { ... args -> ((int) args[0].invokeMethod('compareTo', 0)) > 0 },
+				'negative?': funcc(true) { ... args -> ((int) args[0].invokeMethod('compareTo', 0)) < 0 },
+				'null?': funcc(true) { ... args -> null == args[0] },
+				'not_null?': funcc(true) { ... args -> null != args[0] },
+				'false?': funcc(true) { ... args -> !args[0].asBoolean() },
+				'bool?': funcc(true) { ... args -> args[0] instanceof boolean },
+				'zero?': funcc(true) { ... args -> args[0] == 0 },
+				'one?': funcc(true) { ... args -> args[0] == 1 },
+				'even?': funcc(true) { ... args -> args[0].invokeMethod('mod', 2) == 0 },
+				'odd?': funcc(true) { ... args -> args[0].invokeMethod('mod', 2) != 0 },
+				'divisible_by?': funcc(true) { ... args -> args[0].invokeMethod('mod', [args[1]] as Object[]) == 0 },
+				'integer?': funcc(true) { ... args -> args[0].invokeMethod('mod', 1) == 0 },
+				'decimal?': funcc(true) { ... args -> args[0].invokeMethod('mod', 1) != 0 },
+				'natural?': funcc(true) { ... args -> args[0].invokeMethod('mod', 1) == 0 && ((int) args[0].invokeMethod('compareTo', 0)) >= 0 },
+				absolute: funcc(true) { ... a -> a[0].invokeMethod('abs', null) },
+				squared: funcc(true) { ... a -> a[0].invokeMethod('multiply', [a[0]] as Object[]) },
+				square_root: funcc(true) { ... args -> ((Object) Math).invokeMethod('sqrt', [args[0]] as Object[]) },
+				cube_root: funcc(true) { ... args -> ((Object) Math).invokeMethod('cbrt', [args[0]] as Object[]) },
+				sine: funcc(true) { ... args -> ((Object) Math).invokeMethod('sin', [args[0]] as Object[]) },
+				cosine: funcc(true) { ... args -> ((Object) Math).invokeMethod('cos', [args[0]] as Object[]) },
+				tangent: funcc(true) { ... args -> ((Object) Math).invokeMethod('tan', [args[0]] as Object[]) },
+				hyperbolic_sine: funcc(true) { ... args -> ((Object) Math).invokeMethod('sinh', [args[0]] as Object[]) },
+				hyperbolic_cosine: funcc(true) { ... args -> ((Object) Math).invokeMethod('cosh', [args[0]] as Object[]) },
+				hyperbolic_tangent: funcc(true) { ... args -> ((Object) Math).invokeMethod('tanh', [args[0]] as Object[]) },
+				arcsine: funcc(true) { ... args -> Math.asin(args[0] as double) },
+				arccosine: funcc(true) { ... args -> Math.acos(args[0] as double) },
+				arctangent: funcc(true) { ... args -> Math.atan(args[0] as double) },
+				arctan2: funcc(true) { ... args -> Math.atan2(args[0] as double, args[1] as double) },
 				round: macr(true) { Context c, Expression... args ->
 					def value = args[0].evaluate(c).inner()
 					if (args.length > 1 || !(value instanceof Number)) value = value as BigDecimal
@@ -337,7 +349,7 @@ class Prelude {
 					else if (value instanceof float) Math.round(value.floatValue())
 					else Math.round(((Number) value).doubleValue())
 				},
-				floor: funcc(true) { ...args ->
+				floor: funcc(true) { ... args ->
 					def value = args[0]
 					if (args.length > 1) value = value as BigDecimal
 					if (value instanceof BigDecimal)
@@ -348,7 +360,7 @@ class Prelude {
 							value instanceof long) value
 					else Math.floor(value as double)
 				},
-				ceil: funcc(true) { ...args ->
+				ceil: funcc(true) { ... args ->
 					def value = args[0]
 					if (args.length > 1) value = value as BigDecimal
 					if (value instanceof BigDecimal)
@@ -359,18 +371,18 @@ class Prelude {
 							value instanceof long) value
 					else Math.ceil(value as double)
 				},
-				logarithm: funcc(true) { ...args -> Math.log(args[0] as double) },
-				'+': funcc(true) { ...args -> args.sum() },
-				'-': funcc(true) { ...args -> args.inject { a, b -> a.invokeMethod 'minus', b } },
-				'*': funcc(true) { ...args -> args.inject { a, b -> a.invokeMethod 'multiply', b } },
-				'/': funcc(true) { ...args -> args.inject { a, b -> a.invokeMethod 'div', b } },
-				div: funcc(true) { ...args -> args.inject { a, b -> a.invokeMethod 'intdiv', b } },
-				rem: funcc(true) { ...args -> args.inject { a, b -> a.invokeMethod 'mod', b } },
-				mod: funcc(true) { ...args -> args.inject { a, b -> a.invokeMethod 'abs', null invokeMethod 'mod', b } },
-				pow: funcc(true) { ...args -> args.inject { a, b -> a.invokeMethod 'power', b } },
-				sum: funcc(true) { ...args -> args[0].invokeMethod('sum', null) },
-				product: funcc(true) { ...args -> args[0].inject { a, b -> a.invokeMethod 'multiply', b } },
-				reciprocal: funcc(true) { ...args -> 1.div(args[0] as Number) },
+				logarithm: funcc(true) { ... args -> Math.log(args[0] as double) },
+				'+': funcc(true) { ... args -> args.sum() },
+				'-': funcc(true) { ... args -> args.inject { a, b -> a.invokeMethod('minus', [b] as Object[]) } },
+				'*': funcc(true) { ... args -> args.inject { a, b -> a.invokeMethod('multiply', [b] as Object[]) } },
+				'/': funcc(true) { ... args -> args.inject { a, b -> a.invokeMethod('div', [b] as Object[]) } },
+				div: funcc(true) { ... args -> args.inject { a, b -> a.invokeMethod('intdiv', [b] as Object[]) } },
+				rem: funcc(true) { ... args -> args.inject { a, b -> a.invokeMethod('mod', [b] as Object[]) } },
+				mod: funcc(true) { ... args -> args.inject { a, b -> a.invokeMethod('abs', null).invokeMethod('mod', [b] as Object[]) } },
+				pow: funcc(true) { ... args -> args.inject { a, b -> a.invokeMethod('power', [b] as Object[]) } },
+				sum: funcc(true) { ... args -> args[0].invokeMethod('sum', null) },
+				product: funcc(true) { ... args -> args[0].inject { a, b -> a.invokeMethod('multiply', [b] as Object[]) } },
+				reciprocal: funcc(true) { ... args -> 1.div(args[0] as Number) },
 				'defined?': macr { Context c, Expression... exprs ->
 					try {
 						c.get(resolveName(exprs[0], c, "defined?"))
@@ -379,55 +391,55 @@ class Prelude {
 						false
 					}
 				},
-				integer_from_int8_list: funcc(true) { ...args -> new BigInteger(args[0] as byte[]) },
-				integer_to_int8_list: funcc(true) { ...args -> (args[0] as BigInteger).toByteArray() as List<Byte> },
-				new_rng: funcc { ...args -> args.length > 0 ? new Random(args[0] as long) : new Random() },
-				random_int8_list_from_reference: funcc { ...args ->
+				integer_from_int8_list: funcc(true) { ... args -> new BigInteger(args[0] as byte[]) },
+				integer_to_int8_list: funcc(true) { ... args -> (args[0] as BigInteger).toByteArray() as List<Byte> },
+				new_rng: funcc { ... args -> args.length > 0 ? new Random(args[0] as long) : new Random() },
+				random_int8_list_from_reference: funcc { ... args ->
 					byte[] bytes = args[1] as byte[]
 					(args[0] as Random).nextBytes(bytes)
 					bytes as List<Byte>
 				},
-				random_int32: funcc { ...args ->
+				random_int32: funcc { ... args ->
 					if (args.length == 0) return (args[0] as Random).nextInt()
 					int max = (args.length > 2 ? args[2] as int : args[1] as int) + 1
 					int min = args.length > 2 ? args[1] as int : 0
 					(args[0] as Random).nextInt(max) + min
 				},
-				random_int64_of_all: funcc { ...args -> (args[0] as Random).nextLong() },
-				random_float32_between_0_and_1: funcc { ...args -> (args[0] as Random).nextFloat() },
-				random_float64_between_0_and_1: funcc { ...args -> (args[0] as Random).nextDouble() },
-				random_bool: funcc { ...args -> (args[0] as Random).nextBoolean() },
-				next_gaussian: funcc { ...args -> (args[0] as Random).nextGaussian() },
-				random_int: funcc { ...args ->
+				random_int64_of_all: funcc { ... args -> (args[0] as Random).nextLong() },
+				random_float32_between_0_and_1: funcc { ... args -> (args[0] as Random).nextFloat() },
+				random_float64_between_0_and_1: funcc { ... args -> (args[0] as Random).nextDouble() },
+				random_bool: funcc { ... args -> (args[0] as Random).nextBoolean() },
+				next_gaussian: funcc { ... args -> (args[0] as Random).nextGaussian() },
+				random_int: funcc { ... args ->
 					BigInteger lower = args.length > 2 ? args[1] as BigInteger : 0g
 					BigInteger higher = args.length > 2 ? args[2] as BigInteger : args[1] as BigInteger
 					double x = (args[0] as Random).nextDouble()
 					lower + (((higher - lower) * (x as BigDecimal)) as BigInteger)
 				},
-				random_float: funcc { ...args ->
+				random_float: funcc { ... args ->
 					BigDecimal lower = args.length > 2 ? args[1] as BigDecimal : 0g
 					BigDecimal higher = args.length > 2 ? args[2] as BigDecimal : args[1] as BigDecimal
 					double x = (args[0] as Random).nextDouble()
 					lower + (higher - lower) * (x as BigDecimal)
 				},
-				'shuffle!': funcc { ...args ->
+				'shuffle!': funcc { ... args ->
 					def l = toList(args[0])
 					args[1] instanceof Random ? Collections.shuffle(l, (Random) args[1])
 							: Collections.shuffle(l)
 					l
 				},
-				shuffle: funcc { ...args ->
+				shuffle: funcc { ... args ->
 					def l = new ArrayList(toList(args[0]))
 					args[1] instanceof Random ? Collections.shuffle(l, (Random) args[1])
 							: Collections.shuffle(l)
 					l
 				},
-				sample: funcc { ...args ->
+				sample: funcc { ... args ->
 					List x = toList(args[0])
 					Random r = args.length > 1 && args[1] instanceof Random ? (Random) args[1] : new Random()
 					x[r.nextInt(x.size())]
 				},
-				high: funcc { ...args ->
+				high: funcc { ... args ->
 					if (args[0] instanceof Number) ((Object) args[0].class).invokeMethod('getProperty', 'MAX_VALUE')
 					else if (args[0] instanceof WrapperKismetClass && Number.isAssignableFrom(((WrapperKismetClass) args[0]).orig))
 						((WrapperKismetClass) args[0]).orig.invokeMethod('getProperty', 'MAX_VALUE')
@@ -435,7 +447,7 @@ class Prelude {
 					else if (args[0] instanceof Collection) ((Collection) args[0]).size() - 1
 					else throw new UnexpectedValueException('Don\'t know how to get high of ' + args[0] + ' with class ' + args[0].class)
 				},
-				low: funcc { ...args ->
+				low: funcc { ... args ->
 					if (args[0] instanceof Number) ((Object) args[0].class).invokeMethod('getProperty', 'MIN_VALUE')
 					else if (args[0] instanceof WrapperKismetClass && Number.isAssignableFrom(((WrapperKismetClass) args[0]).orig))
 						((WrapperKismetClass) args[0]).orig.invokeMethod('getProperty', 'MIN_VALUE')
@@ -443,61 +455,61 @@ class Prelude {
 					else if (args[0] instanceof Collection) 0
 					else throw new UnexpectedValueException('Don\'t know how to get low of ' + args[0] + ' with class ' + args[0].class)
 				},
-				collect_range_with_step: funcc { ...args -> (args[0] as Range).step(args[1] as int) },
+				collect_range_with_step: funcc { ... args -> (args[0] as Range).step(args[1] as int) },
 				each_range_with_step: func { IKismetObject... args ->
 					(args[0].inner() as Range)
-							.step(args[1].inner() as int, args[2].&call)
+							.step(args[1].inner() as int, args[2].kismetClass().&call.curry(args[2]))
 				},
-				replace: funcc { ...args ->
+				replace: funcc { ... args ->
 					args[0].toString().replace(args[1].toString(),
 							args.length > 2 ? args[2].toString() : '')
 				},
 				replace_all_regex: func { IKismetObject... args ->
 					def replacement = args.length > 2 ?
-							(args[2].inner() instanceof String ? args[2].inner() : args[2].&call) : ''
+							(args[2].inner() instanceof String ? args[2].inner() : args[2].kismetClass().&call.curry(args[2])) : ''
 					def str = args[0].inner().toString()
 					def pattern = args[1].inner() instanceof Pattern ? (Pattern) args[1].inner() : args[1].inner().toString()
-					str.invokeMethod('replaceAll', [pattern, replacement])
+					str.invokeMethod('replaceAll', [pattern, replacement] as Object[])
 				},
 				replace_first_regex: func { IKismetObject... args ->
 					def replacement = args.length > 2 ?
-							(args[2].inner() instanceof String ? args[2].inner() : args[2].&call) : ''
+							(args[2].inner() instanceof String ? args[2].inner() : args[2].kismetClass().&call.curry(args[2])) : ''
 					def str = args[0].inner().toString()
 					def pattern = args[1].inner() instanceof Pattern ? (Pattern) args[1].inner() : args[1].inner().toString()
-					str.invokeMethod('replaceFirst', [pattern, replacement])
+					str.invokeMethod('replaceFirst', [pattern, replacement] as Object[])
 				},
 				'blank?': func(true) { IKismetObject... args -> ((String) args[0].inner() ?: "").isAllWhitespace() },
 				quote_regex: func(true) { IKismetObject... args -> Pattern.quote((String) args[0].inner()) },
 				'codepoints~': func { IKismetObject... args -> ((CharSequence) args[0].inner()).codePoints().iterator() },
 				'chars~': func { IKismetObject... args -> ((CharSequence) args[0].inner()).chars().iterator() },
 				chars: func { IKismetObject... args -> ((CharSequence) args[0].inner()).chars.toList() },
-				codepoint_to_chars: funcc { ...args -> Character.toChars((int) args[0]).toList() },
-				upper: funcc(true) { ...args ->
+				codepoint_to_chars: funcc { ... args -> Character.toChars((int) args[0]).toList() },
+				upper: funcc(true) { ... args ->
 					args[0] instanceof Character ? Character.toUpperCase((char) args[0]) :
 							args[0] instanceof Integer ? Character.toUpperCase((int) args[0]) :
 									((String) args[0]).toString().toUpperCase()
 				},
-				lower: funcc(true) { ...args ->
+				lower: funcc(true) { ... args ->
 					args[0] instanceof Character ? Character.toLowerCase((char) args[0]) :
 							args[0] instanceof Integer ? Character.toLowerCase((int) args[0]) :
 									((String) args[0]).toString().toLowerCase()
 				},
-				'upper?': funcc(true) { ...args ->
+				'upper?': funcc(true) { ... args ->
 					args[0] instanceof Character ? Character.isUpperCase((char) args[0]) :
 							args[0] instanceof Integer ? Character.isUpperCase((int) args[0]) :
 									((String) args[0]).chars.every { Character it -> !Character.isLowerCase(it) }
 				},
-				'lower?': funcc(true) { ...args ->
+				'lower?': funcc(true) { ... args ->
 					args[0] instanceof Character ? Character.isLowerCase((char) args[0]) :
 							args[0] instanceof Integer ? Character.isLowerCase((int) args[0]) :
 									((String) args[0]).chars.every { char it -> !Character.isUpperCase(it) }
 				},
-				parse_number: funcc(true) { ...args ->
+				parse_number: funcc(true) { ... args ->
 					Class c = args.length > 1 ? ((WrapperKismetClass) args[1]).orig : BigDecimal
 					c.newInstance((String) args[0])
 				},
-				strip: funcc(true) { ...args -> ((String) args[0]).trim() },
-				strip_start: funcc(true) { ...args ->
+				strip: funcc(true) { ... args -> ((String) args[0]).trim() },
+				strip_start: funcc(true) { ... args ->
 					def x = (String) args[0]
 					char[] chars = x.chars
 					for (int i = 0; i < chars.length; ++i) {
@@ -506,7 +518,7 @@ class Prelude {
 					}
 					''
 				},
-				strip_end: funcc(true) { ...args ->
+				strip_end: funcc(true) { ... args ->
 					def x = (String) args[0]
 					char[] chars = x.chars
 					for (int i = chars.length - 1; i >= 0; --i) {
@@ -517,9 +529,10 @@ class Prelude {
 				},
 				regex: macr(true) { Context c, Expression... a ->
 					a[0] instanceof StringExpression ? ~((StringExpression) a[0]).raw
-							: ~((String) a[0].evaluate(c).inner())},
-				set_at: func { IKismetObject... a -> a[0].putAt(a[1], a[2]) },
-				at: func { IKismetObject... a -> a[0].getAt(a[1]) },
+							: ~((String) a[0].evaluate(c).inner())
+				},
+				set_at: func { IKismetObject... a -> a[0].kismetClass().subscriptSet(a[0], a[1], a[2]) },
+				at: func { IKismetObject... a -> a[0].kismetClass().subscriptGet(a[0], a[1]) },
 				string: func(true) { IKismetObject... a ->
 					if (a.length == 1) return a[0].toString()
 					StringBuilder x = new StringBuilder()
@@ -535,46 +548,48 @@ class Prelude {
 				float: func(true) { IKismetObject... a -> ((WrapperKismetObject) a[0]).as BigDecimal },
 				float32: func(true) { IKismetObject... a -> ((WrapperKismetObject) a[0]).as float },
 				float64: func(true) { IKismetObject... a -> ((WrapperKismetObject) a[0]).as double },
-				'~': funcc { ...args -> toIterator(args[0]) },
-				list_iterator: funcc { ...args -> args[0].invokeMethod('listIterator', null) },
-				'has_next?': funcc { ...args -> args[0].invokeMethod('hasNext', null) },
-				next: funcc { ...args -> args[0].invokeMethod('next', null) },
-				'has_prev?': funcc { ...args -> args[0].invokeMethod('hasPrevious', null) },
-				prev: funcc { ...args -> args[0].invokeMethod('previous', null) },
-				new_list: funcc { ...args -> new ArrayList(args[0] as int) },
-				list: funcc { ...args -> args.toList() },
-				new_set: funcc { ...args -> args.length > 1 ? new HashSet(args[0] as int, args[1] as float) : new HashSet(args[0] as int) },
-				set: funcc { ...args ->
+				'~': funcc { ... args -> toIterator(args[0]) },
+				list_iterator: funcc { ... args -> args[0].invokeMethod('listIterator', null) },
+				'has_next?': funcc { ... args -> args[0].invokeMethod('hasNext', null) },
+				next: funcc { ... args -> args[0].invokeMethod('next', null) },
+				'has_prev?': funcc { ... args -> args[0].invokeMethod('hasPrevious', null) },
+				prev: funcc { ... args -> args[0].invokeMethod('previous', null) },
+				new_list: funcc { ... args -> new ArrayList(args[0] as int) },
+				list: funcc { ... args -> args.toList() },
+				new_set: funcc { ... args -> args.length > 1 ? new HashSet(args[0] as int, args[1] as float) : new HashSet(args[0] as int) },
+				set: funcc { ... args ->
 					Set x = new HashSet()
 					for (a in args) x.add(a)
 					x
 				},
-				pair: funcc { ...args -> new Pair(args[0], args[1]) },
-				tuple: funcc(true) { ...args -> new Tuple(args) },
+				pair: funcc { ... args -> new Pair(args[0], args[1]) },
+				tuple: funcc(true) { ... args -> new Tuple(args) },
 				// assert_is x [+ [bottom_half x] [top_half x]]
-				bottom_half: funcc { ...args ->
+				bottom_half: funcc { ... args ->
 					args[0] instanceof Number ? ((Number) args[0]).intdiv(2) :
-					args[0] instanceof Pair ? ((Pair) args[0]).first :
-					args[0] instanceof Collection ? ((Collection) args[0]).take(((Collection) args[0]).size().intdiv(2) as int) :
-					args[0] instanceof Map ? ((Map) args[0]).values() :
-					args[0] },
-				top_half: funcc { ...args ->
+							args[0] instanceof Pair ? ((Pair) args[0]).first :
+									args[0] instanceof Collection ? ((Collection) args[0]).take(((Collection) args[0]).size().intdiv(2) as int) :
+											args[0] instanceof Map ? ((Map) args[0]).values() :
+													args[0]
+				},
+				top_half: funcc { ... args ->
 					args[0] instanceof Number ? ((Number) args[0]).minus(((Number) args[0]).intdiv(2)) :
-					args[0] instanceof Pair ? ((Pair) args[0]).second :
-					args[0] instanceof Collection ? ((Collection) args[0]).takeRight(
-							((Collection) args[0]).size().minus(((Collection) args[0]).size().intdiv(2)) as int) :
-					args[0] instanceof Map ? ((Map) args[0]).keySet() :
-					args[0] },
-				to_list: funcc { ...args -> toList(args[0]) },
-				to_set: funcc { ...args -> toSet(args[0]) },
-				to_pair: funcc { ...args -> new Pair(args[0].invokeMethod('getAt', 0), args[0].invokeMethod('getAt', 1)) },
-				to_tuple: funcc(true) { ...args -> new Tuple(args[0] as Object[]) },
-				entry_pairs: funcc { ...args ->
+							args[0] instanceof Pair ? ((Pair) args[0]).second :
+									args[0] instanceof Collection ? ((Collection) args[0]).takeRight(
+											((Collection) args[0]).size().minus(((Collection) args[0]).size().intdiv(2)) as int) :
+											args[0] instanceof Map ? ((Map) args[0]).keySet() :
+													args[0]
+				},
+				to_list: funcc { ... args -> toList(args[0]) },
+				to_set: funcc { ... args -> toSet(args[0]) },
+				to_pair: funcc { ... args -> new Pair(args[0].invokeMethod('getAt', 0), args[0].invokeMethod('getAt', 1)) },
+				to_tuple: funcc(true) { ... args -> new Tuple(args[0] as Object[]) },
+				entry_pairs: funcc { ... args ->
 					def r = []
 					for (x in (args[0] as Map)) r.add(new Pair(x.key, x.value))
 					r
 				},
-				map_from_pairs: funcc { ...args ->
+				map_from_pairs: funcc { ... args ->
 					def m = new HashMap()
 					for (x in args[0]) {
 						def p = x as Pair
@@ -582,7 +597,7 @@ class Prelude {
 					}
 					m
 				},
-				map: funcc { ...args ->
+				map: funcc { ... args ->
 					def map = new HashMap()
 					Iterator iter = args.iterator()
 					while (iter.hasNext()) {
@@ -598,15 +613,15 @@ class Prelude {
 					}
 					map
 				},
-				uncons: funcc { ...args -> new Pair(args[0].invokeMethod('head', null), args[0].invokeMethod('tail', null)) },
-				cons: funcc { ...args ->
+				uncons: funcc { ... args -> new Pair(args[0].invokeMethod('head', null), args[0].invokeMethod('tail', null)) },
+				cons: funcc { ... args ->
 					def y = args[1]
 					List a = new ArrayList((y.invokeMethod('size', null) as int) + 1)
 					a.add(args[0])
 					a.addAll(y)
 					a
 				},
-				intersperse: funcc { ...args ->
+				intersperse: funcc { ... args ->
 					List r = []
 					boolean x = false
 					for (a in args[0]) {
@@ -616,7 +631,7 @@ class Prelude {
 					}
 					r
 				},
-				intersperse_all: funcc { ...args ->
+				intersperse_all: funcc { ... args ->
 					List r = []
 					boolean x = false
 					for (a in args[0]) {
@@ -631,7 +646,7 @@ class Prelude {
 					Map<IKismetObject[], IKismetObject> results = new HashMap<>()
 					func { IKismetObject... a ->
 						def p = results.get(a)
-						null == p ? x.call(a) : p
+						null == p ? x.kismetClass().call(x, a) : p
 					}
 				},
 				name_expr: func { IKismetObject... args -> new NameExpression(args[0].toString()) },
@@ -640,78 +655,85 @@ class Prelude {
 					def i = args[0].inner()
 					i instanceof Expression ? toAtom((Expression) i) : null
 				},
-				static_expr: funcc { ...args -> StaticExpression.class.newInstance(args) },
+				static_expr: funcc { ... args -> StaticExpression.class.newInstance(args) },
 				'static_expr?': func { IKismetObject... args -> args[0].inner() instanceof StaticExpression },
 				number_expr: func { IKismetObject... args -> new NumberExpression(args[0].toString()) },
 				'number_expr?': func { IKismetObject... args -> args[0].inner() instanceof NumberExpression },
 				string_expr: func { IKismetObject... args -> new StringExpression(args[0].toString()) },
 				'string_expr?': func { IKismetObject... args -> args[0].inner() instanceof StringExpression },
-				call_expr: funcc { ...args -> new CallExpression(args.toList() as List<Expression>) },
+				call_expr: funcc { ... args -> new CallExpression(args.toList() as List<Expression>) },
 				'call_expr?': func { IKismetObject... args -> args[0].inner() instanceof CallExpression },
-				block_expr: funcc { ...args -> new BlockExpression(args.toList() as List<Expression>) },
+				block_expr: funcc { ... args -> new BlockExpression(args.toList() as List<Expression>) },
 				'block_expr?': func { IKismetObject... args -> args[0].inner() instanceof BlockExpression },
-				escape: funcc { ...args -> StringEscaper.escapeSoda(args[0].toString()) },
-				unescape: funcc { ...args -> StringEscaper.escapeSoda(args[0].toString()) },
-				copy_map: funcc { ...args -> new HashMap(args[0] as Map) },
-				new_map: funcc { ...args -> args.length > 1 ? new HashMap(args[0] as int, args[1] as float) : new HashMap(args[0] as int) },
-				zip: funcc { ...args -> args.toList().transpose() },
+				escape: funcc { ... args -> StringEscaper.escape(args[0].toString()) },
+				unescape: funcc { ... args -> StringEscaper.escape(args[0].toString()) },
+				copy_map: funcc { ... args -> new HashMap(args[0] as Map) },
+				new_map: funcc { ... args -> args.length > 1 ? new HashMap(args[0] as int, args[1] as float) : new HashMap(args[0] as int) },
+				zip: funcc { ... args -> args.toList().transpose() },
 				knit: func { IKismetObject... args ->
 					toList(args[0].inner()).transpose()
 							.collect { args[1].invokeMethod('call', it as Object[]) }
 				},
-				transpose: funcc { ...args -> toList(args[0]).transpose() },
-				'unique?': funcc { ...args ->
+				transpose: funcc { ... args -> toList(args[0]).transpose() },
+				'unique?': funcc { ... args ->
 					args[0].invokeMethod('size', null) ==
 							args[0].invokeMethod('unique', false).invokeMethod('size', null)
 				},
-				'unique!': funcc { ...args -> args[0].invokeMethod('unique', null) },
-				unique: funcc { ...args -> args[0].invokeMethod('unique', false) },
+				'unique!': funcc { ... args -> args[0].invokeMethod('unique', null) },
+				unique: funcc { ... args -> args[0].invokeMethod('unique', false) },
 				'unique_via?': func { IKismetObject... args ->
 					args[0].inner().invokeMethod('size', null) ==
-							args[0].inner().invokeMethod('unique', [false, args[1].&call])
+							args[0].inner().invokeMethod('unique', [false, args[1].kismetClass().&call.curry(args[1])] as Object[])
 				},
-				'unique_via!': func { IKismetObject... args -> args[0].inner().invokeMethod('unique', args[1].&call) },
-				unique_via: func { IKismetObject... args -> args[0].inner().invokeMethod('unique', [false, args[1].&call]) },
-				spread: funcc { ...args -> args[0].invokeMethod('toSpreadMap', null) },
-				invert_map: funcc { ...args -> StringEscaper.flip(args[0] as Map) },
-				new_json_parser: funcc { ...args -> new JsonSlurper() },
-				parse_json: funcc { ...args ->
+				'unique_via!': func { IKismetObject... args -> args[0].inner().invokeMethod('unique', args[1].kismetClass().&call.curry(args[1])) },
+				unique_via: func { IKismetObject... args -> args[0].inner().invokeMethod('unique', [false, args[1].kismetClass().&call.curry(args[1])]) },
+				spread: funcc { ... args -> args[0].invokeMethod('toSpreadMap', null) },
+				invert_map: funcc { ... args ->
+					final m0 = args[0] as Map
+					def m = new HashMap(m0.size())
+					for (final e : m0.entrySet()) {
+						m.put(e.value, e.key)
+					}
+					m
+				},
+				new_json_parser: funcc { ... args -> new JsonSlurper() },
+				parse_json: funcc { ... args ->
 					String text = args.length > 1 ? args[1].toString() : args[0].toString()
 					JsonSlurper sl = args.length > 1 ? args[0] as JsonSlurper : new JsonSlurper()
 					sl.parseText(text)
 				},
-				to_json: funcc { ...args -> ((Object) JsonOutput).invokeMethod('toJson', args[0]) },
-				pretty_print_json: funcc { ...args -> JsonOutput.prettyPrint(args[0].toString()) },
-				size: funcc { ...a -> a[0].invokeMethod('size', null) },
-				keys: funcc { ...a -> a[0].invokeMethod('keySet', null).invokeMethod('toList', null) },
-				values: funcc { ...a -> a[0].invokeMethod('values', null) },
-				reverse: funcc { ...a -> a[0].invokeMethod('reverse', a[0] instanceof CharSequence ? null : false) },
-				'reverse!': funcc { ...a -> a[0].invokeMethod('reverse', null) },
-				'reverse?': funcc { ...a -> a[0].invokeMethod('reverse', false) == a[1] },
-				sprintf: funcc { ...args -> String.invokeMethod('format', args) },
-				expr_type: funcc { ...args ->
+				to_json: funcc { ... args -> ((Object) JsonOutput).invokeMethod('toJson', [args[0]] as Object[]) },
+				pretty_print_json: funcc { ... args -> JsonOutput.prettyPrint(args[0].toString()) },
+				size: funcc { ... a -> a[0].invokeMethod('size', null) },
+				keys: funcc { ... a -> a[0].invokeMethod('keySet', null).invokeMethod('toList', null) },
+				values: funcc { ... a -> a[0].invokeMethod('values', null) },
+				reverse: funcc { ... a -> a[0].invokeMethod('reverse', a[0] instanceof CharSequence ? null : false) },
+				'reverse!': funcc { ... a -> a[0].invokeMethod('reverse', null) },
+				'reverse?': funcc { ... a -> a[0].invokeMethod('reverse', false) == a[1] },
+				sprintf: funcc { ... args -> String.invokeMethod('format', args) },
+				expr_type: funcc { ... args ->
 					args[0] instanceof Expression ?
 							(args[0].class.simpleName - 'Expression').uncapitalize() : null
 				},
 				capitalize: func { IKismetObject... args -> args[0].toString().capitalize() },
 				uncapitalize: func { IKismetObject... args -> args[0].toString().uncapitalize() },
-				center: funcc { ...args ->
+				center: funcc { ... args ->
 					args.length > 2 ? args[0].toString().center(args[1] as Number, args[2].toString()) :
 							args[0].toString().center(args[1] as Number)
 				},
-				pad_start: funcc { ...args ->
+				pad_start: funcc { ... args ->
 					args.length > 2 ? args[0].toString().padLeft(args[1] as Number, args[2].toString()) :
 							args[0].toString().padLeft(args[1] as Number)
 				},
-				pad_end: funcc { ...args ->
+				pad_end: funcc { ... args ->
 					args.length > 2 ? args[0].toString().padRight(args[1] as Number, args[2].toString()) :
 							args[0].toString().padRight(args[1] as Number)
 				},
-				'prefix?': funcc { ...args ->
+				'prefix?': funcc { ... args ->
 					if (args[1] instanceof String) ((String) args[1]).startsWith(args[0].toString())
 					else Collections.indexOfSubList(toList(args[1]), toList(args[0])) == 0
 				},
-				'suffix?': funcc { ...args ->
+				'suffix?': funcc { ... args ->
 					if (args[1] instanceof String) ((String) args[1]).endsWith(args[0].toString())
 					else {
 						def a = toList(args[0])
@@ -719,24 +741,24 @@ class Prelude {
 						Collections.lastIndexOfSubList(b, a) == b.size() - a.size()
 					}
 				},
-				'infix?': funcc { ...args ->
+				'infix?': funcc { ... args ->
 					if (args[1] instanceof String) ((String) args[1]).contains(args[0].toString())
-					else Collections.invokeMethod('indexOfSubList', [toList(args[1]), toList(args[0])]) != -1
+					else Collections.invokeMethod('indexOfSubList', [toList(args[1]), toList(args[0])] as Object[]) != -1
 				},
-				'subset?': funcc { ...args -> args[1].invokeMethod('containsAll', args[0]) },
-				'rotate!': funcc { ...args ->
+				'subset?': funcc { ... args -> args[1].invokeMethod('containsAll', [args[0]] as Object[]) },
+				'rotate!': funcc { ... args ->
 					List x = (List) args[0]
 					Collections.rotate(x, args[1] as int)
 					x
 				},
-				rotate: funcc { ...args ->
+				rotate: funcc { ... args ->
 					List x = new ArrayList(toList(args[0]))
 					Collections.rotate(x, args[1] as int)
 					x
 				},
-				lines: funcc { ...args -> args[0].invokeMethod('readLines', null) },
-				denormalize: funcc { ...args -> args[0].toString().denormalize() },
-				normalize: funcc { ...args -> args[0].toString().normalize() },
+				lines: funcc { ... args -> args[0].invokeMethod('readLines', null) },
+				denormalize: funcc { ... args -> args[0].toString().denormalize() },
+				normalize: funcc { ... args -> args[0].toString().normalize() },
 				hex: macr { Context c, Expression... x ->
 					if (x[0] instanceof NumberExpression || x[0] instanceof NameExpression) {
 						String t = x[0] instanceof NumberExpression ? ((NumberExpression) x[0]).value.inner().toString()
@@ -762,8 +784,8 @@ class Prelude {
 							+ ' To convert octal strings to integers do [from_base str 8], '
 							+ ' and to convert integers to octal strings do [to_base i 8].')
 				},
-				to_base: funcc { ...a -> (a[0] as BigInteger).toString(a[1] as int) },
-				from_base: funcc { ...a -> new BigInteger(a[0].toString(), a[1] as int) },
+				to_base: funcc { ... a -> (a[0] as BigInteger).toString(a[1] as int) },
+				from_base: funcc { ... a -> new BigInteger(a[0].toString(), a[1] as int) },
 				':::=': macr { Context c, Expression... x ->
 					if (x.length == 0) throw new UnexpectedSyntaxException('0 arguments for :::=')
 					IKismetObject value = x.length == 1 ? Kismet.NULL : x.last().evaluate(c)
@@ -800,7 +822,7 @@ class Prelude {
 				},
 				'+=': (Template) { Expression... args ->
 					new CallExpression([new NameExpression('='), args[0],
-						new CallExpression([new NameExpression('+'), args[0], args[1]])])
+							new CallExpression([new NameExpression('+'), args[0], args[1]])])
 				},
 				def: macr { Context c, Expression... x ->
 					if (x.length == 0) throw new UnexpectedSyntaxException('0 arguments for :=')
@@ -828,7 +850,7 @@ class Prelude {
 					c.define(x.name, Kismet.model(x))
 				},
 				tmpl: macr { Context c, Expression... exprs ->
-					new Template() {
+					new AbstractTemplate() {
 						@CompileStatic
 						Expression transform(Expression... args) {
 							final co = c.child(exprs)
@@ -839,13 +861,15 @@ class Prelude {
 						}
 					}
 				},
-				defmcr: macr { Context c, Expression... exprs ->
-					List<Expression> kill = new ArrayList<>()
-					kill.add(new NameExpression('mcr'))
-					for (int i = 1; i < exprs.length; ++i) kill.add(exprs[i])
-					def ex = new CallExpression([new NameExpression(':='), exprs[0],
-							new CallExpression(kill)])
-					ex.evaluate(c)
+				defmcr: new AbstractTemplate() {
+					@CompileStatic
+					Expression transform(Expression... args) {
+						def a = new ArrayList<Expression>()
+						a.add(new NameExpression('mcr'))
+						for (int i = 1; i < args.length; ++i)
+							a.add(args[i])
+						new CallExpression([new NameExpression(':='), args[0], new CallExpression(a)])
+					}
 				},
 				'fn*': macr { Context c, Expression... exprs ->
 					List<Expression> kill = new ArrayList<>()
@@ -871,61 +895,60 @@ class Prelude {
 				decr: macr { Context c, Expression... exprs ->
 					assign(c, exprs.take(1), new CallExpression([new NameExpression('prev'), exprs[0]]).evaluate(c), 'decrement')
 				},
-				'|>=': new Template() {
+				'|>=': new AbstractTemplate() {
 					@CompileStatic
 					Expression transform(Expression... args) {
 						new CallExpression([new NameExpression('='), args[0], pipeForwardExpr(args[0], args.tail().toList())])
 					}
 				},
-				'<|=': new Template() {
+				'<|=': new AbstractTemplate() {
 					@CompileStatic
 					Expression transform(Expression... args) {
 						new CallExpression([new NameExpression('='), args[0], pipeBackwardExpr(args[0], args.tail().toList())])
 					}
 				},
-				let: macr { Context c, Expression... exprs ->
-					Expression cnt = exprs[0]
-					final rest = exprs.tail()
-					if (rest.length > 0) c = c.child()
-					String resultVar
-					if (cnt instanceof CallExpression) {
-						CallExpression ex = (CallExpression) cnt
-						Iterator<Expression> defs = ex.expressions.iterator()
+				dive: new AbstractTemplate() {
+					@CompileStatic
+					Expression transform(Expression... args) {
+						new DiveExpression(args.length == 1 ? args[0] : new BlockExpression(args.toList()))
+					}
+				},
+				let: new AbstractTemplate() {
+					@CompileStatic
+					Expression transform(Expression... args) {
+						if (args.length == 0) throw new UnexpectedSyntaxException('Empty let expression not allowed')
+						if (!(args[0] instanceof CallExpression))
+							throw new UnexpectedSyntaxException("Did not expect " + args[0].class + " in let expression")
+						final cnt = (CallExpression) args[0]
+						Expression resultVar = null
+						final len = cnt.arguments.size() + 1
+						def vars = new ArrayList<Expression>((int) (len / 2) - len % 2)
+						final defs = cnt.expressions.iterator()
 						while (defs.hasNext()) {
-							Expression n = defs.next()
-							if (!defs.hasNext()) break
-							String name
-							if (n instanceof NameExpression) name = ((NameExpression) n).text
-							else if (n instanceof NumberExpression) throw new UnexpectedSyntaxException('Cant define a number (let)')
-							else if (n instanceof CallExpression) {
-								final gr = (CallExpression) n
-								def atom = toAtom(gr.callValue)
-								String resultAtom
-								if (null != atom && atom == 'result' && gr.arguments.size() == 1 &&
-										null != (resultAtom = toAtom(gr.arguments[0]))) {
-									name = resultVar = resultAtom
-								} else {
-									final x = new KismetFunction(c, true, [gr, defs.next()] as Expression[])
-									c.define(x.name, Kismet.model(x))
-									continue
-								}
+							final key = defs.next()
+							if (!defs.hasNext()) {
+								println "warning; ignoring odd expression in let definitions: $key"
+								break
+							}
+							CallExpression temp
+							if (key instanceof CallExpression &&
+								toAtom((temp = ((CallExpression) key)).callValue) == 'result' &&
+								temp.arguments.size() == 1) {
+								vars.add(resultVar = temp[1])
 							} else {
-								IKismetObject val = n.evaluate(c)
-								if (val.inner() instanceof String) name = val.inner()
-								else throw new UnexpectedValueException('Evaluated first expression of define wasnt a string (let)')
+								vars.add(key)
 							}
-							c.set(name, defs.next().evaluate(c))
+							vars.add(defs.next())
 						}
-					} else throw new UnexpectedSyntaxException('Expression after let is not a call-type expression')
-					if (rest.length > 0) {
-						def result = c.eval(rest)
-						if (null != resultVar) {
-							try {
-								return c.get(resultVar)
-							} catch (UndefinedVariableException ignored) {
-								throw new ContextFiddledWithException("Result variable for let ($resultVar) is gone")
-							}
-						} else result
+						def resultExpr = new ArrayList<Expression>((int) (vars.size() / 2) + args.length - (null == resultVar ? 1 : 0))
+						final variter = vars.iterator()
+						while (variter.hasNext()) {
+							resultExpr.add(new CallExpression(new NameExpression('::='), variter.next(), variter.next()))
+						}
+						resultExpr.addAll(args.tail())
+						if (null != resultVar) resultExpr.add(resultVar)
+						final r = new BlockExpression(resultExpr)
+						args.length == 1 ? r : new DiveExpression(r)
 					}
 				},
 				eval: macr { Context c, Expression... a ->
@@ -936,12 +959,12 @@ class Prelude {
 					else if (x.inner() instanceof String)
 						if (a.length > 1)
 							new Parser(context: a.length > 2 ? a[2].evaluate(c).inner() as Context : c)
-								.parse((String) x.inner())
-								.evaluate(a[1].evaluate(c).inner() as Context)
+									.parse((String) x.inner())
+									.evaluate(a[1].evaluate(c).inner() as Context)
 						else c.childEval(new Parser(context: c).parse((String) x.inner()))
 					else throw new UnexpectedValueException('Expected first callValue of eval to be an expression, block, path or string')
 				},
-				quote: new Template() {
+				quote: new AbstractTemplate() {
 					@CompileStatic
 					Expression transform(Expression... args) {
 						args.length == 1 ? args[0] : new BlockExpression(args.toList())
@@ -953,8 +976,8 @@ class Prelude {
 				get_or_set: macr { Context c, Expression... args ->
 					final a0 = args[0].evaluate(c)
 					final a1 = args[1].evaluate(c)
-					final v = a0[a1]
-					null == v.inner() ? a0.putAt(a1, args[2].evaluate(c)) : v
+					final v = a0.kismetClass().subscriptGet(a0, a1)
+					null == v.inner() ? a0.kismetClass().subscriptSet(a0, a1, args[2].evaluate(c)) : v
 				},
 				if: macr { Context c, Expression... exprs ->
 					c = c.child()
@@ -1036,8 +1059,10 @@ class Prelude {
 					x
 				},
 				'or?': macr { Context c, Expression... x -> x[0].evaluate(c) ? c.childEval(x[1]) : c.childEval(x[2]) },
-				'not_or?': macr { Context c, Expression... x -> !x[0].evaluate(c) ? c.childEval(x[1]) :
-						c.childEval(x[2]) },
+				'not_or?': macr { Context c, Expression... x ->
+					!x[0].evaluate(c) ? c.childEval(x[1]) :
+							c.childEval(x[2])
+				},
 				check: macr { Context c, Expression... ab ->
 					Iterator<Expression> a = ab.iterator()
 					IKismetObject val = a.next().evaluate(c)
@@ -1231,33 +1256,47 @@ class Prelude {
 					}
 					a
 				},
-				each: func { IKismetObject... args -> args[0].inner().each(args[1].&call) },
-				each_with_index: func { IKismetObject... args -> args[0].inner().invokeMethod('eachWithIndex', args[1].&call) },
-				collect: func { IKismetObject... args -> args[0].inner().collect(args[1].&call) },
-				collect_nested: func { IKismetObject... args -> args[0].inner().invokeMethod('collectNested', args[1].&call) },
-				collect_many: func { IKismetObject... args -> args[0].inner().invokeMethod('collectMany', args[1].&call) },
+				each: func { IKismetObject... args -> args[0].inner().each(args[1].kismetClass().&call.curry(args[1])) },
+				each_with_index: func { IKismetObject... args -> args[0].inner().invokeMethod('eachWithIndex', args[1].kismetClass().&call.curry(args[1])) },
+				collect: func { IKismetObject... args ->
+					final fn = args[1]
+					final cl = args[1].kismetClass()
+					args[0].inner().collect { ...a ->
+						def arr = new IKismetObject[a.length]
+						for (int i = 0; i < a.length; ++i) {
+							arr[i] = Kismet.model(a[i])
+						}
+						cl.call(fn, arr)
+					}
+				},
+				collect_nested: func { IKismetObject... args -> args[0].inner().invokeMethod('collectNested', args[1].kismetClass().&call.curry(args[1])) },
+				collect_many: func { IKismetObject... args -> args[0].inner().invokeMethod('collectMany', args[1].kismetClass().&call.curry(args[1])) },
 				collect_map: func { IKismetObject... args ->
 					args[0].inner()
-							.invokeMethod('collectEntries') { ...a -> args[1].call(Kismet.model(a)).inner() }
+							.invokeMethod('collectEntries') { ... a -> args[1].kismetClass().call(args[1], Kismet.model(a)).inner() }
 				},
-				subsequences: funcc { ...args -> args[0].invokeMethod('subsequences', null) },
-				combinations: funcc { ...args -> args[0].invokeMethod('combinations', null) },
-				permutations: funcc { ...args -> args[0].invokeMethod('permutations', null) },
-				'permutations~': funcc { ...args ->
+				subsequences: funcc { ... args -> args[0].invokeMethod('subsequences', null) },
+				combinations: funcc { ... args -> args[0].invokeMethod('combinations', null) },
+				permutations: funcc { ... args -> args[0].invokeMethod('permutations', null) },
+				'permutations~': funcc { ... args ->
 					new PermutationGenerator(args[0] instanceof Collection ? (Collection) args[0]
 							: args[0] instanceof Iterable ? (Iterable) args[0]
 							: args[0] instanceof Iterator ? new IteratorIterable((Iterator) args[0])
 							: args[0] as Collection)
 				},
 				'any?': func { IKismetObject... args ->
-						args.length > 1 ? args[0].inner().any(args[1].&call) : args[0].inner().any() },
+					args.length > 1 ? args[0].inner().any(args[1].kismetClass().&call.curry(args[1])) : args[0].inner().any()
+				},
 				'every?': func { IKismetObject... args ->
-						args.length > 1 ? args[0].inner().every(args[1].&call) : args[0].inner().every() },
-				'none?': func { IKismetObject... args -> !(
-						args.length > 1 ? args[0].inner().any(args[1].&call) : args[0].inner().any()) },
-				find: func { IKismetObject... args -> args[0].inner().invokeMethod('find', args[1].&call) },
-				find_result: func { IKismetObject... args -> args[0].inner().invokeMethod('findResult', args[1].&call) },
-				count: func { IKismetObject... args -> args[0].inner().invokeMethod('count', args[1].&call) },
+					args.length > 1 ? args[0].inner().every(args[1].kismetClass().&call.curry(args[1])) : args[0].inner().every()
+				},
+				'none?': func { IKismetObject... args ->
+					!(
+							args.length > 1 ? args[0].inner().any(args[1].kismetClass().&call.curry(args[1])) : args[0].inner().any())
+				},
+				find: func { IKismetObject... args -> args[0].inner().invokeMethod('find', args[1].kismetClass().&call.curry(args[1])) },
+				find_result: func { IKismetObject... args -> args[0].inner().invokeMethod('findResult', args[1].kismetClass().&call.curry(args[1])) },
+				count: func { IKismetObject... args -> args[0].inner().invokeMethod('count', args[1].kismetClass().&call.curry(args[1])) },
 				count_element: func { IKismetObject... args ->
 					BigInteger i = 0
 					def a = args[1].inner()
@@ -1276,7 +1315,8 @@ class Prelude {
 					for (int m = 0; m < c.length; ++i) b[m] = c[m].inner()
 					boolean j = args.length == 1
 					def iter = args[0].iterator()
-					outer: while (iter.hasNext()) {
+					outer:
+					while (iter.hasNext()) {
 						def x = iter.next()
 						if (x instanceof IKismetObject) x = x.inner()
 						if (j) ++i
@@ -1287,25 +1327,25 @@ class Prelude {
 					}
 					i
 				},
-				count_by: func { IKismetObject... args -> args[0].inner().invokeMethod('countBy', args[1].&call) },
-				group_by: func { IKismetObject... args -> args[0].inner().invokeMethod('groupBy', args[1].&call) },
+				count_by: func { IKismetObject... args -> args[0].inner().invokeMethod('countBy', args[1].kismetClass().&call.curry(args[1])) },
+				group_by: func { IKismetObject... args -> args[0].inner().invokeMethod('groupBy', args[1].kismetClass().&call.curry(args[1])) },
 				indexed: func { IKismetObject... args -> args[0].inner().invokeMethod('indexed', args.length > 1 ? args[1] as int : null) },
-				find_all: func { IKismetObject... args -> args[0].inner().findAll(args[1].&call) },
-				join: funcc { ...args ->
+				find_all: func { IKismetObject... args -> args[0].inner().findAll(args[1].kismetClass().&call.curry(args[1])) },
+				join: funcc { ... args ->
 					args[0].invokeMethod('join', args.length > 1 ? args[1].toString() : '')
 				},
-				inject: func { IKismetObject... args -> args[0].inner().inject { a, b -> args[1].call(Kismet.model(a), Kismet.model(b)) } },
-				collate: funcc { ...args -> args[0].invokeMethod('collate', args.tail()) },
-				pop: funcc { ...args -> args[0].invokeMethod('pop', null) },
-				add: funcc { ...args -> args[0].invokeMethod('add', args[1]) },
-				add_at: funcc { ...args -> args[0].invokeMethod('add', [args[1] as int, args[2]]) },
-				add_all: funcc { ...args -> args[0].invokeMethod('addAll', args[1]) },
-				add_all_at: funcc { ...args -> args[0].invokeMethod('addAll', [args[1] as int, args[2]]) },
-				remove: funcc { ...args -> args[0].invokeMethod('remove', args[1]) },
-				remove_elements: funcc { ...args -> args[0].invokeMethod('removeAll', args[1]) },
-				remove_any: func { IKismetObject... args -> args[0].inner().invokeMethod('removeAll', args[1].&call) },
-				remove_element: funcc { ...args -> args[0].invokeMethod('removeElement', args[1]) },
-				get: funcc { ...a ->
+				inject: func { IKismetObject... args -> args[0].inner().inject { a, b -> args[1].kismetClass().call(args[1], Kismet.model(a), Kismet.model(b)) } },
+				collate: funcc { ... args -> args[0].invokeMethod('collate', args.tail()) },
+				pop: funcc { ... args -> args[0].invokeMethod('pop', null) },
+				add: funcc { ... args -> args[0].invokeMethod('add', args[1]) },
+				add_at: funcc { ... args -> args[0].invokeMethod('add', [args[1] as int, args[2]]) },
+				add_all: funcc { ... args -> args[0].invokeMethod('addAll', args[1]) },
+				add_all_at: funcc { ... args -> args[0].invokeMethod('addAll', [args[1] as int, args[2]]) },
+				remove: funcc { ... args -> args[0].invokeMethod('remove', args[1]) },
+				remove_elements: funcc { ... args -> args[0].invokeMethod('removeAll', args[1]) },
+				remove_any: func { IKismetObject... args -> args[0].inner().invokeMethod('removeAll', args[1].kismetClass().&call.curry(args[1])) },
+				remove_element: funcc { ... args -> args[0].invokeMethod('removeElement', args[1]) },
+				get: funcc { ... a ->
 					def r = a[0]
 					for (int i = 1; i < a.length; ++i)
 						r = r.invokeMethod('get', a[i])
@@ -1321,15 +1361,15 @@ class Prelude {
 					}
 					r
 				},
-				empty: funcc { ...args -> args[0].invokeMethod('clear', null) },
-				put: funcc { ...args -> args[0].invokeMethod('put', [args[1], args[2]]) },
-				put_all: funcc { ...args -> args[0].invokeMethod('putAll', args[1]) },
-				'keep_all!': funcc { ...args -> args[0].invokeMethod('retainAll', args[1]) },
-				'keep_any!': func { IKismetObject... args -> args[0].inner().invokeMethod('retainAll', args[1].&call) },
-				'has?': funcc { ...args -> args[0].invokeMethod('contains', args[1]) },
-				'has_all?': funcc { ...args -> args[0].invokeMethod('containsAll', args[1]) },
-				'has_key?': funcc { ...args -> args[0].invokeMethod('containsKey', args[1]) },
-				'has_key_traverse?': funcc { ...args ->
+				empty: funcc { ... args -> args[0].invokeMethod('clear', null) },
+				put: funcc { ... args -> args[0].invokeMethod('put', [args[1], args[2]]) },
+				put_all: funcc { ... args -> args[0].invokeMethod('putAll', args[1]) },
+				'keep_all!': funcc { ... args -> args[0].invokeMethod('retainAll', args[1]) },
+				'keep_any!': func { IKismetObject... args -> args[0].inner().invokeMethod('retainAll', args[1].kismetClass().&call.curry(args[1])) },
+				'has?': funcc { ... args -> args[0].invokeMethod('contains', args[1]) },
+				'has_all?': funcc { ... args -> args[0].invokeMethod('containsAll', args[1]) },
+				'has_key?': funcc { ... args -> args[0].invokeMethod('containsKey', args[1]) },
+				'has_key_traverse?': funcc { ... args ->
 					def x = args[0]
 					for (a in args.tail()) {
 						if (!((boolean) x.invokeMethod('containsKey', args[1]))) return false
@@ -1337,42 +1377,46 @@ class Prelude {
 					}
 					true
 				},
-				'has_value?': funcc { ...args -> args[0].invokeMethod('containsValue', args[1]) },
-				'is_code_kismet?': funcc { ...args -> args[0] instanceof KismetFunction || args[0] instanceof KismetMacro },
-				'disjoint?': funcc { ...args -> args[0].invokeMethod('disjoint', args[1]) },
-				'intersect?': funcc { ...args -> !args[0].invokeMethod('disjoint', args[1]) },
+				'has_value?': funcc { ... args -> args[0].invokeMethod('containsValue', args[1]) },
+				'is_code_kismet?': funcc { ... args -> args[0] instanceof KismetFunction || args[0] instanceof KismetMacro },
+				'disjoint?': funcc { ... args -> args[0].invokeMethod('disjoint', args[1]) },
+				'intersect?': funcc { ... args -> !args[0].invokeMethod('disjoint', args[1]) },
 				call: func { IKismetObject... args ->
 					def x = args[1].inner() as Object[]
 					def ar = new IKismetObject[x.length]
 					for (int i = 0; i < ar.length; ++i) {
 						ar[i] = Kismet.model(x[i])
 					}
-					args[0].call(ar)
+					args[0].kismetClass().call(args[0], ar)
 				},
-				range: funcc { ...args -> args[0]..args[1] },
+				range: funcc { ... args -> args[0]..args[1] },
 				parse_independent_kismet: func { IKismetObject... args -> Kismet.parse(args[0].toString()) },
-				parse_kismet: macr { Context c, Expression... args ->
-					new Parser(context: args.length > 1 ? (Context) args[1].evaluate(c).inner() : c.child())
-							.parse(args[0].evaluate(c).toString())
+				parse_kismet: new ContextFunction() {
+					@CompileStatic
+					IKismetObject call(Context c, IKismetObject... args) {
+						Kismet.model(new Parser(context:
+							args.length > 1 ? (Context) args[1].inner() :
+								c.child()).parse(args[0].toString()))
+					}
 				},
-				context_child: funcc { ...args ->
+				context_child: funcc { ... args ->
 					def b = args[0] as Context
 					args.length > 1 ? b.invokeMethod('child', args.tail()) : b.child()
 				},
-				context_child_eval: funcc { ...args -> (args[0] as Context).invokeMethod('childEval', args.tail()) },
-				'sort!': funcc { ...args -> args[0].invokeMethod('sort', null) },
-				sort: funcc { ...args -> args[0].invokeMethod('sort', false) },
-				'sort_via!': func { IKismetObject... args -> args[0].inner().invokeMethod('sort', args[1].&call) },
-				sort_via: func { IKismetObject... args -> args[0].inner().invokeMethod('sort', [false, args[1].&call]) },
-				head: funcc { ...args -> args[0].invokeMethod('head', null) },
-				tail: funcc { ...args -> args[0].invokeMethod('tail', null) },
-				init: funcc { ...args -> args[0].invokeMethod('init', null) },
-				last: funcc { ...args -> args[0].invokeMethod('last', null) },
-				first: funcc { ...args -> args[0].invokeMethod('first', null) },
-				immutable: funcc { ...args -> args[0].invokeMethod('asImmutable', null) },
+				context_child_eval: funcc { ... args -> (args[0] as Context).invokeMethod('childEval', args.tail()) },
+				'sort!': funcc { ... args -> args[0].invokeMethod('sort', null) },
+				sort: funcc { ... args -> args[0].invokeMethod('sort', false) },
+				'sort_via!': func { IKismetObject... args -> args[0].inner().invokeMethod('sort', args[1].kismetClass().&call.curry(args[1])) },
+				sort_via: func { IKismetObject... args -> args[0].inner().invokeMethod('sort', [false, args[1].kismetClass().&call.curry(args[1])]) },
+				head: funcc { ... args -> args[0].invokeMethod('head', null) },
+				tail: funcc { ... args -> args[0].invokeMethod('tail', null) },
+				init: funcc { ... args -> args[0].invokeMethod('init', null) },
+				last: funcc { ... args -> args[0].invokeMethod('last', null) },
+				first: funcc { ... args -> args[0].invokeMethod('first', null) },
+				immutable: funcc { ... args -> args[0].invokeMethod('asImmutable', null) },
 				identity: Function.IDENTITY,
-				flatten: funcc { ...args -> args[0].invokeMethod('flatten', null) },
-				concat_list: funcc { ...args ->
+				flatten: funcc { ... args -> args[0].invokeMethod('flatten', null) },
+				concat_list: funcc { ... args ->
 					def c = new ArrayList()
 					for (int i = 0; i < args.length; ++i) {
 						final x = args[i]
@@ -1380,7 +1424,7 @@ class Prelude {
 					}
 					c
 				},
-				concat_set: funcc { ...args ->
+				concat_set: funcc { ... args ->
 					def c = new HashSet()
 					for (int i = 0; i < args.length; ++i) {
 						final x = args[i]
@@ -1388,7 +1432,7 @@ class Prelude {
 					}
 					c
 				},
-				concat_tuple: funcc { ...args ->
+				concat_tuple: funcc { ... args ->
 					def c = new ArrayList()
 					for (int i = 0; i < args.length; ++i) {
 						final x = args[i]
@@ -1396,31 +1440,31 @@ class Prelude {
 					}
 					new Tuple(c.toArray())
 				},
-				indices: funcc { ...args -> args[0].invokeMethod('getIndices', null) },
-				find_index: func { IKismetObject... args -> args[0].inner().invokeMethod('findIndexOf', args[1].&call) },
+				indices: funcc { ... args -> args[0].invokeMethod('getIndices', null) },
+				find_index: func { IKismetObject... args -> args[0].inner().invokeMethod('findIndexOf', args[1].kismetClass().&call.curry(args[1])) },
 				find_index_after: func { IKismetObject... args ->
 					args[0].inner()
-							.invokeMethod('findIndexOf', [args[1] as int, args[2].&call])
+							.invokeMethod('findIndexOf', [args[1] as int, args[2].kismetClass().&call.curry(args[2])])
 				},
-				find_last_index: func { IKismetObject... args -> args[0].inner().invokeMethod('findLastIndexOf', args[1].&call) },
+				find_last_index: func { IKismetObject... args -> args[0].inner().invokeMethod('findLastIndexOf', args[1].kismetClass().&call.curry(args[1])) },
 				find_last_index_after: func { IKismetObject... args ->
 					args[0].inner()
-							.invokeMethod('findLastIndexOf', [args[1] as int, args[2].&call])
+							.invokeMethod('findLastIndexOf', [args[1] as int, args[2].kismetClass().&call.curry(args[2])])
 				},
-				find_indices: func { IKismetObject... args -> args[0].inner().invokeMethod('findIndexValues', args[1].&call) },
+				find_indices: func { IKismetObject... args -> args[0].inner().invokeMethod('findIndexValues', args[1].kismetClass().&call.curry(args[1])) },
 				find_indices_after: func { IKismetObject... args ->
 					args[0].inner()
-							.invokeMethod('findIndexValues', [args[1] as int, args[2].&call])
+							.invokeMethod('findIndexValues', [args[1] as int, args[2].kismetClass().&call.curry(args[2])])
 				},
-				intersect: funcc { ...args -> args[0].invokeMethod('intersect', args[1]) },
-				split: funcc { ...args -> args[0].invokeMethod('split', args.tail()) as List },
-				tokenize: funcc { ...args -> args[0].invokeMethod('tokenize', args.tail()) },
-				partition: func { IKismetObject... args -> args[0].inner().invokeMethod('split', args[1].&call) },
+				intersect: funcc { ... args -> args[0].invokeMethod('intersect', args[1]) },
+				split: funcc { ... args -> args[0].invokeMethod('split', args.tail()) as List },
+				tokenize: funcc { ... args -> args[0].invokeMethod('tokenize', args.tail()) },
+				partition: func { IKismetObject... args -> args[0].inner().invokeMethod('split', args[1].kismetClass().&call.curry(args[1])) },
 				each_consecutive: func { IKismetObject... args ->
 					def x = args[0].inner()
 					int siz = x.invokeMethod('size', null) as int
 					int con = args[1].inner() as int
-					Closure fun = args[2].&call
+					Closure fun = args[2].kismetClass().&call.curry(args[2])
 					List b = []
 					for (int i = 0; i <= siz - con; ++i) {
 						List a = new ArrayList(con)
@@ -1430,7 +1474,7 @@ class Prelude {
 					}
 					b
 				},
-				consecutives: funcc { ...args ->
+				consecutives: funcc { ... args ->
 					def x = args[0]
 					int siz = x.invokeMethod('size', null) as int
 					int con = args[1] as int
@@ -1442,7 +1486,7 @@ class Prelude {
 					}
 					b
 				},
-				'consecutives~': funcc { ...args ->
+				'consecutives~': funcc { ... args ->
 					def x = args[0]
 					int siz = x.invokeMethod('size', null) as int
 					int con = args[1] as int
@@ -1459,83 +1503,83 @@ class Prelude {
 						}
 					})
 				},
-				drop: funcc { ...args -> args[0].invokeMethod('drop', args[1] as int) },
-				drop_right: funcc { ...args -> args[0].invokeMethod('dropRight', args[1] as int) },
-				drop_while: func { IKismetObject... args -> args[0].inner().invokeMethod('dropWhile', args[1].&call) },
-				take: funcc { ...args -> args[0].invokeMethod('take', args[1] as int) },
-				take_right: funcc { ...args -> args[0].invokeMethod('takeRight', args[1] as int) },
-				take_while: func { IKismetObject... args -> args[0].inner().invokeMethod('takeWhile', args[1].&call) },
-				each_combination: func { IKismetObject... args -> args[0].inner().invokeMethod('eachCombination', args[1].&call) },
-				each_permutation: func { IKismetObject... args -> args[0].inner().invokeMethod('eachPermutation', args[1].&call) },
+				drop: funcc { ... args -> args[0].invokeMethod('drop', args[1] as int) },
+				drop_right: funcc { ... args -> args[0].invokeMethod('dropRight', args[1] as int) },
+				drop_while: func { IKismetObject... args -> args[0].inner().invokeMethod('dropWhile', args[1].kismetClass().&call.curry(args[1])) },
+				take: funcc { ... args -> args[0].invokeMethod('take', args[1] as int) },
+				take_right: funcc { ... args -> args[0].invokeMethod('takeRight', args[1] as int) },
+				take_while: func { IKismetObject... args -> args[0].inner().invokeMethod('takeWhile', args[1].kismetClass().&call.curry(args[1])) },
+				each_combination: func { IKismetObject... args -> args[0].inner().invokeMethod('eachCombination', args[1].kismetClass().&call.curry(args[1])) },
+				each_permutation: func { IKismetObject... args -> args[0].inner().invokeMethod('eachPermutation', args[1].kismetClass().&call.curry(args[1])) },
 				each_key_value: func { IKismetObject... args ->
 					def m = (args[0].inner() as Map)
 					for (e in m) {
-						args[1].call(Kismet.model(e.key), Kismet.model(e.value))
+						args[1].kismetClass().call(args[1], Kismet.model(e.key), Kismet.model(e.value))
 					}
 					m
 				},
-				'within_range?': funcc { ...args -> (args[1] as Range).containsWithinBounds(args[0]) },
-				'is_range_reverse?': funcc { ...args -> (args[1] as Range).reverse },
-				max: funcc { ...args -> args.max() },
-				min: funcc { ...args -> args.min() },
-				max_in: funcc { ...args -> args[0].invokeMethod('max', null) },
-				min_in: funcc { ...args -> args[0].invokeMethod('min', null) },
-				max_via: func { IKismetObject... args -> args[0].inner().invokeMethod('max', args[1].&call) },
-				min_via: func { IKismetObject... args -> args[0].inner().invokeMethod('min', args[1].&call) },
-				consume: func { IKismetObject... args -> args[1].call(args[0]) },
-				tap: func { IKismetObject... args -> args[1].call(args[0]); args[0] },
-				sleep: funcc { ...args -> sleep args[0] as long },
+				'within_range?': funcc { ... args -> (args[1] as Range).containsWithinBounds(args[0]) },
+				'is_range_reverse?': funcc { ... args -> (args[1] as Range).reverse },
+				max: funcc { ... args -> args.max() },
+				min: funcc { ... args -> args.min() },
+				max_in: funcc { ... args -> args[0].invokeMethod('max', null) },
+				min_in: funcc { ... args -> args[0].invokeMethod('min', null) },
+				max_via: func { IKismetObject... args -> args[0].inner().invokeMethod('max', args[1].kismetClass().&call.curry(args[1])) },
+				min_via: func { IKismetObject... args -> args[0].inner().invokeMethod('min', args[1].kismetClass().&call.curry(args[1])) },
+				consume: func { IKismetObject... args -> args[1].kismetClass().call(args[1], args[0]) },
+				tap: func { IKismetObject... args -> args[1].kismetClass().call(args[1], args[0]); args[0] },
+				sleep: funcc { ... args -> sleep args[0] as long },
 				times_do: func { IKismetObject... args ->
 					def n = (Number) args[0].inner()
 					def l = new ArrayList(n.intValue())
-					for (def i = n - n; i < n; i += 1) l.add args[1].call(Kismet.model(i))
+					for (def i = n - n; i < n; i += 1) l.add args[1].kismetClass().call(args[1], Kismet.model(i))
 					l
 				},
 				compose: func { IKismetObject... args ->
-					funcc { ...a ->
+					funcc { ... a ->
 						IKismetObject r = args[0]
 						for (int i = args.length - 1; i >= 0; --i) {
-							r = args[i].call(r)
+							r = args[i].kismetClass().call(args[i], r)
 						}
 						r
 					}
 				},
-				'number?': funcc { ...args -> args[0] instanceof Number },
-				'|>': new Template() {
+				'number?': funcc { ... args -> args[0] instanceof Number },
+				'|>': new AbstractTemplate() {
 					@CompileStatic
 					Expression transform(Expression... args) {
 						pipeForwardExpr(args[0], args.tail().toList())
 					}
 				},
-				'<|': new Template() {
+				'<|': new AbstractTemplate() {
 					@CompileStatic
 					Expression transform(Expression... args) {
 						pipeBackwardExpr(args[0], args.tail().toList())
 					}
 				},
-				gcd: funcc { ...args -> gcd(args[0] as Number, args[1] as Number) },
-				lcm: funcc { ...args -> lcm(args[0] as Number, args[1] as Number) },
-				reduce_ratio: funcc { ...args ->
+				gcd: funcc { ... args -> gcd(args[0] as Number, args[1] as Number) },
+				lcm: funcc { ... args -> lcm(args[0] as Number, args[1] as Number) },
+				reduce_ratio: funcc { ... args ->
 					Pair pair = args[0] as Pair
 					def (Number a, Number b) = [pair.first as Number, pair.second as Number]
 					Number gcd = gcd(a, b)
 					(a, b) = [a.intdiv(gcd), b.intdiv(gcd)]
 					new Pair(a, b)
 				},
-				repr_expr: funcc { ...args -> ((Expression) args[0]).repr() },
-				sum_range: funcc { ...args ->
+				repr_expr: funcc { ... args -> ((Expression) args[0]).repr() },
+				sum_range: funcc { ... args ->
 					Range r = args[0] as Range
 					def (Number to, Number from) = [r.to as Number, r.from as Number]
 					Number x = to.minus(from).next()
 					x.multiply(from.plus(x)).intdiv(2)
 				},
-				sum_range_with_step: funcc { ...args ->
+				sum_range_with_step: funcc { ... args ->
 					Range r = args[0] as Range
 					Number step = args[1] as Number
 					def (Number to, Number from) = [(r.to as Number).next(), r.from as Number]
 					to.minus(from).intdiv(step).multiply(from.plus(to.minus(step))).intdiv(2)
 				},
-				'subsequence?': funcc { ...args ->
+				'subsequence?': funcc { ... args ->
 					Iterator a = args[1].iterator()
 					Iterator b = args[0].iterator()
 					if (!b.hasNext()) return true
@@ -1545,7 +1589,7 @@ class Prelude {
 					}
 					b.hasNext()
 				},
-				'supersequence?': funcc { ...args ->
+				'supersequence?': funcc { ... args ->
 					Iterator a = args[0].iterator()
 					Iterator b = args[1].iterator()
 					if (!b.hasNext()) return true
@@ -1624,7 +1668,7 @@ class Prelude {
 				'|>|': macr { Context c, Expression... args ->
 					infixCallsLTR(c, args.toList())
 				},
-				probability: funcc { ...a ->
+				probability: funcc { ... a ->
 					Random rand = a.length > 1 ? a[1] as Random : new Random()
 					Number x = a[0] as Number
 					rand.nextDouble() < x
@@ -1689,11 +1733,11 @@ class Prelude {
 				def toSet = steps.last()
 				IKismetObject val = PathExpression.applySteps(c, ((PathExpression) a).root.evaluate(c), toApply)
 				if (toSet instanceof PathExpression.PropertyStep)
-					val.putAt(Kismet.model(((PathExpression.PropertyStep) toSet).name), value)
-				else val.putAt(((PathExpression.SubscriptStep) toSet).expression.evaluate(c), value)
-			}
-			else throw new UnexpectedSyntaxException(
-						"Did not expect expression type for argument $i of $op to be ${a.class.simpleName - 'Expression'}")
+					val.kismetClass().propertySet(val, ((PathExpression.PropertyStep) toSet).name, value)
+				else if (toSet instanceof PathExpression.SubscriptStep)
+					val.kismetClass().subscriptSet(val, ((PathExpression.SubscriptStep) toSet).expression.evaluate(c), value)
+			} else throw new UnexpectedSyntaxException(
+					"Did not expect expression type for argument $i of $op to be ${a.class.simpleName - 'Expression'}")
 			++i
 		}
 		value
@@ -1773,7 +1817,7 @@ class Prelude {
 	}
 
 	static CallExpression pipeBackwardExpr(Expression base, List<Expression> args) {
-		if (args.empty) throw new UnexpectedSyntaxException('no |> for epic!')
+		if (args.empty) throw new UnexpectedSyntaxException('no <| for epic!')
 		for (exp in args) {
 			if (exp instanceof CallExpression) {
 				List<Expression> exprs = new ArrayList<>()
@@ -1829,13 +1873,14 @@ class Prelude {
 	}
 
 	private static final NameExpression INFIX_CALLS_LTR_PATH = new NameExpression('|>|')
+
 	static IKismetObject infixCallsLTR(Context c, List<Expression> args) {
 		if (args.empty) return Kismet.NULL
 		else if (args.size() == 1) return evalInfixLTR(c, args[0])
 		else if (args.size() == 2) {
-			return INFIX_CALLS_LTR_PATH == args[0] ?
-					args[1].evaluate(c) :
-					evalInfixLTR(c, args[0]).call(evalInfixLTR(c, args[1]))
+			if (INFIX_CALLS_LTR_PATH == args[0]) return args[1].evaluate(c)
+			final val = evalInfixLTR(c, args[0])
+			val.kismetClass().call(val, evalInfixLTR(c, args[1]))
 		} else if (args.size() % 2 == 0)
 			throw new UnexpectedSyntaxException('Even number of arguments for LTR infix function calls')
 		List<List<Expression>> calls = [[
@@ -1934,8 +1979,7 @@ class Prelude {
 			val.inner() == ((StringExpression) exp).value.inner()
 		} else if (exp instanceof NumberExpression) {
 			val.inner() == ((NumberExpression) exp).value.inner()
-		}
-		else throw new UnexpectedSyntaxException('Did not expect ' + exp.class + ' in check')
+		} else throw new UnexpectedSyntaxException('Did not expect ' + exp.class + ' in check')
 	}
 
 	static Number gcd(Number a, Number b) {

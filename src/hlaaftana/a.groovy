@@ -7,5 +7,9 @@ new File('kismet/').eachFileRecurse(FileType.FILES) { it ->
 }
 println """$l lines
 $t characters"""
+// april 30 2018:
 // 2291 lines
 // 89998 characters
+// june 27 2018:
+// 5439 lines
+// 211328 characters

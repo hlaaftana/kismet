@@ -13,8 +13,11 @@ class Pair<A, B> implements List, Map.Entry<A, B> {
 	}
 
 	int size() { 2 }
+
 	boolean isEmpty() { false }
+
 	boolean contains(o) { first == o || second == o }
+
 	Iterator iterator() {
 		new Iterator() {
 			int i = 0
@@ -41,16 +44,22 @@ class Pair<A, B> implements List, Map.Entry<A, B> {
 	}
 
 	boolean add(o) { false }
+
 	boolean remove(o) { false }
+
 	boolean containsAll(Collection c) {
 		for (a in c) if (!contains(a)) return false
 		true
 	}
 
 	boolean addAll(Collection c) { false }
+
 	boolean addAll(int i, Collection c) { false }
+
 	boolean removeAll(Collection c) { false }
+
 	boolean retainAll(Collection c) { false }
+
 	void clear() {}
 
 	def get(int i) {
@@ -73,15 +82,38 @@ class Pair<A, B> implements List, Map.Entry<A, B> {
 		second == o ? 1 : first == o ? 0 : -1
 	}
 
-	ListIterator listIterator() { [first, second].listIterator() }
+	ListIterator listIterator() { listIterator(0) }
 
-	ListIterator listIterator(int i) { [first, second].listIterator(i) }
+	ListIterator listIterator(int i) {
+		new ListIterator() {
+			boolean state
+
+			boolean hasNext() { i == 0 || i == 1 }
+			boolean hasPrevious() { hasNext() }
+
+			def next() { state = true; Pair.this.get(i++) }
+			def previous() { state = false; Pair.this.get(--i) }
+
+			int nextIndex() { i }
+			int previousIndex() { i - 1 }
+			int currentIndex() { state ? i - 1 : i }
+
+			void remove() {}
+			void add(o) {}
+
+			void set(o) {
+				Pair.this.set(currentIndex(), o)
+			}
+		}
+	}
 
 	List subList(int fromIndex, int toIndex) {
 		[first, second].subList(fromIndex, toIndex)
 	}
 
 	A getKey() { first }
+
 	B getValue() { second }
+
 	B setValue(B value) { second = value }
 }
