@@ -1,23 +1,18 @@
 package hlaaftana.kismet.vm
 
 import groovy.transform.CompileStatic
-import hlaaftana.kismet.exceptions.CannotOperateException
 
 @CompileStatic
-class MetaKismetClass implements IKismetClass {
-	static final MetaKismetClass INSTANCE = new MetaKismetClass()
+class MetaKismetClass<T extends IKismetObject<IKismetClass>> extends BasicClass<T> {
+	static
+	final MetaKismetClass INSTANCE = new MetaKismetClass()
 	static final ClassObject OBJECT = new ClassObject(INSTANCE)
 
-	private MetaKismetClass() {}
-
-	boolean isInstance(IKismetObject object) {
-		object.kismetClass() == this
+	private MetaKismetClass() {
+		super('Class')
 	}
 
-	IKismetObject cast(IKismetObject object) {
-		if (!isInstance(object)) throw new CannotOperateException('cast to class', 'non-class')
-		object
+	IKismetObject call(T obj, IKismetObject[] args) {
+		((IKismetClass) obj.inner()).construct(args)
 	}
-
-	String getName() { 'Class' }
 }

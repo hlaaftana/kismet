@@ -18,13 +18,13 @@ class KismetMacro extends Macro {
 		this.b = b
 	}
 
-	IKismetObject call(Context s, Expression... args){
+	IKismetObject call(Context s, Expression... args) {
 		Block c = b.child()
 		for (int it = 0; it < args.length; ++it) {
 			c.context.set('$'.concat(String.valueOf(it)), Kismet.model(args[it]))
 		}
 		c.context.set('$context', Kismet.model(s))
-		c.context.set('$all', Kismet.model(args.toList()))
+		c.context.set('$all', Kismet.model(new Tuple(args)))
 		c()
 	}
 }
@@ -37,7 +37,7 @@ class GroovyMacro extends Macro {
 		this.x = x
 	}
 
-	IKismetObject call(Context c, Expression... expressions){
+	IKismetObject call(Context c, Expression... expressions) {
 		Kismet.model(expressions.length != 0 ? x.call(c, expressions) : x.call(c))
 	}
 }

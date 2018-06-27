@@ -64,8 +64,9 @@ class Context {
 
 	IKismetObject set(String name, IKismetObject value) {
 		final v = getVariable(name)
-		if (null != v) { v.value = value; value }
-		else addAndReturn(name, value)
+		if (null != v) {
+			v.value = value; value
+		} else addAndReturn(name, value)
 	}
 
 	IKismetObject define(String name, IKismetObject value) {
@@ -75,30 +76,32 @@ class Context {
 
 	IKismetObject assign(Context original = this, String name, IKismetObject value) {
 		final v = getVariable(name)
-		if (null != v) { v.value = value; value }
-		else if (null != parent)
+		if (null != v) {
+			v.value = value; value
+		} else if (null != parent)
 			parent.assign(original, name, value)
 		else original.addAndReturn(name, value)
 	}
 
 	IKismetObject change(String name, IKismetObject value) {
 		final v = getVariable(name)
-		if (null != v) { v.value = value; value }
-		else if (null != parent)
+		if (null != v) {
+			v.value = value; value
+		} else if (null != parent)
 			parent.change(name, value)
 		else throw new UndefinedVariableException(name)
 	}
 
 	Block child(Expression expr) {
-		new Block(expr, this)
+		new Block(expr, child())
 	}
 
 	Block child(Expression[] expr) {
-		new Block(new BlockExpression(expr.toList()), this)
+		new Block(new BlockExpression(expr.toList()), child())
 	}
 
 	Block child(List<Expression> expr) {
-		new Block(new BlockExpression(expr), this)
+		new Block(new BlockExpression(expr), child())
 	}
 
 	Context child() {
@@ -106,15 +109,15 @@ class Context {
 	}
 
 	IKismetObject childEval(Expression expr) {
-		child(expr).evaluate()
+		expr.evaluate(child())
 	}
 
 	IKismetObject childEval(Expression[] expr) {
-		child(expr).evaluate()
+		new BlockExpression(expr.toList()).evaluate(child())
 	}
 
 	IKismetObject childEval(List<Expression> expr) {
-		child(expr).evaluate()
+		new BlockExpression(expr).evaluate(child())
 	}
 
 	IKismetObject eval(Expression expr) {
