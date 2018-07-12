@@ -5,13 +5,18 @@ import groovy.transform.InheritConstructors
 import hlaaftana.kismet.Kismet
 import hlaaftana.kismet.exceptions.UndefinedVariableException
 import hlaaftana.kismet.parser.Parser
-import hlaaftana.kismet.scope.StringEscaper
+import hlaaftana.kismet.parser.StringEscaper
 import hlaaftana.kismet.vm.Context
 import hlaaftana.kismet.vm.IKismetObject
 
 @CompileStatic
 abstract class Expression {
 	abstract IKismetObject evaluate(Context c)
+	Collection<Expression> getMembers() { [] }
+	Expression getAt(int i) { members[i] }
+	Expression join(List<Expression> exprs) {
+		throw new UnsupportedOperationException("Cannot join exprs $exprs on class ${this.class}")
+	}
 
 	Expression percentize(Parser p) {
 		new StaticExpression(this, p.context)
@@ -61,8 +66,27 @@ class PathExpression extends Expression {
 
 	String repr() { root.repr() + steps.join('') }
 
+	Collection<Expression> getMembers() {
+		def result = new ArrayList<Expression>(steps.size() + 1)
+		result.add(root)
+		for (def s: steps) result.add(s.asExpr())
+		result
+	}
+
+	PathExpression join(List<Expression> m) {
+		def result = new ArrayList<Step>(m.size() - 1)
+		final s = steps
+		assert s.size() == m.size(), "Members must be same size as joined expressions"
+		for (int i = 1; i < m.size(); ++i) {
+			result.add(s[i - 1].borrow(m[i]))
+		}
+		new PathExpression(m[0], result)
+	}
+
 	interface Step {
 		IKismetObject apply(Context c, IKismetObject object)
+		Expression asExpr()
+		Step borrow(Expression expr)
 	}
 
 	static class PropertyStep implements Step {
@@ -77,6 +101,10 @@ class PathExpression extends Expression {
 		}
 
 		String toString() { ".$name" }
+		Expression asExpr() { new NameExpression(name) }
+		PropertyStep borrow(Expression expr) {
+			new PropertyStep(expr.toString())
+		}
 	}
 
 	static class SubscriptStep implements Step {
@@ -91,6 +119,10 @@ class PathExpression extends Expression {
 		}
 
 		String toString() { ".[${expression.repr()}]" }
+		Expression asExpr() { expression }
+		SubscriptStep borrow(Expression expr) {
+			new SubscriptStep(expr)
+		}
 	}
 
 	static class EnterStep implements Step {
@@ -119,6 +151,10 @@ class PathExpression extends Expression {
 					object.kismetClass().propertyGet(object, name)
 				}
 			}
+		}
+		Expression asExpr() { expression }
+		EnterStep borrow(Expression expr) {
+			new EnterStep(expr)
 		}
 	}
 }
@@ -150,6 +186,9 @@ class DiveExpression extends Expression {
 		c = c.child()
 		inner.evaluate(c)
 	}
+
+	Collection<Expression> getMembers() { [inner] }
+	DiveExpression join(List<Expression> a) { new DiveExpression(a[0]) }
 }
 
 @CompileStatic
@@ -167,6 +206,11 @@ class BlockExpression extends Expression {
 		IKismetObject a = Kismet.NULL
 		for (e in content) a = e.evaluate(c)
 		a
+	}
+
+	Collection<Expression> getMembers() { content }
+	BlockExpression join(List<Expression> exprs) {
+		new BlockExpression(exprs)
 	}
 }
 
@@ -199,9 +243,7 @@ class CallExpression extends Expression {
 		if (null == callValue) return Kismet.NULL
 		IKismetObject obj = callValue.evaluate(c)
 		if (obj.inner() instanceof KismetCallable) {
-			final arr = new Expression[arguments.size()]
-			for (int i = 0; i < arr.length; ++i) arr[i] = arguments[i]
-			((KismetCallable) obj.inner()).call(c, arr)
+			((KismetCallable) obj.inner()).call(c, (Expression[]) arguments.toArray())
 		} else {
 			final arr = new IKismetObject[arguments.size()]
 			for (int i = 0; i < arr.length; ++i) arr[i] = arguments[i].evaluate(c)
@@ -215,10 +257,15 @@ class CallExpression extends Expression {
 		r.addAll(arguments)
 		r
 	}
+
+	Collection<Expression> getMembers() { expressions }
+	CallExpression join(List<Expression> exprs) {
+		new CallExpression(exprs)
+	}
 }
 
 @CompileStatic
-trait ConstantExpression<T> {
+class ConstantExpression<T> extends Expression {
 	IKismetObject<T> value
 
 	String repr() { "const($value)" }
@@ -234,7 +281,7 @@ trait ConstantExpression<T> {
 }
 
 @CompileStatic
-class NumberExpression extends Expression implements ConstantExpression<Number> {
+class NumberExpression extends ConstantExpression<Number> {
 	String repr() { value.toString() }
 
 	NumberExpression(boolean type, StringBuilder[] arr) {
@@ -316,13 +363,14 @@ class NumberExpression extends Expression implements ConstantExpression<Number> 
 
 		@Override
 		IKismetObject evaluate(Context c) {
+			println c.@variables
 			c.@variables[index].value
 		}
 	}
 }
 
 @CompileStatic
-class StringExpression extends Expression implements ConstantExpression<String> {
+class StringExpression extends ConstantExpression<String> {
 	String raw
 	Exception exception
 
@@ -347,7 +395,7 @@ class StringExpression extends Expression implements ConstantExpression<String> 
 }
 
 @CompileStatic
-class StaticExpression<T extends Expression> extends Expression implements ConstantExpression<Object> {
+class StaticExpression<T extends Expression> extends ConstantExpression<Object> {
 	T expression
 
 	String repr() { expression ? "static[${expression.repr()}]($value)" : "static($value)" }

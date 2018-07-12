@@ -7,7 +7,7 @@ import hlaaftana.kismet.scope.Prelude
 
 @CompileStatic
 class KismetModels {
-	static IKismetObject KISMET_NULL = new WrapperKismetObject(null, Prelude.defaultContext.Null)
+	static IKismetObject KISMET_NULL = NullClass.OBJECT
 
 	static IKismetObject<WrapperKismetClass> model(WrapperKismetClass x) { x.object }
 

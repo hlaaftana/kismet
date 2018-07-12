@@ -7,6 +7,7 @@ import hlaaftana.kismet.Kismet
 import hlaaftana.kismet.call.*
 import hlaaftana.kismet.exceptions.*
 import hlaaftana.kismet.parser.Parser
+import hlaaftana.kismet.parser.StringEscaper
 import hlaaftana.kismet.vm.*
 
 import java.math.RoundingMode
@@ -25,7 +26,7 @@ class Prelude {
 	static Map<String, IKismetObject> defaultContext = [
 			Class: MetaKismetClass.OBJECT,
 			Object: new WrapperKismetClass(IKismetObject, 'Object').object,
-			Null: new WrapperKismetClass(null, 'Null').object,
+			Null: NullClass.INSTANCE,
 			UnknownNumber: NonPrimitiveNumClass.INSTANCE,
 			Integer: IntClass.INSTANCE,
 			Float: FloatClass.INSTANCE,
@@ -55,6 +56,7 @@ class Prelude {
 			Block: new WrapperKismetClass(Block, 'Block').object,
 			Callable: new WrapperKismetClass(KismetCallable, 'Callable').object,
 			Function: new WrapperKismetClass(Function, 'Function').object,
+			FunctionArguments: new WrapperKismetClass(KismetFunction.Arguments, 'FunctionArguments').object,
 			Template: new WrapperKismetClass(Template, 'Template').object,
 			Macro: new WrapperKismetClass(Macro, 'Macro').object,
 			Native: new WrapperKismetClass(Object, 'Native').object,
@@ -160,7 +162,7 @@ class Prelude {
 				do: Function.NOP,
 				'don\'t': new AbstractTemplate() {
 					@CompileStatic
-					Expression transform(Expression... args) {
+					Expression transform(Parser parser, Expression... args) {
 						NoExpression.INSTANCE
 					}
 				},
@@ -331,23 +333,34 @@ class Prelude {
 				arccosine: funcc(true) { ... args -> Math.acos(args[0] as double) },
 				arctangent: funcc(true) { ... args -> Math.atan(args[0] as double) },
 				arctan2: funcc(true) { ... args -> Math.atan2(args[0] as double, args[1] as double) },
-				round: macr(true) { Context c, Expression... args ->
-					def value = args[0].evaluate(c).inner()
-					if (args.length > 1 || !(value instanceof Number)) value = value as BigDecimal
+				do_round: funcc(true) { ...args ->
+					def value = args[0]
+					String mode = args[1]?.toString()
+					if (null != mode) value = value as BigDecimal
 					if (value instanceof BigDecimal) {
-						if (args.length > 1) {
-							Expression x = args[1]
-							String a = x instanceof NameExpression ?
-									((NameExpression) x).text : x.evaluate(c).toString()
-							RoundingMode mode = roundingModes[a]
-							if (null == mode) throw new UnexpectedValueException('Unknown rounding mode ' + a)
-							value.setScale(args.length > 2 ? args[2].evaluate(c) as int : 0, mode).stripTrailingZeros()
-						} else value.setScale(0, RoundingMode.HALF_UP).stripTrailingZeros()
+						RoundingMode realMode
+						if (null != mode) {
+							final m = roundingModes[mode]
+							if (null == m) throw new UnexpectedValueException('Unknown rounding mode ' + mode)
+							realMode = m
+						} else realMode = RoundingMode.HALF_UP
+						value.setScale(null == args[2] ? 0 : args[2] as int, realMode).stripTrailingZeros()
 					} else if (value instanceof BigInteger
 							|| value instanceof int
 							|| value instanceof long) value
 					else if (value instanceof float) Math.round(value.floatValue())
 					else Math.round(((Number) value).doubleValue())
+				},
+				round: new AbstractTemplate() {
+					@Override
+					Expression transform(Parser parser, Expression... args) {
+						def x = new ArrayList<Expression>(4)
+						x.add(new NameExpression('do_round'))
+						x.add(args[0])
+						if (args.length > 1) x.add(new StaticExpression(args[1], toAtom(args[1])))
+						if (args.length > 2) x.add(args[2])
+						new CallExpression(x)
+					}
 				},
 				floor: funcc(true) { ... args ->
 					def value = args[0]
@@ -539,15 +552,15 @@ class Prelude {
 					for (s in a) x.append(s)
 					x.toString()
 				},
-				int: func(true) { IKismetObject... a -> ((WrapperKismetObject) a[0]).as BigInteger },
-				int8: func(true) { IKismetObject... a -> ((WrapperKismetObject) a[0]).as byte },
-				int16: func(true) { IKismetObject... a -> ((WrapperKismetObject) a[0]).as short },
-				int32: func(true) { IKismetObject... a -> ((WrapperKismetObject) a[0]).as int },
-				int64: func(true) { IKismetObject... a -> ((WrapperKismetObject) a[0]).as long },
-				Character: func(true) { IKismetObject... a -> ((WrapperKismetObject) a[0]).as Character },
-				float: func(true) { IKismetObject... a -> ((WrapperKismetObject) a[0]).as BigDecimal },
-				float32: func(true) { IKismetObject... a -> ((WrapperKismetObject) a[0]).as float },
-				float64: func(true) { IKismetObject... a -> ((WrapperKismetObject) a[0]).as double },
+				int: func(true) { IKismetObject... a -> a[0] as BigInteger },
+				int8: func(true) { IKismetObject... a -> a[0] as byte },
+				int16: func(true) { IKismetObject... a -> a[0] as short },
+				int32: func(true) { IKismetObject... a -> a[0] as int },
+				int64: func(true) { IKismetObject... a -> a[0] as long },
+				Character: func(true) { IKismetObject... a -> a[0] as Character },
+				float: func(true) { IKismetObject... a -> a[0] as BigDecimal },
+				float32: func(true) { IKismetObject... a -> a[0] as float },
+				float64: func(true) { IKismetObject... a -> a[0] as double },
 				'~': funcc { ... args -> toIterator(args[0]) },
 				list_iterator: funcc { ... args -> args[0].invokeMethod('listIterator', null) },
 				'has_next?': funcc { ... args -> args[0].invokeMethod('hasNext', null) },
@@ -759,30 +772,40 @@ class Prelude {
 				lines: funcc { ... args -> args[0].invokeMethod('readLines', null) },
 				denormalize: funcc { ... args -> args[0].toString().denormalize() },
 				normalize: funcc { ... args -> args[0].toString().normalize() },
-				hex: macr { Context c, Expression... x ->
-					if (x[0] instanceof NumberExpression || x[0] instanceof NameExpression) {
-						String t = x[0] instanceof NumberExpression ? ((NumberExpression) x[0]).value.inner().toString()
-								: ((NameExpression) x[0]).text
-						new BigInteger(t, 16)
-					} else throw new UnexpectedSyntaxException('Expression after hex was not a hexadecimal number literal.'
-							+ ' To convert hex strings to integers do [from_base str 16], '
-							+ ' and to convert integers to hex strings do [to_base i 16].')
+				hex: new AbstractTemplate() {
+					@Override
+					Expression transform(Parser parser, Expression... args) {
+						if (args[0] instanceof NumberExpression || args[0] instanceof NameExpression) {
+							String t = args[0] instanceof NumberExpression ?
+									((NumberExpression) args[0]).value.inner().toString() :
+									((NameExpression) args[0]).text
+							new NumberExpression(new BigInteger(t, 16))
+						} else throw new UnexpectedSyntaxException('Expression after hex was not a hexadecimal number literal.'
+								+ ' To convert hex strings to integers do [from_base str 16], '
+								+ ' and to convert integers to hex strings do [to_base i 16].')
+					}
 				},
-				binary: macr { Context c, Expression... x ->
-					if (x[0] instanceof NumberExpression) {
-						String t = ((NumberExpression) x[0]).value.inner().toString()
-						new BigInteger(t, 2)
-					} else throw new UnexpectedSyntaxException('Expression after binary was not a binary number literal.'
-							+ ' To convert binary strings to integers do [from_base str 2], '
-							+ ' and to convert integers to binary strings do [to_base i 2].')
+				binary: new AbstractTemplate() {
+					@Override
+					Expression transform(Parser parser, Expression... args) {
+						if (args[0] instanceof NumberExpression) {
+							String t = ((NumberExpression) args[0]).value.inner().toString()
+							new NumberExpression(new BigInteger(t, 2))
+						} else throw new UnexpectedSyntaxException('Expression after binary was not a binary number literal.'
+								+ ' To convert binary strings to integers do [from_base str 2], '
+								+ ' and to convert integers to binary strings do [to_base i 2].')
+					}
 				},
-				octal: macr { Context c, Expression... x ->
-					if (x[0] instanceof NumberExpression) {
-						String t = ((NumberExpression) x[0]).value.inner().toString()
-						new BigInteger(t, 8)
-					} else throw new UnexpectedSyntaxException('Expression after octal was not a octal number literal.'
-							+ ' To convert octal strings to integers do [from_base str 8], '
-							+ ' and to convert integers to octal strings do [to_base i 8].')
+				octal: new AbstractTemplate() {
+					@Override
+					Expression transform(Parser parser, Expression... args) {
+						if (args[0] instanceof NumberExpression) {
+							String t = ((NumberExpression) args[0]).value.inner().toString()
+							new NumberExpression(new BigInteger(t, 8))
+						} else throw new UnexpectedSyntaxException('Expression after octal was not a octal number literal.'
+								+ ' To convert octal strings to integers do [from_base str 8], '
+								+ ' and to convert integers to octal strings do [to_base i 8].')
+					}
 				},
 				to_base: funcc { ... a -> (a[0] as BigInteger).toString(a[1] as int) },
 				from_base: funcc { ... a -> new BigInteger(a[0].toString(), a[1] as int) },
@@ -839,8 +862,25 @@ class Prelude {
 						c.define(f.name, Kismet.model(f))
 					}
 				},
-				fn: macr { Context c, Expression... exprs ->
-					new KismetFunction(c, false, exprs)
+				fn: new AbstractTemplate() {
+					@Override
+					Expression transform(Parser parser, Expression... args) {
+						KismetFunction.Arguments arguments
+						final a = args[0]
+						if (args.length == 1) {
+							arguments = KismetFunction.Arguments.EMPTY
+						} else {
+							arguments = new KismetFunction.Arguments(a instanceof CallExpression ?
+									((CallExpression) a).expressions : a instanceof BlockExpression ?
+									((BlockExpression) a).content : null)
+						}
+						new CallExpression(new StaticExpression(new ContextFunction() {
+							IKismetObject call(Context c, IKismetObject... _) {
+								Kismet.model new KismetFunction(arguments, args.length == 1 ? c.child(a) :
+										c.child(args.tail()))
+							}
+						}))
+					}
 				},
 				mcr: macr { Context c, Expression... exprs ->
 					new KismetMacro(c.child(exprs))
@@ -852,7 +892,7 @@ class Prelude {
 				tmpl: macr { Context c, Expression... exprs ->
 					new AbstractTemplate() {
 						@CompileStatic
-						Expression transform(Expression... args) {
+						Expression transform(Parser parser, Expression... args) {
 							final co = c.child(exprs)
 							for (int i = 0; i < args.length; ++i) {
 								co.context.set("\$$i", Kismet.model(args[i]))
@@ -863,7 +903,7 @@ class Prelude {
 				},
 				defmcr: new AbstractTemplate() {
 					@CompileStatic
-					Expression transform(Expression... args) {
+					Expression transform(Parser parser, Expression... args) {
 						def a = new ArrayList<Expression>()
 						a.add(new NameExpression('mcr'))
 						for (int i = 1; i < args.length; ++i)
@@ -871,14 +911,16 @@ class Prelude {
 						new CallExpression([new NameExpression(':='), args[0], new CallExpression(a)])
 					}
 				},
-				'fn*': macr { Context c, Expression... exprs ->
-					List<Expression> kill = new ArrayList<>()
-					kill.add(new NameExpression('fn'))
-					kill.addAll(exprs)
-					StaticExpression fake = new StaticExpression(new CallExpression(kill), c)
-					def ex = new CallExpression([new NameExpression('fn'), new CallExpression([
-							new NameExpression('call'), fake, new NameExpression('$0')])])
-					ex.evaluate(c)
+				'fn*': new AbstractTemplate() {
+					@Override
+					Expression transform(Parser parser, Expression... args) {
+						def kill = new ArrayList<Expression>()
+						kill.add(new NameExpression('fn'))
+						kill.addAll(args)
+						new CallExpression(new NameExpression('fn'), new CallExpression(
+								new NameExpression('call'), new CallExpression(kill),
+								new NameExpression('$0')))
+					}
 				},
 				undef: macr { Context c, Expression... exprs ->
 					c.getVariables().remove(c.getVariable(exprs[0].evaluate(c).toString()))
@@ -889,40 +931,48 @@ class Prelude {
 						Kismet.model(c.child(args))
 					}
 				},
-				incr: macr { Context c, Expression... exprs ->
-					assign(c, exprs.take(1), new CallExpression([new NameExpression('next'), exprs[0]]).evaluate(c), 'increment')
+				incr: new AbstractTemplate() {
+					Expression transform(Parser parser, Expression... args) {
+						new CallExpression(new NameExpression('='), args[0],
+								args.length > 1 ? new CallExpression(new NameExpression('+'), args[0], args[1]) :
+										new CallExpression(new NameExpression('next'), args[0]))
+					}
 				},
-				decr: macr { Context c, Expression... exprs ->
-					assign(c, exprs.take(1), new CallExpression([new NameExpression('prev'), exprs[0]]).evaluate(c), 'decrement')
+				decr: new AbstractTemplate() {
+					Expression transform(Parser parser, Expression... args) {
+						new CallExpression(new NameExpression('='), args[0],
+								args.length > 1 ? new CallExpression(new NameExpression('-'), args[0], args[1]) :
+										new CallExpression(new NameExpression('prev'), args[0]))
+					}
 				},
 				'|>=': new AbstractTemplate() {
 					@CompileStatic
-					Expression transform(Expression... args) {
+					Expression transform(Parser parser, Expression... args) {
 						new CallExpression([new NameExpression('='), args[0], pipeForwardExpr(args[0], args.tail().toList())])
 					}
 				},
 				'<|=': new AbstractTemplate() {
 					@CompileStatic
-					Expression transform(Expression... args) {
+					Expression transform(Parser parser, Expression... args) {
 						new CallExpression([new NameExpression('='), args[0], pipeBackwardExpr(args[0], args.tail().toList())])
 					}
 				},
 				dive: new AbstractTemplate() {
 					@CompileStatic
-					Expression transform(Expression... args) {
+					Expression transform(Parser parser, Expression... args) {
 						new DiveExpression(args.length == 1 ? args[0] : new BlockExpression(args.toList()))
 					}
 				},
 				let: new AbstractTemplate() {
 					@CompileStatic
-					Expression transform(Expression... args) {
+					Expression transform(Parser parser, Expression... args) {
 						if (args.length == 0) throw new UnexpectedSyntaxException('Empty let expression not allowed')
 						if (!(args[0] instanceof CallExpression))
 							throw new UnexpectedSyntaxException("Did not expect " + args[0].class + " in let expression")
 						final cnt = (CallExpression) args[0]
 						Expression resultVar = null
 						final len = cnt.arguments.size() + 1
-						def vars = new ArrayList<Expression>((int) (len / 2) - len % 2)
+						def vars = new ArrayList<Expression>((int) (len / 2))
 						final defs = cnt.expressions.iterator()
 						while (defs.hasNext()) {
 							final key = defs.next()
@@ -966,8 +1016,13 @@ class Prelude {
 				},
 				quote: new AbstractTemplate() {
 					@CompileStatic
-					Expression transform(Expression... args) {
-						args.length == 1 ? args[0] : new BlockExpression(args.toList())
+					Expression transform(Parser parser, Expression... args) {
+						def slowdown = new ArrayList<Expression>(args.length + 1)
+						slowdown.add(new NameExpression('quote'))
+						slowdown.addAll(args)
+						new StaticExpression(new CallExpression(slowdown),
+							args.length == 1 ? args[0] :
+									new BlockExpression(args.toList()))
 					}
 				},
 				if_then: macr { Context c, Expression... exprs ->
@@ -1291,8 +1346,7 @@ class Prelude {
 					args.length > 1 ? args[0].inner().every(args[1].kismetClass().&call.curry(args[1])) : args[0].inner().every()
 				},
 				'none?': func { IKismetObject... args ->
-					!(
-							args.length > 1 ? args[0].inner().any(args[1].kismetClass().&call.curry(args[1])) : args[0].inner().any())
+					!(args.length > 1 ? args[0].inner().any(args[1].kismetClass().&call.curry(args[1])) : args[0].inner().any())
 				},
 				find: func { IKismetObject... args -> args[0].inner().invokeMethod('find', args[1].kismetClass().&call.curry(args[1])) },
 				find_result: func { IKismetObject... args -> args[0].inner().invokeMethod('findResult', args[1].kismetClass().&call.curry(args[1])) },
@@ -1547,13 +1601,13 @@ class Prelude {
 				'number?': funcc { ... args -> args[0] instanceof Number },
 				'|>': new AbstractTemplate() {
 					@CompileStatic
-					Expression transform(Expression... args) {
+					Expression transform(Parser parser, Expression... args) {
 						pipeForwardExpr(args[0], args.tail().toList())
 					}
 				},
 				'<|': new AbstractTemplate() {
 					@CompileStatic
-					Expression transform(Expression... args) {
+					Expression transform(Parser parser, Expression... args) {
 						pipeBackwardExpr(args[0], args.tail().toList())
 					}
 				},

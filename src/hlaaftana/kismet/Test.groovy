@@ -8,12 +8,12 @@ import hlaaftana.kismet.vm.Context
 @CompileStatic
 class Test {
 	static main(args) {
+		def parser = new Parser()
+		parser.context = new Context(Kismet.DEFAULT_CONTEXT, [echo: Kismet.model(Prelude.funcc(System.out.&println))])
 		/*final text = new File('test.ksmt').text
 		def p = parser.parse(text)
 		println p.repr()
 		println p.evaluate(parser.context)*/
-		def parser = new Parser()
-		parser.context = new Context(Kismet.DEFAULT_CONTEXT, [echo: Kismet.model(Prelude.funcc(System.out.&println))])
 		for (f in ['binarysearch', 'compareignorecase', 'factorial', 'fibonacci', 'fizzbuzz', 'memoize']) {
 			println "file: $f"
 			final file = new File("Kismet/examples/${f}.ksmt")

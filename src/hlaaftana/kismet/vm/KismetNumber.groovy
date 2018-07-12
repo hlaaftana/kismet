@@ -70,6 +70,8 @@ abstract class KismetNumber<T extends Number> extends Number implements IKismetO
 	}
 
 	String toString() { inner().toString() }
+
+	def asType(Class type) { inner().asType(type) }
 }
 
 @CompileStatic
@@ -158,15 +160,15 @@ final class KNonPrimitiveNum extends KismetNumber {
 	void set(Number value) { inner = value }
 
 	KNonPrimitiveNum plus(KismetNumber obj) {
-		new KNonPrimitiveNum(inner + obj.inner())
+		new KNonPrimitiveNum(inner.plus(obj.inner()))
 	}
 
 	KNonPrimitiveNum minus(KismetNumber obj) {
-		new KNonPrimitiveNum(inner - obj.inner())
+		new KNonPrimitiveNum(inner.minus(obj.inner()))
 	}
 
 	KNonPrimitiveNum multiply(KismetNumber obj) {
-		new KNonPrimitiveNum(inner * obj.inner())
+		new KNonPrimitiveNum(inner.multiply(obj.inner()))
 	}
 
 	KNonPrimitiveNum div(KismetNumber obj) {

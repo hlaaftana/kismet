@@ -100,7 +100,7 @@ abstract class Function implements KismetCallable {
 		Function t
 		if (times < 0) {
 			if (!(this instanceof Invertable))
-				throw new IllegalArgumentException('Function does not implement Inversable')
+				throw new IllegalArgumentException('Function does not implement Invertable')
 			t = ((Invertable) this).inverse
 		} else t = this
 		final m = t
@@ -175,6 +175,11 @@ class KismetFunction extends Function implements Nameable {
 		}
 	}
 
+	KismetFunction(Arguments arguments, Block block) {
+		this.arguments = arguments
+		this.block = block
+	}
+
 	KismetFunction() {}
 
 	IKismetObject call(IKismetObject... args) {
@@ -204,6 +209,7 @@ class KismetFunction extends Function implements Nameable {
 					parameters.add(new Parameter(name: ((StringExpression) e).value.inner(), index: last++))
 				else if (e instanceof BlockExpression) parse(((BlockExpression) e).content)
 				else if (e instanceof CallExpression) parseCall(((CallExpression) e).expressions)
+				else println "ignored expression in functoin arguments: $e"
 			}
 		}
 
@@ -280,9 +286,7 @@ class KismetFunction extends Function implements Nameable {
 
 		void setArgs(Context c, IKismetObject[] args) {
 			def args2 = new Object[args.length]
-			for (int i = 0; i < args.length; ++i) {
-				args2[i] = args[i]
-			}
+			System.arraycopy(args, 0, args2, 0, args2.length)
 			final lis = new Tuple(args2)
 			if (doDollars) {
 				for (int it = 0; it < args.length; ++it) {

@@ -8,8 +8,8 @@ defn [memoized f] {
 defn [nth_fibonacci n] [check n
   zero 1
   one 1
-  [sum [map [range [decr n] [decr n]] nth_fibonacci]]]
+  [sum [collect [range [decr n] [decr n]] nth_fibonacci]]]
 
 memoize nth_fibonacci
 
-assert_is [nth_fibonacci 40] 102334155
+assert_is [nth_fibonacci 40] 165580141
