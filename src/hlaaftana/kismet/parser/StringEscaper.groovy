@@ -1,4 +1,4 @@
-package hlaaftana.kismet.scope
+package hlaaftana.kismet.parser
 
 import groovy.transform.CompileStatic
 

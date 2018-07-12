@@ -1,43 +1,37 @@
 package hlaaftana.kismet.parser
 
 import groovy.transform.CompileStatic
-import hlaaftana.kismet.call.BlockExpression
-import hlaaftana.kismet.call.CallExpression
-import hlaaftana.kismet.call.ConstantExpression
-import hlaaftana.kismet.call.Expression
-import hlaaftana.kismet.call.Function
-import hlaaftana.kismet.call.GroovyFunction
-import hlaaftana.kismet.call.GroovyMacro
-import hlaaftana.kismet.call.KismetFunction
-import hlaaftana.kismet.call.Macro
-import hlaaftana.kismet.call.NameExpression
-import hlaaftana.kismet.call.NoExpression
-import hlaaftana.kismet.call.NumberExpression
-import hlaaftana.kismet.call.PathExpression
-import hlaaftana.kismet.call.StaticExpression
-import hlaaftana.kismet.call.StringExpression
-import hlaaftana.kismet.call.Template
 import hlaaftana.kismet.Kismet
-import hlaaftana.rewrite.kismet.call.*
+import hlaaftana.kismet.call.*
 import hlaaftana.kismet.exceptions.UndefinedVariableException
 import hlaaftana.kismet.exceptions.UnexpectedSyntaxException
-import hlaaftana.kismet.exceptions.UnexpectedValueException
 import hlaaftana.kismet.scope.Prelude
 import hlaaftana.kismet.vm.Context
 import hlaaftana.kismet.vm.IKismetObject
-import hlaaftana.kismet.vm.WrapperKismetObject
-
-import java.math.RoundingMode
 
 @CompileStatic
 class Optimizer {
 	Parser parser
+	boolean prelude, closure, pure, template
 
 	Optimizer(Parser p) { parser = p }
 
+	void on() {
+		template = prelude = true
+	}
+
+	void off() {
+		template = pure = closure = prelude = false
+	}
+
 	Expression optimize(Expression expr) {
+		Collection<Expression> m
 		if (expr instanceof CallExpression) {
 			return optimize((CallExpression) expr)
+		} else if ((m = expr.members).size() > 0) {
+			def a = new ArrayList<Expression>(m.size())
+			for (final ex : m) a.add(optimize(ex))
+			return expr.join(a)
 		}
 		expr
 	}
@@ -53,23 +47,22 @@ class Optimizer {
 			if (null != func) {
 				def inner = func.inner()
 				int equalsType = 0
-				if (parser.fillTemplate && inner instanceof Template && ((Template) inner).constant)
-					return optimize(((Template) inner).transform(expr.arguments as Expression[]))
+				if (template && inner instanceof Template) {
+					final tmpl = (Template) inner
+					Expression[] arguments
+					if (tmpl.hungry) arguments = expr.arguments.toArray(arguments)
+					else {
+						arguments = new Expression[expr.arguments.size()]
+						for (int i = 0; i < arguments.length; ++i) {
+							arguments[i] = optimize(expr.arguments[i])
+						}
+					}
+					final result = ((Template) inner).transform(parser, arguments)
+					return tmpl.optimized ? result : optimize(result)
+				}
 				if (inner instanceof Macro) {
 					Expression currentExpression = expr
 					switch (text) {
-						case "don't":
-							return NoExpression.INSTANCE
-						case "round":
-							def p = expr.arguments[1]
-							RoundExpression rounder
-							if (null != p && p instanceof NameExpression)
-								rounder = new RoundExpression(parser.context, expr, (NameExpression) p)
-							else rounder = new RoundExpression(parser.context, expr)
-							return rounder
-						case "binary": return new BinaryExpression(expr)
-						case "octal": return new OctalExpression(expr)
-						case "hex": return new HexExpression(expr)
 						case "change":
 						case ":::=":
 							++equalsType
@@ -86,7 +79,7 @@ class Optimizer {
 							for (int i = size - 2; i >= 0; --i) {
 								def name = expr.arguments[i]
 								def atom = Prelude.toAtom(name)
-								def orig = new CallExpression([expr.callValue, name, last])
+								def orig = new CallExpression(expr.callValue, name, last)
 								if (null != atom) switch (equalsType) {
 									case 3: last = new ChangeExpression(orig, atom, last); break
 									case 2: last = new ContextSetExpression(orig, atom, last); break
@@ -96,18 +89,12 @@ class Optimizer {
 									last = new DefineFunctionExpression(orig)
 								else if (name instanceof PathExpression)
 									last = new PathStepSetExpression(orig, (PathExpression) name)
-								else throw new UnexpectedSyntaxException("During $text, got for name: ${name.repr()}")
+								else throw new UnexpectedSyntaxException("During $text, got for name: $name")
 							}
 							if (last instanceof NameExpression)
 								last = new DefineExpression(expr, ((NameExpression) last).text, NoExpression.INSTANCE)
 							return (CallExpression) last
-						case "fn": return new FunctionExpression(expr)
 						case "defn": return new DefineFunctionExpression(expr)
-						case "fn*": return new FunctionSpreadExpression(expr)
-						case "incr": return optimize(new CallExpression([new NameExpression('='), expr.arguments[0],
-								new CallExpression([new NameExpression('next'), expr.arguments[0]])]))
-						case "decr": return optimize(new CallExpression([new NameExpression('='), expr.arguments[0],
-								new CallExpression([new NameExpression('prev'), expr.arguments[0]])]))
 						case "for": return new ForExpression(expr, parser.context, false, false)
 						case "for<": return new ForExpression(expr, parser.context, false, true)
 						case "&for": return new ForExpression(expr, parser.context, true, false)
@@ -116,9 +103,9 @@ class Optimizer {
 						case "&for:": return new ForEachExpression(expr, parser.context, true)
 						case "check": return new CheckExpression(expr)
 						default:
-							if (parser.optimizeClosure && inner instanceof GroovyMacro)
+							if (closure && inner instanceof GroovyMacro)
 								currentExpression = new ClosureMacroExpression(expr, inner)
-							if (parser.optimizePure && ((Macro) inner).pure &&
+							if (pure && ((Macro) inner).pure &&
 									expr.arguments.every { it instanceof ConstantExpression })
 								currentExpression = new StaticExpression(
 										currentExpression, parser.context)
@@ -132,9 +119,9 @@ class Optimizer {
 						case "do":
 							currentExpression = new NopExpression(expr); break
 						default:
-							if (parser.optimizeClosure && inner instanceof GroovyFunction)
+							if (closure && inner instanceof GroovyFunction)
 								currentExpression = new ClosureCallExpression(expr, inner)
-							if (parser.optimizePure && ((Function) inner).pure &&
+							if (pure && ((Function) inner).pure &&
 									expr.arguments.every { it instanceof ConstantExpression })
 								currentExpression = new StaticExpression(
 										currentExpression, parser.context)
@@ -151,7 +138,7 @@ class Optimizer {
 			super(original.expressions)
 		}
 
-		String repr() { "fake" + super.repr() }
+		String repr() { "fake" + super }
 	}
 
 	static class IdentityExpression extends FakeCallExpression {
@@ -171,22 +158,7 @@ class Optimizer {
 			expression.evaluate(c)
 		}
 
-		String repr() { "identity(${arguments*.repr().join(', ')})" }
-	}
-
-	static class PathStepExpression extends FakeCallExpression {
-		Expression value
-		PathExpression.Step step
-
-		PathStepExpression(CallExpression original, PathExpression path) {
-			super(original)
-			value = new PathExpression(path.root, path.steps.init())
-			step = path.steps.last()
-		}
-
-		IKismetObject evaluate(Context c) {
-			step.apply(c, value.evaluate(c))
-		}
+		String repr() { "identity(${arguments.join(', ')})" }
 	}
 
 	static class PathStepSetExpression extends FakeCallExpression {
@@ -262,151 +234,6 @@ class Optimizer {
 		}
 	}
 
-	static class RoundExpression extends FakeCallExpression {
-		private static Map<String, RoundingMode> roundingModes = [
-				'^': RoundingMode.CEILING, 'v': RoundingMode.FLOOR,
-				'^0': RoundingMode.UP, 'v0': RoundingMode.DOWN,
-				'/^': RoundingMode.HALF_UP, '/v': RoundingMode.HALF_DOWN,
-				'/2': RoundingMode.HALF_EVEN, '!': RoundingMode.UNNECESSARY
-		].asImmutable()
-
-		RoundingMode mode
-		Expression modeExpression
-
-		RoundingMode getRoundingMode(Context c) {
-			if (null == mode) roundingMode(c, modeExpression)
-			else mode
-		}
-
-		static RoundingMode roundingMode(Context c, Expression expr) {
-			def name = c.eval(expr).toString()
-			def val = roundingModes[name]
-			if (null == val) throw new UnexpectedValueException("Unknown rounding mode $name")
-			val
-		}
-
-		Integer scale
-		Expression scaleExpression
-
-		int getScale(Context c) {
-			if (null == scale) c.eval(scaleExpression).inner() as Integer
-			else scale
-		}
-
-		Number cached
-
-		RoundExpression(Context c, CallExpression original, NameExpression path = null) {
-			super(original)
-			if (null != path) {
-				def name = path.text
-				mode = roundingModes[name]
-				if (null == mode) throw new UnexpectedValueException("Unknown rounding mode $name")
-				modeExpression = path
-			} else modeExpression = original.arguments[1]
-			if (modeExpression instanceof ConstantExpression) mode = roundingMode(c, modeExpression)
-			scaleExpression = original.arguments[2]
-			if (null == scaleExpression) scale = 0
-			if (scaleExpression instanceof ConstantExpression) scale = c.eval(scaleExpression).inner() as Integer
-			if (callValue instanceof NumberExpression)
-				cached = round(c, ((NumberExpression) callValue).evaluate(c).inner())
-		}
-
-		Number round(Context c, Number number) {
-			if (null == modeExpression) number = number as BigDecimal
-			if (number instanceof BigDecimal)
-				((BigDecimal) number).setScale(getScale(c), getRoundingMode(c) ?: RoundingMode.HALF_UP).stripTrailingZeros()
-			else if (number instanceof BigInteger
-					|| number instanceof Integer
-					|| number instanceof Long) number
-			else if (callValue instanceof Float) (Number) Math.round(number.floatValue())
-			else (Number) Math.round(number.doubleValue())
-		}
-
-		IKismetObject evaluate(Context c) {
-			Kismet.model(null == cached ? round(c, callValue.evaluate(c).inner() as Number) : cached)
-		}
-	}
-
-	static class HexExpression extends FakeCallExpression implements ConstantExpression<BigInteger> {
-		HexExpression(CallExpression original) {
-			super(original)
-			if (original.arguments.empty)
-				throw new UnexpectedSyntaxException('[hex] is for literals, otherwise use [from_base x 16]')
-			def a = original.arguments[0], b = original.arguments[1]
-			StringBuilder string = new StringBuilder()
-			if (a instanceof NumberExpression) string.append(((NumberExpression) a).value.toString())
-			else if (a instanceof NameExpression) string.append(((NameExpression) a).text)
-			else throw new UnexpectedSyntaxException('[hex] is for literals, otherwise use [from_base x 16]')
-			if (null != b && b instanceof NameExpression) string.append(((NameExpression) b).text)
-			else throw new UnexpectedSyntaxException('[hex] is for literals, otherwise use [from_base x 16]')
-			try {
-				setValue(new BigInteger(string.toString(), 16))
-			} catch (NumberFormatException ignored) {
-				throw new UnexpectedSyntaxException('[hex] is for literals, otherwise use [from_base x 16]')
-			}
-		}
-
-		String repr() { "hex($value)" }
-	}
-
-	static class OctalExpression extends FakeCallExpression implements ConstantExpression<BigInteger> {
-		OctalExpression(CallExpression original) {
-			super(original)
-			if (original.arguments.empty)
-				throw new UnexpectedSyntaxException('[octal] is for literals, otherwise use [from_base x 8]')
-			if (original.arguments[0] instanceof NumberExpression) try {
-				setValue new BigInteger(((NumberExpression) original.arguments[0]).value.toString(), 8)
-			} catch (NumberFormatException ignored) {
-				throw new UnexpectedSyntaxException('[octal] is for literals, otherwise use [from_base x 8]')
-			} else throw new UnexpectedSyntaxException('[octal] is for literals, otherwise use [from_base x 8]')
-		}
-
-		String repr() { "octal($value)" }
-	}
-
-	static class BinaryExpression extends FakeCallExpression implements ConstantExpression<BigInteger> {
-		BinaryExpression(CallExpression original) {
-			super(original)
-			if (original.arguments.empty)
-				throw new UnexpectedSyntaxException('[binary] is for literals, otherwise use [from_base x 2]')
-			if (original.arguments[0] instanceof NumberExpression) try {
-				setValue new BigInteger(((NumberExpression) original.arguments[0]).value.toString(), 2)
-			} catch (NumberFormatException ignored) {
-				throw new UnexpectedSyntaxException('[binary] is for literals, otherwise use [from_base x 2]')
-			} else throw new UnexpectedSyntaxException('[binary] is for literals, otherwise use [from_base x 2]')
-		}
-
-		String repr() { "binary($value)" }
-	}
-
-	static class FunctionExpression extends FakeCallExpression {
-		KismetFunction.Arguments args
-		Expression block
-
-		FunctionExpression(CallExpression original) {
-			super(original)
-			def a = original.arguments[0]
-			if (original.arguments.size() == 1) {
-				args = KismetFunction.Arguments.EMPTY
-				block = a
-			} else {
-				args = new KismetFunction.Arguments(a instanceof CallExpression ?
-						((CallExpression) a).expressions : a instanceof BlockExpression ?
-						((BlockExpression) a).content : null)
-				block = new BlockExpression(original.arguments.tail())
-			}
-		}
-
-		IKismetObject<KismetFunction> evaluate(Context c) {
-			def f = new KismetFunction()
-			f.arguments = args
-			f.block = c.child(block)
-			Kismet.model(f)
-		}
-
-		String repr() { "fn(${arguments*.repr().join(', ')})" }
-	}
-
 	static class DefineFunctionExpression extends FakeCallExpression {
 		String name
 		KismetFunction.Arguments args
@@ -433,32 +260,7 @@ class Optimizer {
 			c.define(name, Kismet.model(f))
 		}
 
-		String repr() { "defn(${arguments*.repr().join(', ')})" }
-	}
-
-	static class FunctionSpreadExpression extends FakeCallExpression {
-		FunctionExpression inner
-
-		FunctionSpreadExpression(CallExpression original) {
-			super(original)
-			def call = new CallExpression((List<Expression>) Collections.emptyList())
-			call.callValue = new NameExpression('fn')
-			call.arguments = original.arguments
-			inner = new FunctionExpression(call)
-		}
-
-		IKismetObject evaluate(Context c) {
-			Kismet.model(new Function() {
-				Function function = FunctionSpreadExpression.this.inner.evaluate(c).inner()
-
-				@Override
-				IKismetObject call(IKismetObject... args) {
-					function.call(((WrapperKismetObject) args[0]).as(List) as IKismetObject[])
-				}
-			})
-		}
-
-		String repr() { "fn*(${arguments*.repr().join(', ')})" }
+		String repr() { "defn(${arguments.join(', ')})" }
 	}
 
 	static class VariableModifyExpression extends FakeCallExpression {
@@ -481,7 +283,7 @@ class Optimizer {
 			c.define(name, c.eval(expression))
 		}
 
-		String repr() { "define[$name, ${expression.repr()}]" }
+		String repr() { "define[$name, $expression]" }
 	}
 
 	static class ChangeExpression extends VariableModifyExpression {
@@ -493,7 +295,7 @@ class Optimizer {
 			c.change(name, c.eval(expression))
 		}
 
-		String repr() { "change[$name, ${expression.repr()}]" }
+		String repr() { "change[$name, $expression]" }
 	}
 
 	static class AssignExpression extends VariableModifyExpression {
@@ -505,7 +307,7 @@ class Optimizer {
 			c.assign(name, c.eval(expression))
 		}
 
-		String repr() { "assign[$name, ${expression.repr()}]" }
+		String repr() { "assign[$name, $expression]" }
 	}
 
 	static class ContextSetExpression extends VariableModifyExpression {
@@ -517,7 +319,7 @@ class Optimizer {
 			c.set(name, c.eval(expression))
 		}
 
-		String repr() { "set_to[$name, ${expression.repr()}]" }
+		String repr() { "set_to[$name, $expression]" }
 	}
 
 	static class NopExpression extends FakeCallExpression {
@@ -530,7 +332,7 @@ class Optimizer {
 			Kismet.NULL
 		}
 
-		String repr() { "nop(${arguments*.repr().join(', ')})" }
+		String repr() { "nop(${arguments.join(', ')})" }
 	}
 
 	static class ClosureCallExpression extends FakeCallExpression {
@@ -545,7 +347,7 @@ class Optimizer {
 			function.call(c, arguments as Expression[])
 		}
 
-		String repr() { "gfunc[${callValue.repr()}](${arguments*.repr().join(', ')})" }
+		String repr() { "gfunc[$callValue](${arguments.join(', ')})" }
 	}
 
 	static class ClosureMacroExpression extends FakeCallExpression {
@@ -560,7 +362,7 @@ class Optimizer {
 			Kismet.model(arguments.empty ? macro.x.call(c) : macro.x.call(c, arguments as Expression[]))
 		}
 
-		String repr() { "gmacro[${callValue.repr()}](${arguments*.repr().join(', ')})" }
+		String repr() { "gmacro[$callValue](${arguments.join(', ')})" }
 	}
 
 	static class ForExpression extends FakeCallExpression {
@@ -633,7 +435,7 @@ class Optimizer {
 		}
 
 		String repr() {
-			(collect ? '&' : '') + 'for' + (less ? '<' : '') + '(' + arguments*.repr().join(', ') + ')'
+			(collect ? '&' : '') + 'for' + (less ? '<' : '') + '(' + arguments.join(', ') + ')'
 		}
 	}
 
@@ -667,9 +469,9 @@ class Optimizer {
 			} else if (size >= 3) {
 				final f = exprs[0]
 				if (f instanceof CallExpression) {
-					final cf = ((CallExpression) f).expressions
-					indexName(cf[0])
-					indexStart(c, cf[cf.size() > 1 ? 1 : 0])
+					final fc = (CallExpression) f
+					indexName(fc.callValue)
+					indexStart(c, fc.arguments.size() > 1 ? fc.arguments[0] : fc.callValue)
 				} else indexName(f)
 
 				final atom = Prelude.toAtom(exprs[1])
@@ -692,7 +494,7 @@ class Optimizer {
 
 		private void indexStart(Context c, Expression expr) {
 			if (expr instanceof ConstantExpression)
-				indexStart = (int) ((WrapperKismetObject) expr.evaluate(c)).as(int)
+				indexStart = (int) expr.evaluate(c) as int
 			else indexStartExpr = expr
 		}
 
@@ -714,6 +516,6 @@ class Optimizer {
 			Kismet.model(result)
 		}
 
-		String repr() { (collect ? '&' : '') + 'for:' + '(' + arguments*.repr().join(', ') + ')' }
+		String repr() { (collect ? '&' : '') + 'for:' + '(' + arguments.join(', ') + ')' }
 	}
 }

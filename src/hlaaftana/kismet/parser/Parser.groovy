@@ -12,10 +12,6 @@ class Parser {
 	Optimizer optimizer = new Optimizer(this)
 	Context context
 	int ln = 1, cl = 0
-	boolean optimizePrelude
-	boolean optimizeClosure
-	boolean optimizePure
-	boolean fillTemplate
 	String commentStart = ';;'
 
 	@SuppressWarnings('GroovyVariableNotAssigned')
@@ -42,7 +38,7 @@ class Parser {
 				throw new ParseException(ex, ln, cl)
 			}
 		}
-		toBlock(builder.finish())
+		toBlock(optimizer.optimize(builder.finish()))
 	}
 
 	static BlockExpression toBlock(Expression expr) {
@@ -102,8 +98,8 @@ class Parser {
 				add x
 				last = null
 			} else if (lastNull) {
-				if (cp == 91) last = new CallBuilder(parser, true)
-				else if (cp == 37) lastPercent = true
+				if (cp == ((char) '[')) last = new CallBuilder(parser, true)
+				else if (cp == ((char) '%')) lastPercent = true
 				else if (!Character.isWhitespace(cp)) {
 					if (requireSeparator) {
 						last = new CallBuilder(parser, true)
@@ -147,7 +143,7 @@ class Parser {
 				Expression a = (!last.bracketed || last.bracket == separator) &&
 						!((CallExpression) x).arguments ? ((CallExpression) x).callValue : x
 				expressions.add(last.percent ? a.percentize(parser) :
-						a instanceof CallExpression && parser.optimizePrelude ?
+						a instanceof CallExpression && parser.optimizer.prelude ?
 								parser.optimizer.optimize((CallExpression) a) : a)
 			} else expressions.add(x)
 		}
@@ -168,16 +164,16 @@ class Parser {
 				return doFinish()
 			} else if (null == last) {
 				if (bracketed && cp == bracket) return new CallExpression(expressions)
-				else if (cp == 37) lastPercent = true
-				else if (cp == 40) {
+				else if (cp == ((char) '%')) lastPercent = true
+				else if (cp == ((char) '(')) {
 					final b = new BlockBuilder(parser, true)
 					b.bracket = (char) ')'
 					b.requireSeparator = true
 					last = b
-				} else if (cp == 91) last = new CallBuilder(parser, true)
-				else if (cp == 123) last = new BlockBuilder(parser, true)
+				} else if (cp == ((char) '[')) last = new CallBuilder(parser, true)
+				else if (cp == ((char) '{')) last = new BlockBuilder(parser, true)
 				else if (cp > 47 && cp < 58) (last = new NumberBuilder(parser)).push(cp)
-				else if (cp == 34 || cp == 39) last = new StringExprBuilder(parser, cp)
+				else if (cp == ((char) '"') || cp == ((char) '\'')) last = new StringExprBuilder(parser, cp)
 				else if (cp == ((char) '`')) last = new QuoteAtomBuilder(parser)
 				else if (cp == ((char) '.'))
 					(last = new PathBuilder(parser, expressions.empty ? null : expressions.pop())).push(cp)
@@ -215,7 +211,7 @@ class Parser {
 			if (null == x) return x
 			Expression r = x
 			if (percent) r = r.percentize(parser)
-			else if (parser.optimizePrelude) r = parser.optimizer.optimize(x)
+			//else if (parser.optimizer.prelude) r = parser.optimizer.optimize(x)
 			r
 		}
 
@@ -233,8 +229,8 @@ class Parser {
 					else throw new UnexpectedSyntaxException('Unknown step thing')
 					t.add new PathExpression(pe.root, pe.steps.init())
 				} else t.add p
-				final call = new CallExpression(t + ((BlockExpression) x).content)
-				x = parser.optimizePrelude ? parser.optimizer.optimize(call) : call
+				x = new CallExpression(t + ((BlockExpression) x).content)
+				// x = parser.optimizer.prelude ? parser.optimizer.optimize(call) : call
 			}
 			expressions.add(x)
 		}
@@ -283,9 +279,8 @@ class Parser {
 				arr[stage].appendCodePoint(cp)
 			} else if (cp == 46) {
 				if (stage == 0) {
-					if (newlyStage) {
-						arr[0].append('0')
-					}; init 1
+					if (newlyStage) arr[0].append((char) '0')
+					init 1
 				} else throw new NumberFormatException('Tried to put fraction after ' + stageNames[stage])
 			} else if (!newlyStage && (cp == 101 || cp == 69)) {
 				if (stage < 2) init 2
@@ -364,7 +359,7 @@ class Parser {
 			if (null != last) {
 				def e = last.push(cp)
 				if (null != e) {
-					add e
+					add(e)
 					final back = last.goBack
 					last = null
 					if (back) return doPush(cp)
@@ -391,7 +386,7 @@ class Parser {
 			} else throw new UnexpectedSyntaxException("Unkonown path expression type ${e.class}")
 		}
 
-		boolean waitingForDelim() { last == null || last.waitingForDelim() }
+		boolean waitingForDelim() { last != null && last.waitingForDelim() }
 
 		PathExpression doFinish() {
 			if (null != last) {
@@ -429,30 +424,31 @@ class Parser {
 			def text = x.value.inner()
 			Expression result = x
 			for (t in text.tokenize()) switch (t) {
-				case 'optimize_prelude': parser.optimizePrelude = true; break
-				case '!optimize_prelude': parser.optimizePrelude = false; break
+				case 'optimize_prelude': parser.optimizer.prelude = true; break
+				case '!optimize_prelude': parser.optimizer.prelude = false; break
 				case '?optimize_prelude':
-					result = new StaticExpression(x, parser.optimizePrelude)
+					result = new StaticExpression(x, parser.optimizer.prelude)
 					break
-				case 'optimize_closure': parser.optimizeClosure = true; break
-				case '!optimize_closure': parser.optimizeClosure = false; break
+				case 'optimize_closure': parser.optimizer.closure = true; break
+				case '!optimize_closure': parser.optimizer.closure = false; break
 				case '?optimize_closure':
-					result = new StaticExpression(x, parser.optimizeClosure)
+					result = new StaticExpression(x, parser.optimizer.closure)
 					break
-				case 'optimize_pure': parser.optimizePure = true; break
-				case '!optimize_pure': parser.optimizePure = false; break
+				case 'optimize_pure': parser.optimizer.pure = true; break
+				case '!optimize_pure': parser.optimizer.pure = false; break
 				case '?optimize_pure':
-					result = new StaticExpression(x, parser.optimizePure)
+					result = new StaticExpression(x, parser.optimizer.pure)
 					break
-				case 'fill_templates': parser.fillTemplate = true; break
-				case '!fill_templates': parser.fillTemplate = false; break
+				case 'fill_templates': parser.optimizer.template = true; break
+				case '!fill_templates': parser.optimizer.template = false; break
 				case '?fill_templates':
-					result = new StaticExpression(x, parser.fillTemplate)
+					result = new StaticExpression(x, parser.optimizer.template)
 					break
-				case 'optimize': parser.optimize(); break
-				case '!optimize': parser.unoptimize(); break
+				case 'optimize': parser.optimizer.on(); break
+				case '!optimize': parser.optimizer.off(); break
 				case '?optimize':
-					result = new StaticExpression(x, parser.fillTemplate || parser.optimizePure || parser.optimizeClosure || parser.optimizePrelude)
+					result = new StaticExpression(x, parser.optimizer.template ||
+							parser.optimizer.pure || parser.optimizer.closure || parser.optimizer.prelude)
 					break
 				case 'parser': result = new StaticExpression(x, parser); break
 			}
@@ -466,14 +462,6 @@ class Parser {
 		boolean waitingForDelim() { true }
 
 		boolean isWarrior() { true }
-	}
-
-	void optimize() {
-		fillTemplate = optimizePrelude = true
-	}
-
-	void unoptimize() {
-		fillTemplate = optimizePure = optimizeClosure = optimizePrelude = false
 	}
 
 	@InheritConstructors

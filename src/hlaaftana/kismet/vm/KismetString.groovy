@@ -209,4 +209,6 @@ class KismetString implements IKismetObject<String>, CharSequence {
 	String toString() { inner.toString() }
 
 	int hashCode() { inner.hashCode() }
+
+	def asType(Class type) { inner().asType(type) }
 }
