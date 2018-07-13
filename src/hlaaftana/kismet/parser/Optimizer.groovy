@@ -50,13 +50,12 @@ class Optimizer {
 				if (template && inner instanceof Template) {
 					final tmpl = (Template) inner
 					Expression[] arguments
-					if (tmpl.hungry) arguments = expr.arguments.toArray(arguments)
-					else {
+					if (tmpl.hungry) {
 						arguments = new Expression[expr.arguments.size()]
 						for (int i = 0; i < arguments.length; ++i) {
 							arguments[i] = optimize(expr.arguments[i])
 						}
-					}
+					} else arguments = (Expression[]) expr.arguments.toArray()
 					final result = ((Template) inner).transform(parser, arguments)
 					return tmpl.optimized ? result : optimize(result)
 				}
@@ -135,7 +134,7 @@ class Optimizer {
 
 	static class FakeCallExpression extends CallExpression {
 		FakeCallExpression(CallExpression original) {
-			super(original.expressions)
+			super(original.members)
 		}
 
 		String repr() { "fake" + super }
@@ -186,7 +185,7 @@ class Optimizer {
 
 	static class CheckExpression extends FakeCallExpression {
 		Expression value
-		List<Expression> branches
+		Collection<Expression> branches
 		String name = 'it'
 
 		CheckExpression(CallExpression original) {
@@ -197,23 +196,23 @@ class Optimizer {
 			addBranches(original.arguments.tail())
 		}
 
-		void addBranches(List<Expression> orig) {
+		void addBranches(Collection<Expression> orig) {
 			def iter = orig.iterator()
 			while (iter.hasNext()) {
 				def a = iter.next()
 				if (iter.hasNext()) {
 					if (a instanceof CallExpression) {
-						def ses = new ArrayList<Expression>(((CallExpression) a).expressions)
+						def ses = new ArrayList<Expression>(((CallExpression) a).members)
 						ses.add(1, new NameExpression(name))
 						branches.add new CallExpression(ses)
 					} else if (a instanceof NameExpression) {
 						final text = ((NameExpression) a).text
-						branches.add new CallExpression([new NameExpression(Prelude.isAlpha(text) ? text + '?' : text),
-								new NameExpression(name)] as List<Expression>)
+						branches.add new CallExpression(new NameExpression(Prelude.isAlpha(text) ? text + '?' : text),
+								new NameExpression(name))
 					} else if (a instanceof BlockExpression) {
 						addBranches(((BlockExpression) a).content)
 						continue
-					} else branches.add(new CallExpression([new NameExpression('is?'), new NameExpression(name), a]))
+					} else branches.add(new CallExpression(new NameExpression('is?'), new NameExpression(name), a))
 					branches.add(iter.next())
 				} else branches.add(a)
 			}
@@ -376,7 +375,7 @@ class Optimizer {
 		ForExpression(CallExpression original, Context c, boolean collect, boolean less) {
 			super(original)
 			def first = original.arguments[0]
-			def exprs = first instanceof CallExpression ? ((CallExpression) first).expressions : [first]
+			def exprs = first instanceof CallExpression ? ((CallExpression) first).members : [first]
 			final size = exprs.size()
 			this.collect = collect
 			this.less = less
@@ -451,7 +450,7 @@ class Optimizer {
 		ForEachExpression(CallExpression original, Context c, boolean collect) {
 			super(original)
 			def first = original.arguments[0]
-			def exprs = first instanceof CallExpression ? ((CallExpression) first).expressions : [first]
+			def exprs = first instanceof CallExpression ? ((CallExpression) first).members : [first]
 			final size = exprs.size()
 			this.collect = collect
 			if (size == 1) {
@@ -494,7 +493,7 @@ class Optimizer {
 
 		private void indexStart(Context c, Expression expr) {
 			if (expr instanceof ConstantExpression)
-				indexStart = (int) expr.evaluate(c) as int
+				indexStart = expr.evaluate(c) as int
 			else indexStartExpr = expr
 		}
 
@@ -509,13 +508,13 @@ class Optimizer {
 				def k = c.child()
 				k.set(name, Kismet.model(it))
 				if (null != iName) k.set(iName, Kismet.model(i))
-				if (collect) result.add(block.evaluate(c).inner())
-				else block.evaluate(c)
+				if (collect) result.add(block.evaluate(k).inner())
+				else block.evaluate(k)
 				i++
 			}
 			Kismet.model(result)
 		}
 
-		String repr() { (collect ? '&' : '') + 'for:' + '(' + arguments.join(', ') + ')' }
+		String repr() { (collect ? '&' : '') + 'for:(' + arguments.join(', ') + ')' }
 	}
 }

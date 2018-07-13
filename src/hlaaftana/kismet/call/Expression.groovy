@@ -3,6 +3,7 @@ package hlaaftana.kismet.call
 import groovy.transform.CompileStatic
 import groovy.transform.InheritConstructors
 import hlaaftana.kismet.Kismet
+import hlaaftana.kismet.exceptions.KismetEvaluationException
 import hlaaftana.kismet.exceptions.UndefinedVariableException
 import hlaaftana.kismet.parser.Parser
 import hlaaftana.kismet.parser.StringEscaper
@@ -11,10 +12,11 @@ import hlaaftana.kismet.vm.IKismetObject
 
 @CompileStatic
 abstract class Expression {
+	int ln, cl
 	abstract IKismetObject evaluate(Context c)
 	Collection<Expression> getMembers() { [] }
 	Expression getAt(int i) { members[i] }
-	Expression join(List<Expression> exprs) {
+	Expression join(Collection<Expression> exprs) {
 		throw new UnsupportedOperationException("Cannot join exprs $exprs on class ${this.class}")
 	}
 
@@ -73,7 +75,7 @@ class PathExpression extends Expression {
 		result
 	}
 
-	PathExpression join(List<Expression> m) {
+	PathExpression join(Collection<Expression> m) {
 		def result = new ArrayList<Step>(m.size() - 1)
 		final s = steps
 		assert s.size() == m.size(), "Members must be same size as joined expressions"
@@ -118,7 +120,7 @@ class PathExpression extends Expression {
 			Kismet.model(object.kismetClass().subscriptGet(object, expression.evaluate(c)))
 		}
 
-		String toString() { ".[${expression.repr()}]" }
+		String toString() { ".[$expression]" }
 		Expression asExpr() { expression }
 		SubscriptStep borrow(Expression expr) {
 			new SubscriptStep(expr)
@@ -138,7 +140,7 @@ class PathExpression extends Expression {
 			expression.evaluate(ec)
 		}
 
-		String toString() { ".(${expression.repr()})" }
+		String toString() { ".($expression)" }
 
 		@InheritConstructors
 		static class EnterContext extends Context {
@@ -188,19 +190,18 @@ class DiveExpression extends Expression {
 	}
 
 	Collection<Expression> getMembers() { [inner] }
-	DiveExpression join(List<Expression> a) { new DiveExpression(a[0]) }
+	DiveExpression join(Collection<Expression> a) { new DiveExpression(a[0]) }
 }
 
 @CompileStatic
 class BlockExpression extends Expression {
-	List<Expression> content
+	Collection<Expression> content
 
 	String repr() {
-		'{\n' +
-				content*.repr().join('\r\n').readLines().collect('  '.&concat).join('\r\n') + '\r\n}'
+		'{\n' + content.join('\r\n').readLines().collect('  '.&concat).join('\r\n') + '\r\n}'
 	}
 
-	BlockExpression(List<Expression> exprs) { content = exprs }
+	BlockExpression(Collection<Expression> exprs) { content = exprs }
 
 	IKismetObject evaluate(Context c) {
 		IKismetObject a = Kismet.NULL
@@ -209,7 +210,7 @@ class BlockExpression extends Expression {
 	}
 
 	Collection<Expression> getMembers() { content }
-	BlockExpression join(List<Expression> exprs) {
+	BlockExpression join(Collection<Expression> exprs) {
 		new BlockExpression(exprs)
 	}
 }
@@ -217,9 +218,9 @@ class BlockExpression extends Expression {
 @CompileStatic
 class CallExpression extends Expression {
 	Expression callValue
-	List<Expression> arguments = []
+	Collection<Expression> arguments = []
 
-	CallExpression(List<Expression> expressions) {
+	CallExpression(Collection<Expression> expressions) {
 		if (null == expressions || expressions.empty) return
 		setCallValue(expressions[0])
 		arguments = expressions.tail()
@@ -233,7 +234,7 @@ class CallExpression extends Expression {
 
 	CallExpression() {}
 
-	String repr() { "[${expressions*.repr().join(', ')}]" }
+	String repr() { "[${members.join(', ')}]" }
 
 	Expression getAt(int i) {
 		i < 0 ? this[arguments.size() + i + 1] : i == 0 ? callValue : arguments[i - 1]
@@ -251,15 +252,14 @@ class CallExpression extends Expression {
 		}
 	}
 
-	List<Expression> getExpressions() {
+	Collection<Expression> getMembers() {
 		def r = new ArrayList<Expression>(1 + arguments.size())
 		if (callValue != null) r.add(callValue)
 		r.addAll(arguments)
 		r
 	}
 
-	Collection<Expression> getMembers() { expressions }
-	CallExpression join(List<Expression> exprs) {
+	CallExpression join(Collection<Expression> exprs) {
 		new CallExpression(exprs)
 	}
 }
@@ -347,7 +347,7 @@ class NumberExpression extends ConstantExpression<Number> {
 		Parser.NumberBuilder b = new Parser.NumberBuilder(null)
 		char[] a = x.toCharArray()
 		for (int i = 0; i < a.length; ++i) b.doPush((int) a[i])
-		value = b.doPush(32).value.inner()
+		setValue b.doFinish().value.inner()
 	}
 
 	VariableIndexExpression percentize(Parser p) {
@@ -363,8 +363,9 @@ class NumberExpression extends ConstantExpression<Number> {
 
 		@Override
 		IKismetObject evaluate(Context c) {
-			println c.@variables
-			c.@variables[index].value
+			final x = c.@variables[index]
+			if (x) x.value
+			else throw new KismetEvaluationException(this, "No variable at index $index")
 		}
 	}
 }
@@ -398,7 +399,7 @@ class StringExpression extends ConstantExpression<String> {
 class StaticExpression<T extends Expression> extends ConstantExpression<Object> {
 	T expression
 
-	String repr() { expression ? "static[${expression.repr()}]($value)" : "static($value)" }
+	String repr() { expression ? "static[$expression]($value)" : "static($value)" }
 
 	StaticExpression(T ex = null, IKismetObject val) {
 		expression = ex

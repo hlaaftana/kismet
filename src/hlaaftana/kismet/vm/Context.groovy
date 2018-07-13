@@ -148,6 +148,8 @@ class Context {
 			this.name = name
 			this.value = value
 		}
+
+		String toString() { "variable $name" }
 	}
 }
 

@@ -48,11 +48,14 @@ class Parser {
 	// non-static clcasses break this entire file in stub generation
 	abstract static class ExprBuilder<T extends Expression> {
 		Parser parser
+		int ln, cl
 		boolean percent = false
 		boolean goBack = false
 
 		ExprBuilder(Parser p) {
 			parser = p
+			ln = parser.ln
+			cl = parser.cl
 		}
 
 		abstract T doPush(int cp)
@@ -62,7 +65,12 @@ class Parser {
 		}
 
 		Expression fulfillResult(T x) {
-			null == x ? x : percent ? x.percentize(parser) : x
+			final ex = percent ? x?.percentize(parser) : x
+			if (null != ex) {
+				ex.ln = ln
+				ex.cl = cl
+			}
+			ex
 		}
 
 		T doFinish() { throw new UnsupportedOperationException('Can\'t finish') }
