@@ -162,7 +162,7 @@ class KismetFunction extends Function implements Nameable {
 		if (args.length == 1) {
 			block = c.child(first)
 		} else {
-			final f = first instanceof CallExpression ? ((CallExpression) first).expressions :
+			final f = first instanceof CallExpression ? ((CallExpression) first).members :
 					first instanceof BlockExpression ? ((BlockExpression) first).content :
 							[first]
 			if (named) {
@@ -195,26 +195,26 @@ class KismetFunction extends Function implements Nameable {
 		List<Parameter> parameters = []
 		int last = 0
 
-		Arguments(List<Expression> p) {
+		Arguments(Collection<Expression> p) {
 			final any = null == p ? false : !p.empty
 			enforceLength = any
 			doDollars = !any
 			if (any) parse(p)
 		}
 
-		def parse(List<Expression> params) {
+		def parse(Collection<Expression> params) {
 			for (e in params) {
 				if (e instanceof NameExpression) parameters.add(new Parameter(name: ((NameExpression) e).text, index: last++))
 				else if (e instanceof StringExpression)
 					parameters.add(new Parameter(name: ((StringExpression) e).value.inner(), index: last++))
 				else if (e instanceof BlockExpression) parse(((BlockExpression) e).content)
-				else if (e instanceof CallExpression) parseCall(((CallExpression) e).expressions)
+				else if (e instanceof CallExpression) parseCall(((CallExpression) e).members)
 				else println "ignored expression in functoin arguments: $e"
 			}
 		}
 
 		// rewrite better please
-		def parseCall(Map p = [:], List<Expression> exprs) {
+		def parseCall(Map p = [:], Collection<Expression> exprs) {
 			p = new HashMap(p)
 			BlockExpression block = null
 			for (e in exprs) {
@@ -257,7 +257,7 @@ class KismetFunction extends Function implements Nameable {
 						else ((List) p.topLevelChecks).add(b)
 					} else if (b.callValue instanceof CallExpression) {
 						CallExpression d = (CallExpression) b.callValue
-						parseCall(p + [slice: -1, index: 0], d.expressions)
+						parseCall(p + [slice: -1, index: 0], d.members)
 						for (c in d.arguments) {
 							if (c instanceof NameExpression) {
 								def t = ((NameExpression) c).text
@@ -281,7 +281,7 @@ class KismetFunction extends Function implements Nameable {
 				x.checks = (List<Expression>) (null == p.checks ? [] : p.checks)
 				if (p.containsKey('topLevelChecks')) x.topLevelChecks = (List<CallExpression>) p.topLevelChecks
 				parameters.add(x)
-			} else for (c in block.content) parseCall(p, ((CallExpression) c).expressions)
+			} else for (c in block.content) parseCall(p, ((CallExpression) c).members)
 		}
 
 		void setArgs(Context c, IKismetObject[] args) {

@@ -187,7 +187,7 @@ class Prelude {
 								' but was ' + latest)
 				},
 				'assert_isn\'t': macr { Context c, Expression... exprs ->
-					List<IKismetObject> values = [exprs[0].evaluate(c)]
+					def values = [exprs[0].evaluate(c)]
 					IKismetObject retard
 					IKismetObject latest
 					for (e in exprs.tail()) if ((retard = values.find((latest = e.evaluate(c)).&equals)))
@@ -197,7 +197,7 @@ class Prelude {
 				},
 				assert_of: macr { Context c, Expression... exprs ->
 					IKismetObject val = exprs[0].evaluate(c)
-					List a = []
+					def a = []
 					for (e in exprs.tail()) {
 						def cl = e.evaluate(c).inner()
 						if (!(cl instanceof WrapperKismetClass))
@@ -212,7 +212,7 @@ class Prelude {
 				},
 				assert_not_of: macr { Context c, Expression... exprs ->
 					IKismetObject val = exprs[0].evaluate(c)
-					List a = []
+					def a = []
 					for (e in exprs.tail()) {
 						def cl = e.evaluate(c).inner()
 						if (!(cl instanceof WrapperKismetClass))
@@ -448,7 +448,7 @@ class Prelude {
 					l
 				},
 				sample: funcc { ... args ->
-					List x = toList(args[0])
+					def x = toList(args[0])
 					Random r = args.length > 1 && args[1] instanceof Random ? (Random) args[1] : new Random()
 					x[r.nextInt(x.size())]
 				},
@@ -629,13 +629,13 @@ class Prelude {
 				uncons: funcc { ... args -> new Pair(args[0].invokeMethod('head', null), args[0].invokeMethod('tail', null)) },
 				cons: funcc { ... args ->
 					def y = args[1]
-					List a = new ArrayList((y.invokeMethod('size', null) as int) + 1)
+					def a = new ArrayList((y.invokeMethod('size', null) as int) + 1)
 					a.add(args[0])
 					a.addAll(y)
 					a
 				},
 				intersperse: funcc { ... args ->
-					List r = []
+					def r = []
 					boolean x = false
 					for (a in args[0]) {
 						if (x) r.add(args[1])
@@ -645,7 +645,7 @@ class Prelude {
 					r
 				},
 				intersperse_all: funcc { ... args ->
-					List r = []
+					def r = []
 					boolean x = false
 					for (a in args[0]) {
 						if (x) r.addAll(args[1])
@@ -765,7 +765,7 @@ class Prelude {
 					x
 				},
 				rotate: funcc { ... args ->
-					List x = new ArrayList(toList(args[0]))
+					def x = new ArrayList(toList(args[0]))
 					Collections.rotate(x, args[1] as int)
 					x
 				},
@@ -871,8 +871,8 @@ class Prelude {
 							arguments = KismetFunction.Arguments.EMPTY
 						} else {
 							arguments = new KismetFunction.Arguments(a instanceof CallExpression ?
-									((CallExpression) a).expressions : a instanceof BlockExpression ?
-									((BlockExpression) a).content : null)
+									((CallExpression) a).members : a instanceof BlockExpression ?
+									((BlockExpression) a).content : [a])
 						}
 						new CallExpression(new StaticExpression(new ContextFunction() {
 							IKismetObject call(Context c, IKismetObject... _) {
@@ -973,7 +973,7 @@ class Prelude {
 						Expression resultVar = null
 						final len = cnt.arguments.size() + 1
 						def vars = new ArrayList<Expression>((int) (len / 2))
-						final defs = cnt.expressions.iterator()
+						final defs = cnt.members.iterator()
 						while (defs.hasNext()) {
 							final key = defs.next()
 							if (!defs.hasNext()) {
@@ -1131,13 +1131,13 @@ class Prelude {
 					val
 				},
 				while: macr { Context c, Expression... exprs ->
-					List<Expression> l = exprs.toList()
+					final l = exprs.toList()
 					IKismetObject j = Kismet.NULL
 					while (exprs[0].evaluate(c)) j = c.childEval(l)
 					j
 				},
 				until: macr { Context c, Expression... exprs ->
-					List<Expression> l = exprs.toList()
+					final l = exprs.toList()
 					IKismetObject j = Kismet.NULL
 					while (!exprs[0].evaluate(c)) j = c.childEval(l)
 					j
@@ -1145,7 +1145,7 @@ class Prelude {
 				'for:': macr { Context c, Expression... exprs ->
 					String n = 'it'
 					Block b = c.child(exprs.drop(2))
-					def range = exprs[0] instanceof CallExpression ? ((CallExpression) exprs[0]).expressions : [exprs[0]]
+					def range = exprs[0] instanceof CallExpression ? ((CallExpression) exprs[0]).members : [exprs[0]]
 					Iterator iter
 					int i = 0
 					String ni
@@ -1176,7 +1176,7 @@ class Prelude {
 				'&for:': macr { Context c, Expression... exprs ->
 					String n = 'it'
 					Block b = c.child(exprs.drop(2))
-					def range = exprs[0] instanceof CallExpression ? ((CallExpression) exprs[0]).expressions : [exprs[0]]
+					def range = exprs[0] instanceof CallExpression ? ((CallExpression) exprs[0]).members : [exprs[0]]
 					Iterator iter
 					int i = 0
 					String ni
@@ -1207,7 +1207,7 @@ class Prelude {
 				},
 				for: macr { Context c, Expression... exprs ->
 					Block b = c.child(exprs.tail())
-					def range = exprs[0] instanceof CallExpression ? ((CallExpression) exprs[0]).expressions : [exprs[0]]
+					def range = exprs[0] instanceof CallExpression ? ((CallExpression) exprs[0]).members : [exprs[0]]
 					String n
 					int bottom, top
 					if (range.size() == 1) {
@@ -1233,7 +1233,7 @@ class Prelude {
 				},
 				'&for': macr { Context c, Expression... exprs ->
 					Block b = c.child(exprs.tail())
-					def range = exprs[0] instanceof CallExpression ? ((CallExpression) exprs[0]).expressions : [exprs[0]]
+					def range = exprs[0] instanceof CallExpression ? ((CallExpression) exprs[0]).members : [exprs[0]]
 					String n
 					int bottom, top
 					if (range.size() == 1) {
@@ -1260,7 +1260,7 @@ class Prelude {
 				},
 				'for<': macr { Context c, Expression... exprs ->
 					Block b = c.child(exprs.tail())
-					def range = exprs[0] instanceof CallExpression ? ((CallExpression) exprs[0]).expressions : [exprs[0]]
+					def range = exprs[0] instanceof CallExpression ? ((CallExpression) exprs[0]).members : [exprs[0]]
 					String n
 					int bottom, top
 					if (range.size() == 1) {
@@ -1286,7 +1286,7 @@ class Prelude {
 				},
 				'&for<': macr { Context c, Expression... exprs ->
 					Block b = c.child(exprs.tail())
-					def range = exprs[0] instanceof CallExpression ? ((CallExpression) exprs[0]).expressions : [exprs[0]]
+					def range = exprs[0] instanceof CallExpression ? ((CallExpression) exprs[0]).members : [exprs[0]]
 					String n
 					int bottom, top
 					if (range.size() == 1) {
@@ -1519,9 +1519,9 @@ class Prelude {
 					int siz = x.invokeMethod('size', null) as int
 					int con = args[1].inner() as int
 					Closure fun = args[2].kismetClass().&call.curry(args[2])
-					List b = []
+					def b = []
 					for (int i = 0; i <= siz - con; ++i) {
-						List a = new ArrayList(con)
+						def a = new ArrayList(con)
 						for (int j = 0; j < con; ++j) a.add(x.invokeMethod('getAt', i + j))
 						fun(a as Object[])
 						b.add(a)
@@ -1532,9 +1532,9 @@ class Prelude {
 					def x = args[0]
 					int siz = x.invokeMethod('size', null) as int
 					int con = args[1] as int
-					List b = []
+					def b = []
 					for (int i = 0; i <= siz - con; ++i) {
-						List a = new ArrayList(con)
+						def a = new ArrayList(con)
 						for (int j = 0; j < con; ++j) a.add(x.invokeMethod('getAt', i + j))
 						b.add(a)
 					}
@@ -1551,7 +1551,7 @@ class Prelude {
 
 						@Override
 						List next() {
-							List a = new ArrayList(con)
+							def a = new ArrayList(con)
 							for (int j = 0; j < con; ++j) a.add(x.invokeMethod('getAt', this.i + j))
 							a
 						}
@@ -1655,7 +1655,7 @@ class Prelude {
 				},
 				average_time_nanos: macr { Context c, Expression... args ->
 					int iterations = args[0].evaluate(c).inner() as int
-					List<Long> times = new ArrayList<>(iterations)
+					def times = new ArrayList<Long>(iterations)
 					for (int i = 0; i < iterations; ++i) {
 						long a = System.nanoTime()
 						args[1].evaluate(c)
@@ -1666,7 +1666,7 @@ class Prelude {
 				},
 				average_time_millis: macr { Context c, Expression... args ->
 					int iterations = args[0].evaluate(c).inner() as int
-					List<Long> times = new ArrayList<>(iterations)
+					def times = new ArrayList<Long>(iterations)
 					for (int i = 0; i < iterations; ++i) {
 						long a = System.currentTimeMillis()
 						args[1].evaluate(c)
@@ -1677,7 +1677,7 @@ class Prelude {
 				},
 				average_time_seconds: macr { Context c, Expression... args ->
 					int iterations = args[0].evaluate(c).inner() as int
-					List<Long> times = new ArrayList<>(iterations)
+					def times = new ArrayList<Long>(iterations)
 					for (int i = 0; i < iterations; ++i) {
 						long a = System.currentTimeSeconds()
 						args[1].evaluate(c)
@@ -1688,7 +1688,7 @@ class Prelude {
 				},
 				list_time_nanos: macr { Context c, Expression... args ->
 					int iterations = args[0].evaluate(c).inner() as int
-					List<Long> times = new ArrayList<>(iterations)
+					def times = new ArrayList<Long>(iterations)
 					for (int i = 0; i < iterations; ++i) {
 						long a = System.nanoTime()
 						args[1].evaluate(c)
@@ -1699,7 +1699,7 @@ class Prelude {
 				},
 				list_time_millis: macr { Context c, Expression... args ->
 					int iterations = args[0].evaluate(c).inner() as int
-					List<Long> times = new ArrayList<>(iterations)
+					def times = new ArrayList<Long>(iterations)
 					for (int i = 0; i < iterations; ++i) {
 						long a = System.currentTimeMillis()
 						args[1].evaluate(c)
@@ -1710,7 +1710,7 @@ class Prelude {
 				},
 				list_time_seconds: macr { Context c, Expression... args ->
 					int iterations = args[0].evaluate(c).inner() as int
-					List<Long> times = new ArrayList<>(iterations)
+					def times = new ArrayList<Long>(iterations)
 					for (int i = 0; i < iterations; ++i) {
 						long a = System.currentTimeSeconds()
 						args[1].evaluate(c)
@@ -1831,31 +1831,11 @@ class Prelude {
 		r
 	}
 
-	static IKismetObject pipeForward(Context c, IKismetObject val, List<Expression> args) {
-		for (exp in args) {
-			if (exp instanceof CallExpression) {
-				List<Expression> exprs = new ArrayList<>()
-				exprs.add(((CallExpression) exp).callValue)
-				c.set('it', val)
-				exprs.add(new NameExpression('it'))
-				exprs.addAll(((CallExpression) exp).arguments)
-				def ex = new CallExpression(exprs)
-				val = ex.evaluate(c)
-			} else if (exp instanceof BlockExpression) {
-				val = pipeForward(c, val, ((BlockExpression) exp).content)
-			} else if (exp instanceof NameExpression) {
-				c.set('it', val)
-				val = new CallExpression([exp, new NameExpression('it')]).evaluate(c)
-			} else throw new UnexpectedSyntaxException('Did not expect ' + exp.class + ' in |>')
-		}
-		val
-	}
-
-	static CallExpression pipeForwardExpr(Expression base, List<Expression> args) {
+	static CallExpression pipeForwardExpr(Expression base, Collection<Expression> args) {
 		if (args.empty) throw new UnexpectedSyntaxException('no |> for epic!')
 		for (exp in args) {
 			if (exp instanceof CallExpression) {
-				List<Expression> exprs = new ArrayList<>()
+				Collection<Expression> exprs = new ArrayList<>()
 				exprs.add(((CallExpression) exp).callValue)
 				exprs.add(base)
 				exprs.addAll(((CallExpression) exp).arguments)
@@ -1870,11 +1850,11 @@ class Prelude {
 		(CallExpression) base
 	}
 
-	static CallExpression pipeBackwardExpr(Expression base, List<Expression> args) {
+	static CallExpression pipeBackwardExpr(Expression base, Collection<Expression> args) {
 		if (args.empty) throw new UnexpectedSyntaxException('no <| for epic!')
 		for (exp in args) {
 			if (exp instanceof CallExpression) {
-				List<Expression> exprs = new ArrayList<>()
+				Collection<Expression> exprs = new ArrayList<>()
 				exprs.add(((CallExpression) exp).callValue)
 				exprs.addAll(((CallExpression) exp).arguments)
 				exprs.add(base)
@@ -1889,26 +1869,6 @@ class Prelude {
 		(CallExpression) base
 	}
 
-	static IKismetObject pipeBackward(Context c, IKismetObject val, List<Expression> args) {
-		for (exp in args) {
-			if (exp instanceof CallExpression) {
-				List<Expression> exprs = new ArrayList<>()
-				exprs.add(((CallExpression) exp).callValue)
-				exprs.addAll(((CallExpression) exp).arguments)
-				c.set('it', val)
-				exprs.add(new NameExpression('it'))
-				CallExpression x = new CallExpression(exprs)
-				val = x.evaluate(c)
-			} else if (exp instanceof BlockExpression) {
-				val = pipeBackward(c, val, ((BlockExpression) exp).content)
-			} else if (exp instanceof NameExpression) {
-				c.set('it', val)
-				val = new CallExpression([exp, new NameExpression('it')]).evaluate(c)
-			} else throw new UnexpectedSyntaxException('Did not expect ' + exp.class + ' in <|')
-		}
-		val
-	}
-
 	static Expression prepareInfixLTR(Context c, Expression expr) {
 		if (expr instanceof BlockExpression) {
 			new StaticExpression(expr, evalInfixLTR(c, expr))
@@ -1918,7 +1878,7 @@ class Prelude {
 	}
 
 	static IKismetObject evalInfixLTR(Context c, Expression expr) {
-		if (expr instanceof CallExpression) infixCallsLTR(c, ((CallExpression) expr).expressions)
+		if (expr instanceof CallExpression) infixCallsLTR(c, ((CallExpression) expr).members)
 		else if (expr instanceof BlockExpression) {
 			def result = Kismet.NULL
 			for (x in ((BlockExpression) expr).content) result = evalInfixLTR(c, x)
@@ -1928,7 +1888,7 @@ class Prelude {
 
 	private static final NameExpression INFIX_CALLS_LTR_PATH = new NameExpression('|>|')
 
-	static IKismetObject infixCallsLTR(Context c, List<Expression> args) {
+	static IKismetObject infixCallsLTR(Context c, Collection<Expression> args) {
 		if (args.empty) return Kismet.NULL
 		else if (args.size() == 1) return evalInfixLTR(c, args[0])
 		else if (args.size() == 2) {
@@ -1981,7 +1941,7 @@ class Prelude {
 		else if (expr instanceof PathExpression)
 			putPathExpression(c, map, (PathExpression) expr, c.eval(expr))
 		else if (expr instanceof CallExpression) {
-			final exprs = ((CallExpression) expr).expressions
+			final exprs = ((CallExpression) expr).members
 			final value = exprs.last().evaluate(c)
 			for (x in exprs.init())
 				if (x instanceof NameExpression)
@@ -2009,7 +1969,7 @@ class Prelude {
 
 	static boolean check(Context c, IKismetObject val, Expression exp) {
 		if (exp instanceof CallExpression) {
-			List<Expression> exprs = new ArrayList<>()
+			def exprs = new ArrayList<>()
 			def valu = ((CallExpression) exp).callValue
 			if (valu instanceof NameExpression) {
 				def t = ((NameExpression) valu).text
@@ -2027,8 +1987,8 @@ class Prelude {
 		} else if (exp instanceof NameExpression) {
 			c.set('it', val)
 			def t = ((NameExpression) exp).text
-			new CallExpression([new NameExpression(isAlpha(t) ? t + '?' : t),
-					new NameExpression('it')] as List<Expression>).evaluate(c)
+			new CallExpression(new NameExpression(isAlpha(t) ? t + '?' : t),
+					new NameExpression('it')).evaluate(c)
 		} else if (exp instanceof StringExpression) {
 			val.inner() == ((StringExpression) exp).value.inner()
 		} else if (exp instanceof NumberExpression) {
