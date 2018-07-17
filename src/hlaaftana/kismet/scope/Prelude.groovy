@@ -492,6 +492,7 @@ class Prelude {
 					str.invokeMethod('replaceFirst', [pattern, replacement] as Object[])
 				},
 				'blank?': func(true) { IKismetObject... args -> ((String) args[0].inner() ?: "").isAllWhitespace() },
+				'whitespace?': func(true) { IKismetObject... args -> Character.isWhitespace((int) args[0].inner()) },
 				quote_regex: func(true) { IKismetObject... args -> Pattern.quote((String) args[0].inner()) },
 				'codepoints~': func { IKismetObject... args -> ((CharSequence) args[0].inner()).codePoints().iterator() },
 				'chars~': func { IKismetObject... args -> ((CharSequence) args[0].inner()).chars().iterator() },
@@ -530,6 +531,13 @@ class Prelude {
 							return x.substring(i)
 					}
 					''
+					/*
+					defn [strip_start x] {
+					  for< x.length {
+					    if_then [not [whitespace? x[i]]
+					  }
+					}
+					*/
 				},
 				strip_end: funcc(true) { ... args ->
 					def x = (String) args[0]
@@ -557,11 +565,11 @@ class Prelude {
 				int16: func(true) { IKismetObject... a -> a[0] as short },
 				int32: func(true) { IKismetObject... a -> a[0] as int },
 				int64: func(true) { IKismetObject... a -> a[0] as long },
-				Character: func(true) { IKismetObject... a -> a[0] as Character },
+				char: func(true) { IKismetObject... a -> a[0] as Character },
 				float: func(true) { IKismetObject... a -> a[0] as BigDecimal },
 				float32: func(true) { IKismetObject... a -> a[0] as float },
 				float64: func(true) { IKismetObject... a -> a[0] as double },
-				'~': funcc { ... args -> toIterator(args[0]) },
+				to_iterator: funcc { ... args -> toIterator(args[0]) },
 				list_iterator: funcc { ... args -> args[0].invokeMethod('listIterator', null) },
 				'has_next?': funcc { ... args -> args[0].invokeMethod('hasNext', null) },
 				next: funcc { ... args -> args[0].invokeMethod('next', null) },
@@ -609,15 +617,6 @@ class Prelude {
 						m.put(p.first, p.second)
 					}
 					m
-				},
-				map: funcc { ... args ->
-					def map = new HashMap()
-					Iterator iter = args.iterator()
-					while (iter.hasNext()) {
-						def a = iter.next()
-						if (iter.hasNext()) map.put(a, iter.next())
-					}
-					map
 				},
 				'##': macr { Context c, Expression... args ->
 					final map = new HashMap()
@@ -872,7 +871,7 @@ class Prelude {
 						} else {
 							arguments = new KismetFunction.Arguments(a instanceof CallExpression ?
 									((CallExpression) a).members : a instanceof BlockExpression ?
-									((BlockExpression) a).content : [a])
+									((BlockExpression) a).members : [a])
 						}
 						new CallExpression(new StaticExpression(new ContextFunction() {
 							IKismetObject call(Context c, IKismetObject... _) {
@@ -961,6 +960,12 @@ class Prelude {
 					@CompileStatic
 					Expression transform(Parser parser, Expression... args) {
 						new DiveExpression(args.length == 1 ? args[0] : new BlockExpression(args.toList()))
+					}
+				},
+				static: new AbstractTemplate() {
+					@CompileStatic
+					Expression transform(Parser parser, Expression... args) {
+						new StaticExpression(args.length == 1 ? args[0] : new BlockExpression(args.toList()), parser.context)
 					}
 				},
 				let: new AbstractTemplate() {
@@ -1757,7 +1762,6 @@ class Prelude {
 		toConvert.'variable?' = toConvert.'defined?'
 		toConvert.'with_index' = toConvert.'indexed'
 		toConvert.'divs?' = toConvert.'divides?' = toConvert.'divisible_by?'
-		toConvert.iterator = toConvert.'~'
 		for (e in toConvert) defaultContext.put(e.key, Kismet.model(e.value))
 		defaultContext = defaultContext.asImmutable()
 	}
@@ -1842,7 +1846,7 @@ class Prelude {
 				def ex = new CallExpression(exprs)
 				base = ex
 			} else if (exp instanceof BlockExpression) {
-				base = pipeForwardExpr(base, ((BlockExpression) exp).content)
+				base = pipeForwardExpr(base, ((BlockExpression) exp).members)
 			} else if (exp instanceof NameExpression) {
 				base = new CallExpression([exp, base])
 			} else throw new UnexpectedSyntaxException('Did not expect ' + exp.class + ' in |>')
@@ -1861,7 +1865,7 @@ class Prelude {
 				def ex = new CallExpression(exprs)
 				base = ex
 			} else if (exp instanceof BlockExpression) {
-				base = pipeBackwardExpr(base, ((BlockExpression) exp).content)
+				base = pipeBackwardExpr(base, ((BlockExpression) exp).members)
 			} else if (exp instanceof NameExpression) {
 				base = new CallExpression([exp, base])
 			} else throw new UnexpectedSyntaxException('Did not expect ' + exp.class + ' in |>')
@@ -1881,7 +1885,7 @@ class Prelude {
 		if (expr instanceof CallExpression) infixCallsLTR(c, ((CallExpression) expr).members)
 		else if (expr instanceof BlockExpression) {
 			def result = Kismet.NULL
-			for (x in ((BlockExpression) expr).content) result = evalInfixLTR(c, x)
+			for (x in ((BlockExpression) expr).members) result = evalInfixLTR(c, x)
 			result
 		} else expr.evaluate(c)
 	}
@@ -1950,7 +1954,7 @@ class Prelude {
 					putPathExpression(c, map, (PathExpression) x, value)
 				else map.put(x.evaluate(c), value)
 		} else if (expr instanceof BlockExpression) {
-			final exprs = ((BlockExpression) expr).content
+			final exprs = ((BlockExpression) expr).members
 			for (x in exprs) expressiveMap(map, c, x)
 		} else {
 			final value = expr.evaluate(c)
@@ -1982,7 +1986,7 @@ class Prelude {
 			x.evaluate(c)
 		} else if (exp instanceof BlockExpression) {
 			boolean result = true
-			for (x in ((BlockExpression) exp).content) result = check(c, val, x)
+			for (x in ((BlockExpression) exp).members) result = check(c, val, x)
 			result
 		} else if (exp instanceof NameExpression) {
 			c.set('it', val)

@@ -1,4 +1,4 @@
-:= functional [let [] {
+:= functional [dive {
   defn [factorial n] [permutation n n]
   defn [permutation n r] [product [range [next [- n r]] n]]
   defn [combination n r] [div [permutation n r] [factorial r]]
@@ -6,7 +6,7 @@
   ##(factorial, permutation, combination)
 }]
 
-:= imperative [let [] {
+:= imperative [dive {
   defn [factorial n] {
     := x 1
     for n [= x [* x it]]

@@ -3,7 +3,7 @@ package hlaaftana.kismet
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.parser.Parser
 import hlaaftana.kismet.scope.Prelude
-import hlaaftana.kismet.vm.Context
+import hlaaftana.kismet.scope.Context
 
 @CompileStatic
 class Test {

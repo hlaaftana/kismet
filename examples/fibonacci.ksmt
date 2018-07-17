@@ -30,7 +30,6 @@ defn [fibonacci_imperative n] {
   7540113804746346429 12200160415121876738 19740274219868223167 31940434634990099905 51680708854858323072
   83621143489848422977 135301852344706746049 218922995834555169026 354224848179261915075]
 
-;; $ is an alias for tuple, with the optimize parser option tuples are evaluated statically if everything is constant
-for: [fun [$ fibonacci fibonacci_collect fibonacci_imperative]] {
+for: [fun $(fibonacci, fibonacci_collect, fibonacci_imperative)] {
   assert_is fib100 [fun 100]
 }

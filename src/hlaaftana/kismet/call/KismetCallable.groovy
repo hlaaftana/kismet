@@ -1,7 +1,7 @@
 package hlaaftana.kismet.call
 
 import groovy.transform.CompileStatic
-import hlaaftana.kismet.vm.Context
+import hlaaftana.kismet.scope.Context
 import hlaaftana.kismet.vm.IKismetObject
 
 @CompileStatic

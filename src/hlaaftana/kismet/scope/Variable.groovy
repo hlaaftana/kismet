@@ -1,4 +1,6 @@
-package hlaaftana.kismet.vm
+package hlaaftana.kismet.scope
+
+import hlaaftana.kismet.vm.IKismetObject
 
 interface Variable {
 	String getName()

@@ -752,6 +752,92 @@ final class KInt32 extends KismetNumber<Integer> {
 }
 
 @CompileStatic
+class RuneClass extends KismetNumberClass<Integer> {
+	static final RuneClass INSTANCE = new RuneClass()
+
+	private RuneClass() {}
+
+	KismetNumber<Integer> instantiate(Number num) {
+		new KRune(num.intValue())
+	}
+
+	boolean isInstance(IKismetObject object) {
+		object instanceof KRune
+	}
+
+	int getBits() { 32 }
+
+	String getName() { 'Rune' }
+}
+
+@CompileStatic
+final class KRune extends KismetNumber<Integer> {
+	int inner
+
+	KRune(int inner) { this.inner = inner }
+
+	RuneClass kismetClass() { RuneClass.INSTANCE }
+
+	Integer inner() { inner }
+
+	void set(Number value) { inner = value.intValue() }
+
+	KRune plus(KismetNumber obj) {
+		new KRune(inner + obj.intValue())
+	}
+
+	KRune minus(KismetNumber obj) {
+		new KRune(inner - obj.intValue())
+	}
+
+	KRune multiply(KismetNumber obj) {
+		new KRune(inner * obj.intValue())
+	}
+
+	KRune div(KismetNumber obj) {
+		new KRune((int) (inner / obj.intValue()))
+	}
+
+	KRune intdiv(KismetNumber obj) {
+		new KRune(inner.intdiv(obj.intValue()).intValue())
+	}
+
+	KRune mod(KismetNumber obj) {
+		new KRune(inner % obj.intValue())
+	}
+
+	KRune unaryPlus() { new KRune(inner) }
+
+	KRune unaryMinus() { new KRune(-inner) }
+
+	int compareTo(KismetNumber obj) { inner.compareTo(obj.inner()) }
+
+	KRune leftShift(KismetNumber obj) {
+		new KRune(inner << obj.intValue())
+	}
+
+	KRune rightShift(KismetNumber obj) {
+		new KRune(inner >> obj.intValue())
+	}
+
+	KRune rightShiftUnsigned(KismetNumber obj) {
+		new KRune(inner >>> obj.intValue())
+	}
+
+	KRune and(KismetNumber obj) {
+		new KRune(inner & obj.intValue())
+	}
+
+	KRune or(KismetNumber obj) {
+		new KRune(inner | obj.intValue())
+	}
+
+	KRune xor(KismetNumber obj) {
+		new KRune(inner ^ obj.intValue())
+	}
+}
+
+@CompileStatic
 class Int16Class extends KismetNumberClass<Short> {
 	static final Int16Class INSTANCE = new Int16Class()
 

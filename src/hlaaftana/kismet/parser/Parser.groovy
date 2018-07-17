@@ -5,7 +5,7 @@ import groovy.transform.InheritConstructors
 import hlaaftana.kismet.call.*
 import hlaaftana.kismet.exceptions.ParseException
 import hlaaftana.kismet.exceptions.UnexpectedSyntaxException
-import hlaaftana.kismet.vm.Context
+import hlaaftana.kismet.scope.Context
 
 @CompileStatic
 class Parser {
@@ -84,7 +84,7 @@ class Parser {
 		boolean isWarrior() { false }
 	}
 
-	static class BlockBuilder extends ExprBuilder<BlockExpression> {
+	static class BlockBuilder extends ExprBuilder {
 		List<Expression> expressions = []
 		CallBuilder last = null
 		boolean lastPercent = false
@@ -97,7 +97,7 @@ class Parser {
 		BlockBuilder(Parser p, boolean b) { super(p); bracketed = b }
 
 		@Override
-		BlockExpression doPush(int cp) {
+		Expression doPush(int cp) {
 			final lastNull = null == last
 			if (bracketed && cp == bracket && (lastNull || (last.endOnDelim && !last.anyBlocks()))) {
 				return doFinish()
@@ -237,7 +237,7 @@ class Parser {
 					else throw new UnexpectedSyntaxException('Unknown step thing')
 					t.add new PathExpression(pe.root, pe.steps.init())
 				} else t.add p
-				x = new CallExpression(t + ((BlockExpression) x).content)
+				x = new CallExpression(t + ((BlockExpression) x).members)
 				// x = parser.optimizer.prelude ? parser.optimizer.optimize(call) : call
 			}
 			expressions.add(x)

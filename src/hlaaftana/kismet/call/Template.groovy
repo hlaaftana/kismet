@@ -1,7 +1,7 @@
 package hlaaftana.kismet.call
 
 import hlaaftana.kismet.parser.Parser
-import hlaaftana.kismet.vm.Context
+import hlaaftana.kismet.scope.Context
 import hlaaftana.kismet.vm.IKismetObject
 
 trait Template implements KismetCallable {
