@@ -1,5 +1,5 @@
 defn [fizzbuzz_imperative n] {
-    := x [new_list n]
+    := x ""
     for n {
         ;; if_then doesn't evaluate the condition in a child block, and has no elses
         if_then [:= d3 [divs? it 3]] [add x "Fizz"]
@@ -7,7 +7,7 @@ defn [fizzbuzz_imperative n] {
         unless_then [or d3 d5] [add x it]
         if [isn't? it n] [add x "\n"]
     }
-    join x
+    x
 }
 
 defn [fizzbuzz_functional n] {

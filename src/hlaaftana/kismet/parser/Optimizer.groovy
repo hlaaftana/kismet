@@ -6,7 +6,7 @@ import hlaaftana.kismet.call.*
 import hlaaftana.kismet.exceptions.UndefinedVariableException
 import hlaaftana.kismet.exceptions.UnexpectedSyntaxException
 import hlaaftana.kismet.scope.Prelude
-import hlaaftana.kismet.vm.Context
+import hlaaftana.kismet.scope.Context
 import hlaaftana.kismet.vm.IKismetObject
 
 @CompileStatic
@@ -210,7 +210,7 @@ class Optimizer {
 						branches.add new CallExpression(new NameExpression(Prelude.isAlpha(text) ? text + '?' : text),
 								new NameExpression(name))
 					} else if (a instanceof BlockExpression) {
-						addBranches(((BlockExpression) a).content)
+						addBranches(((BlockExpression) a).members)
 						continue
 					} else branches.add(new CallExpression(new NameExpression('is?'), new NameExpression(name), a))
 					branches.add(iter.next())

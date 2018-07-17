@@ -7,7 +7,7 @@ import hlaaftana.kismet.exceptions.KismetEvaluationException
 import hlaaftana.kismet.exceptions.UndefinedVariableException
 import hlaaftana.kismet.parser.Parser
 import hlaaftana.kismet.parser.StringEscaper
-import hlaaftana.kismet.vm.Context
+import hlaaftana.kismet.scope.Context
 import hlaaftana.kismet.vm.IKismetObject
 
 @CompileStatic
@@ -195,21 +195,20 @@ class DiveExpression extends Expression {
 
 @CompileStatic
 class BlockExpression extends Expression {
-	Collection<Expression> content
+	Collection<Expression> members
 
 	String repr() {
-		'{\n' + content.join('\r\n').readLines().collect('  '.&concat).join('\r\n') + '\r\n}'
+		'{\n' + members.join('\r\n').readLines().collect('  '.&concat).join('\r\n') + '\r\n}'
 	}
 
-	BlockExpression(Collection<Expression> exprs) { content = exprs }
+	BlockExpression(Collection<Expression> exprs) { members = exprs }
 
 	IKismetObject evaluate(Context c) {
 		IKismetObject a = Kismet.NULL
-		for (e in content) a = e.evaluate(c)
+		for (e in members) a = e.evaluate(c)
 		a
 	}
 
-	Collection<Expression> getMembers() { content }
 	BlockExpression join(Collection<Expression> exprs) {
 		new BlockExpression(exprs)
 	}
@@ -235,6 +234,14 @@ class CallExpression extends Expression {
 	CallExpression() {}
 
 	String repr() { "[${members.join(', ')}]" }
+
+	CallExpression plus(Collection<Expression> mem) {
+		new CallExpression(members + mem)
+	}
+
+	CallExpression plus(CallExpression mem) {
+		new CallExpression(members + mem.members)
+	}
 
 	Expression getAt(int i) {
 		i < 0 ? this[arguments.size() + i + 1] : i == 0 ? callValue : arguments[i - 1]

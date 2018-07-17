@@ -1,6 +1,7 @@
 package hlaaftana.kismet.vm
 
 import groovy.transform.CompileStatic
+import hlaaftana.kismet.exceptions.UnexpectedValueException
 
 @CompileStatic
 class StringClass extends BasicClass<KismetString> {
@@ -8,6 +9,12 @@ class StringClass extends BasicClass<KismetString> {
 
 	private StringClass() {
 		super('String')
+	}
+
+	IKismetObject subscriptGet(KismetString obj, IKismetObject key) {
+		if (key instanceof KismetString) obj.concat((KismetString) key)
+		else if (key instanceof KismetNumber) obj.codePointAt(((KismetNumber) key).intValue())
+		else throw new UnexpectedValueException('Tried to subscript get on string with ')
 	}
 
 	IKismetObject call(KismetString obj, IKismetObject[] args) {
@@ -36,9 +43,9 @@ class KismetString implements IKismetObject<String>, CharSequence {
 
 	String inner() { toString() }
 
-	int codePointAt(int i) { inner.codePointAt(i) }
+	KRune codePointAt(int i) { new KRune(inner.codePointAt(i)) }
 
-	int codePointBefore(int i) { inner.codePointBefore(i) }
+	KRune codePointBefore(int i) { new KRune(inner.codePointBefore(i)) }
 
 	int codePointCount(int b, int e) { inner.codePointCount(b, e) }
 

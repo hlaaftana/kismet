@@ -5,7 +5,7 @@ import hlaaftana.kismet.Kismet
 import hlaaftana.kismet.exceptions.CheckFailedException
 import hlaaftana.kismet.exceptions.UnexpectedSyntaxException
 import hlaaftana.kismet.scope.Prelude
-import hlaaftana.kismet.vm.Context
+import hlaaftana.kismet.scope.Context
 import hlaaftana.kismet.vm.IKismetObject
 
 @CompileStatic
@@ -163,7 +163,7 @@ class KismetFunction extends Function implements Nameable {
 			block = c.child(first)
 		} else {
 			final f = first instanceof CallExpression ? ((CallExpression) first).members :
-					first instanceof BlockExpression ? ((BlockExpression) first).content :
+					first instanceof BlockExpression ? ((BlockExpression) first).members :
 							[first]
 			if (named) {
 				name = ((NameExpression) f[0]).text
@@ -207,7 +207,7 @@ class KismetFunction extends Function implements Nameable {
 				if (e instanceof NameExpression) parameters.add(new Parameter(name: ((NameExpression) e).text, index: last++))
 				else if (e instanceof StringExpression)
 					parameters.add(new Parameter(name: ((StringExpression) e).value.inner(), index: last++))
-				else if (e instanceof BlockExpression) parse(((BlockExpression) e).content)
+				else if (e instanceof BlockExpression) parse(((BlockExpression) e).members)
 				else if (e instanceof CallExpression) parseCall(((CallExpression) e).members)
 				else println "ignored expression in functoin arguments: $e"
 			}
@@ -281,7 +281,7 @@ class KismetFunction extends Function implements Nameable {
 				x.checks = (List<Expression>) (null == p.checks ? [] : p.checks)
 				if (p.containsKey('topLevelChecks')) x.topLevelChecks = (List<CallExpression>) p.topLevelChecks
 				parameters.add(x)
-			} else for (c in block.content) parseCall(p, ((CallExpression) c).members)
+			} else for (c in block.members) parseCall(p, ((CallExpression) c).members)
 		}
 
 		void setArgs(Context c, IKismetObject[] args) {
