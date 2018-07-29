@@ -1,5 +1,5 @@
 defn [memoized f] {
-  := cache [map]
+  := cache [new_map]
   fn [get_or_set cache $all [call f $all]]
 }
 

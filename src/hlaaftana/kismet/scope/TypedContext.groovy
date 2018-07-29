@@ -24,9 +24,10 @@ class TypedContext {
 		variables.add(variable)
 	}
 
-	void addVariable(String name, Type type = Type.ANY) {
+	Variable addVariable(String name, Type type = Type.ANY) {
 		def var = new Variable(name, variables.size())
 		var.type = type
+		variables.add(var)
 		var
 	}
 
@@ -76,7 +77,7 @@ class TypedContext {
 		for (int i = 1; i < match.size(); ++i) {
 			final rels = matchRels.get(i)
 			for (int j = 0; j < rels.size(); ++j) {
-				if (winnerRels.get(j) < rels.get(j)) {
+				if (winnerRels.get(j).worse(rels.get(j))) {
 					winner = match.get(i)
 					winnerRels = rels
 				}
@@ -87,7 +88,7 @@ class TypedContext {
 
 	VariableReference get(String name) {
 		final var = getVariable(name)
-		if (null != var) return new VariableReference(var, 0)
+		if (null != var) return var.ref()
 		else {
 			final v = parent.get(name)
 			if (null != v) return v.parent()
@@ -110,10 +111,10 @@ class TypedContext {
 	VariableReference getAny(String name, Type preferred = Type.ANY, List<String> failed = null) {
 		final var = getVariable(name)
 		if (null != var)
-			if (preferred.relation(var.type).assignableTo) return new VariableReference(var, 0)
+			if (preferred.relation(var.type).assignableTo) return var.ref()
 			else if (null != failed) failed.add(str(var))
 		else for (d in getCallDeclarations(name))
-			if (preferred.relation(d.variable.type).assignableTo) return new VariableReference(var, 0)
+			if (preferred.relation(d.variable.type).assignableTo) return var.ref()
 			else if (null != failed) failed.add(str(var))
 		else {
 			final v = parent.getAny(name, preferred, failed)
@@ -131,6 +132,10 @@ class TypedContext {
 			this.name = name
 			hash = name.hashCode()
 			this.id = id
+		}
+
+		VariableReference ref(int parent = 0) {
+			new VariableReference(this, parent)
 		}
 	}
 

@@ -7,6 +7,8 @@ import hlaaftana.kismet.exceptions.UndefinedVariableException
 import hlaaftana.kismet.exceptions.UnexpectedSyntaxException
 import hlaaftana.kismet.scope.Prelude
 import hlaaftana.kismet.scope.Context
+import hlaaftana.kismet.scope.TypedContext
+import hlaaftana.kismet.type.Type
 import hlaaftana.kismet.vm.IKismetObject
 
 @CompileStatic
@@ -55,22 +57,20 @@ class Optimizer {
 						for (int i = 0; i < arguments.length; ++i) {
 							arguments[i] = optimize(expr.arguments[i])
 						}
-					} else arguments = (Expression[]) expr.arguments.toArray()
+					} else arguments = (Expression[]) expr.arguments.toArray(new Expression[0])
 					final result = ((Template) inner).transform(parser, arguments)
 					return tmpl.optimized ? result : optimize(result)
 				}
 				if (inner instanceof Macro) {
 					Expression currentExpression = expr
+					//noinspection GroovyFallthrough
 					switch (text) {
 						case "change":
-						case ":::=":
-							++equalsType
+						case ":::=": ++equalsType
 						case "set_to":
-						case "::=":
-							++equalsType
+						case "::=": ++equalsType
 						case "define":
-						case ":=":
-							++equalsType
+						case ":=": ++equalsType
 						case "assign":
 						case "=":
 							final size = expr.arguments.size()
@@ -271,6 +271,11 @@ class Optimizer {
 			this.name = name
 			this.expression = expression
 		}
+
+		TypedExpression type(TypedContext tc, Type preferred) {
+			def v = expression.type(tc, preferred)
+			new VariableSetExpression(tc.addVariable(name, preferred).ref(), v)
+		}
 	}
 
 	static class DefineExpression extends VariableModifyExpression {
@@ -332,6 +337,14 @@ class Optimizer {
 		}
 
 		String repr() { "nop(${arguments.join(', ')})" }
+
+		TypedExpression type(TypedContext tc, Type preferred) {
+			def arr = new TypedExpression[arguments.size() + 1]
+			int i = 0
+			for (; i < arguments.size(); ++i) arr[i] = arguments.get(i).type(tc)
+			arr[i] = TypedNoExpression.INSTANCE
+			new SequentialExpression(arr)
+		}
 	}
 
 	static class ClosureCallExpression extends FakeCallExpression {

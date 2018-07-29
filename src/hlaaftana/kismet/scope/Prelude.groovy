@@ -680,7 +680,8 @@ class Prelude {
 				escape: funcc { ... args -> StringEscaper.escape(args[0].toString()) },
 				unescape: funcc { ... args -> StringEscaper.escape(args[0].toString()) },
 				copy_map: funcc { ... args -> new HashMap(args[0] as Map) },
-				new_map: funcc { ... args -> args.length > 1 ? new HashMap(args[0] as int, args[1] as float) : new HashMap(args[0] as int) },
+				new_map: funcc { ... args -> args.length > 1 ? new HashMap(args[0] as int, args[1] as float) :
+						args.length == 1 ? new HashMap(args[0] as int) : new HashMap() },
 				zip: funcc { ... args -> args.toList().transpose() },
 				knit: func { IKismetObject... args ->
 					toList(args[0].inner()).transpose()
@@ -1396,7 +1397,7 @@ class Prelude {
 				inject: func { IKismetObject... args -> args[0].inner().inject { a, b -> args[1].kismetClass().call(args[1], Kismet.model(a), Kismet.model(b)) } },
 				collate: funcc { ... args -> args[0].invokeMethod('collate', args.tail()) },
 				pop: funcc { ... args -> args[0].invokeMethod('pop', null) },
-				add: funcc { ... args -> args[0].invokeMethod('add', args[1]) },
+				add: func { IKismetObject... args -> args[0].invokeMethod('add', args[1]) },
 				add_at: funcc { ... args -> args[0].invokeMethod('add', [args[1] as int, args[2]]) },
 				add_all: funcc { ... args -> args[0].invokeMethod('addAll', args[1]) },
 				add_all_at: funcc { ... args -> args[0].invokeMethod('addAll', [args[1] as int, args[2]]) },
