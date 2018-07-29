@@ -5,17 +5,32 @@ import groovy.transform.InheritConstructors
 import hlaaftana.kismet.Kismet
 import hlaaftana.kismet.exceptions.KismetEvaluationException
 import hlaaftana.kismet.exceptions.UndefinedVariableException
+import hlaaftana.kismet.exceptions.UnexpectedTypeException
 import hlaaftana.kismet.parser.Parser
 import hlaaftana.kismet.parser.StringEscaper
 import hlaaftana.kismet.scope.Context
+import hlaaftana.kismet.scope.TypedContext
+import hlaaftana.kismet.type.NumberType
+import hlaaftana.kismet.type.StringType
+import hlaaftana.kismet.type.Type
 import hlaaftana.kismet.vm.IKismetObject
+import hlaaftana.kismet.vm.RuntimeMemory
 
 @CompileStatic
 abstract class Expression {
 	int ln, cl
 	abstract IKismetObject evaluate(Context c)
+
+	TypedExpression type(TypedContext tc, Type preferred) {
+		throw new UnsupportedOperationException('Cannot turn ' + this + ' to typed')
+	}
+
+	TypedExpression type(TypedContext tc) { type(tc, Type.ANY) }
+
 	Collection<Expression> getMembers() { [] }
+
 	Expression getAt(int i) { members[i] }
+
 	Expression join(Collection<Expression> exprs) {
 		throw new UnsupportedOperationException("Cannot join exprs $exprs on class ${this.class}")
 	}
@@ -89,6 +104,7 @@ class PathExpression extends Expression {
 		IKismetObject apply(Context c, IKismetObject object)
 		Expression asExpr()
 		Step borrow(Expression expr)
+		Instruction instr(TypedContext ctx, Instruction before)
 	}
 
 	static class PropertyStep implements Step {
@@ -104,8 +120,15 @@ class PathExpression extends Expression {
 
 		String toString() { ".$name" }
 		Expression asExpr() { new NameExpression(name) }
-		PropertyStep borrow(Expression expr) {
-			new PropertyStep(expr.toString())
+		PropertyStep borrow(Expression expr) { new PropertyStep(expr.toString()) }
+
+		Instruction instr(TypedContext ctx, Instruction before) {
+			new Instruction() {
+				IKismetObject evaluate(RuntimeMemory context) {
+					final val = before.evaluate(context)
+					val.kismetClass().propertyGet(val, name)
+				}
+			}
 		}
 	}
 
@@ -122,8 +145,15 @@ class PathExpression extends Expression {
 
 		String toString() { ".[$expression]" }
 		Expression asExpr() { expression }
-		SubscriptStep borrow(Expression expr) {
-			new SubscriptStep(expr)
+		SubscriptStep borrow(Expression expr) { new SubscriptStep(expr) }
+
+		Instruction instr(TypedContext ctx, Instruction before) {
+			new Instruction() {
+				IKismetObject evaluate(RuntimeMemory context) {
+					final val = before.evaluate(context)
+					val.kismetClass().subscriptGet(val, expression.type(ctx).instruction.evaluate(context))
+				}
+			}
 		}
 	}
 
@@ -155,9 +185,18 @@ class PathExpression extends Expression {
 			}
 		}
 		Expression asExpr() { expression }
-		EnterStep borrow(Expression expr) {
-			new EnterStep(expr)
+		EnterStep borrow(Expression expr) { new EnterStep(expr) }
+
+		Instruction instr(TypedContext ctx, Instruction before) {
+			throw new UnsupportedOperationException('unsupported')
 		}
+	}
+
+	// replace with symbol calls later
+	TypedExpression type(TypedContext tc, Type preferred) {
+		Instruction result = root.type(tc).instruction
+		for (s in steps) result = s.instr(tc, result)
+		new BasicTypedExpression(preferred, result)
 	}
 }
 
@@ -172,6 +211,20 @@ class NameExpression extends Expression {
 	}
 
 	String repr() { text }
+
+	VariableExpression type(TypedContext tc, Type preferred) {
+		def failed = new ArrayList<String>()
+		def vr = tc.getAny(text, preferred, failed)
+		if (null != vr) return new VariableExpression(vr)
+		def msgbase = "Could not find variable \"$text\" for type $preferred"
+		if (!failed.empty) {
+			def msg = new String[failed.size() + 1]
+			msg[0] = msgbase.concat(", but for these types instead:")
+			for (int i = 1; i < msg.length; ++i) msg[i--] = failed.get(i++)
+			msgbase = String.join('\n  ', msg)
+		}
+		throw new UndefinedVariableException(msgbase)
+	}
 }
 
 @CompileStatic
@@ -191,17 +244,22 @@ class DiveExpression extends Expression {
 
 	Collection<Expression> getMembers() { [inner] }
 	DiveExpression join(Collection<Expression> a) { new DiveExpression(a[0]) }
+
+	TypedDiveExpression type(TypedContext tc, Type preferred) {
+		final child = tc.child()
+		new TypedDiveExpression(child, inner.type(child, preferred))
+	}
 }
 
 @CompileStatic
 class BlockExpression extends Expression {
-	Collection<Expression> members
+	List<Expression> members
 
 	String repr() {
 		'{\n' + members.join('\r\n').readLines().collect('  '.&concat).join('\r\n') + '\r\n}'
 	}
 
-	BlockExpression(Collection<Expression> exprs) { members = exprs }
+	BlockExpression(List<Expression> exprs) { members = exprs }
 
 	IKismetObject evaluate(Context c) {
 		IKismetObject a = Kismet.NULL
@@ -209,17 +267,25 @@ class BlockExpression extends Expression {
 		a
 	}
 
-	BlockExpression join(Collection<Expression> exprs) {
+	BlockExpression join(List<Expression> exprs) {
 		new BlockExpression(exprs)
+	}
+
+	SequentialExpression type(TypedContext tc, Type preferred) {
+		def arr = new TypedExpression[members.size()]
+		int i = 0
+		for (; i < arr.length - 1; ++i) arr[i] = members.get(i).type(tc)
+		arr[i] = members.get(i).type(tc, preferred)
+		new SequentialExpression(arr)
 	}
 }
 
 @CompileStatic
 class CallExpression extends Expression {
 	Expression callValue
-	Collection<Expression> arguments = []
+	List<Expression> arguments = []
 
-	CallExpression(Collection<Expression> expressions) {
+	CallExpression(List<Expression> expressions) {
 		if (null == expressions || expressions.empty) return
 		setCallValue(expressions[0])
 		arguments = expressions.tail()
@@ -235,7 +301,7 @@ class CallExpression extends Expression {
 
 	String repr() { "[${members.join(', ')}]" }
 
-	CallExpression plus(Collection<Expression> mem) {
+	CallExpression plus(List<Expression> mem) {
 		new CallExpression(members + mem)
 	}
 
@@ -251,7 +317,7 @@ class CallExpression extends Expression {
 		if (null == callValue) return Kismet.NULL
 		IKismetObject obj = callValue.evaluate(c)
 		if (obj.inner() instanceof KismetCallable) {
-			((KismetCallable) obj.inner()).call(c, (Expression[]) arguments.toArray())
+			((KismetCallable) obj.inner()).call(c, arguments.toArray(new Expression[0]))
 		} else {
 			final arr = new IKismetObject[arguments.size()]
 			for (int i = 0; i < arr.length; ++i) arr[i] = arguments[i].evaluate(c)
@@ -259,15 +325,27 @@ class CallExpression extends Expression {
 		}
 	}
 
-	Collection<Expression> getMembers() {
+	List<Expression> getMembers() {
 		def r = new ArrayList<Expression>(1 + arguments.size())
 		if (callValue != null) r.add(callValue)
 		r.addAll(arguments)
 		r
 	}
 
-	CallExpression join(Collection<Expression> exprs) {
+	CallExpression join(List<Expression> exprs) {
 		new CallExpression(exprs)
+	}
+	
+	TypedCallExpression type(TypedContext tc, Type preferred) {
+		def args = new TypedExpression[arguments.size()]
+		for (int i = 0; i < args.length; ++i) args[i] = arguments.get(i).type(tc)
+		TypedContext.DeclarationReference m
+		if (callValue instanceof NameExpression && null != (m =
+				tc.findCall(((NameExpression) callValue).text, args, preferred))) {
+			new DeclarationCallExpression(m, args)
+		} else {
+			new ValueCallExpression(callValue.type(tc), args)
+		}
 	}
 }
 
@@ -357,6 +435,16 @@ class NumberExpression extends ConstantExpression<Number> {
 		setValue b.doFinish().value.inner()
 	}
 
+	TypedNumberExpression type(TypedContext tc, Type preferred) {
+		def result = new TypedNumberExpression(value.inner())
+		def rel = result.type.relation(preferred)
+		if (rel.none)
+			throw new UnexpectedTypeException("Preferred non-number type $preferred for literal with number $result.number")
+		else if (rel.super)
+			result.number = ((NumberType) preferred).instantiate(result.number).inner()
+		result
+	}
+
 	VariableIndexExpression percentize(Parser p) {
 		new VariableIndexExpression(value.inner().intValue())
 	}
@@ -373,6 +461,31 @@ class NumberExpression extends ConstantExpression<Number> {
 			final x = c.@variables[index]
 			if (x) x.value
 			else throw new KismetEvaluationException(this, "No variable at index $index")
+		}
+
+		Typed type(TypedContext tc, Type preferred) {
+			new Typed(preferred, index)
+		}
+
+		static class Typed extends BasicTypedExpression {
+			int index
+
+			Typed(Type type, int index) {
+				super(type, new Inst(index))
+				this.index = index
+			}
+
+			static class Inst extends Instruction {
+				int index
+
+				Inst(int index) {
+					this.index = index
+				}
+
+				IKismetObject evaluate(RuntimeMemory context) {
+					context.memory[index]
+				}
+			}
 		}
 	}
 }
@@ -400,6 +513,13 @@ class StringExpression extends ConstantExpression<String> {
 		if (null == exception) value
 		else throw exception
 	}
+
+	TypedStringExpression type(TypedContext tc, Type preferred) {
+		final str = evaluate(null).inner()
+		if (!preferred.relation(StringType.INSTANCE).assignableFrom)
+			throw new UnexpectedTypeException("Preferred non-string type $preferred for literal with string \"${StringEscaper.escape(str)}\"")
+		new TypedStringExpression(str)
+	}
 }
 
 @CompileStatic
@@ -421,6 +541,10 @@ class StaticExpression<T extends Expression> extends ConstantExpression<Object> 
 	StaticExpression(T ex = null, Context c) {
 		this(ex, ex.evaluate(c))
 	}
+
+	TypedExpression type(TypedContext tc, Type preferred) {
+		new BasicTypedExpression(preferred, new IdentityInstruction(value))
+	}
 }
 
 @CompileStatic
@@ -433,5 +557,9 @@ class NoExpression extends Expression {
 
 	IKismetObject evaluate(Context c) {
 		Kismet.NULL
+	}
+
+	TypedNoExpression type(TypedContext tc, Type preferred) {
+		TypedNoExpression.INSTANCE
 	}
 }

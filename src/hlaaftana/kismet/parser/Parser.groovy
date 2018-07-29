@@ -6,6 +6,7 @@ import hlaaftana.kismet.call.*
 import hlaaftana.kismet.exceptions.ParseException
 import hlaaftana.kismet.exceptions.UnexpectedSyntaxException
 import hlaaftana.kismet.scope.Context
+import hlaaftana.kismet.scope.TypedContext
 
 @CompileStatic
 class Parser {
@@ -14,8 +15,16 @@ class Parser {
 	int ln = 1, cl = 0
 	String commentStart = ';;'
 
-	@SuppressWarnings('GroovyVariableNotAssigned')
+	TypedExpression parseTyped(String code) {
+		parse(code).type(new TypedContext())
+	}
+
 	BlockExpression parse(String code) {
+		toBlock(optimizer.optimize(parseAST(code)))
+	}
+
+	@SuppressWarnings('GroovyVariableNotAssigned')
+	Expression parseAST(String code) {
 		BlockBuilder builder = new BlockBuilder(this, false)
 		char[] arr = code.toCharArray()
 		int len = arr.length
@@ -38,7 +47,7 @@ class Parser {
 				throw new ParseException(ex, ln, cl)
 			}
 		}
-		toBlock(optimizer.optimize(builder.finish()))
+		builder.finish()
 	}
 
 	static BlockExpression toBlock(Expression expr) {
@@ -54,8 +63,10 @@ class Parser {
 
 		ExprBuilder(Parser p) {
 			parser = p
-			ln = parser.ln
-			cl = parser.cl
+			if (null != p) {
+				ln = parser.ln
+				cl = parser.cl
+			}
 		}
 
 		abstract T doPush(int cp)
@@ -157,6 +168,130 @@ class Parser {
 		}
 	}
 
+	static class LineBuilder extends ExprBuilder {
+		List<Expression> whitespaced = new ArrayList<>()
+		List<List<Expression>> semicoloned = [whitespaced]
+		ExprBuilder last = null
+		boolean lastPercent = false
+		boolean ignoreNewline = false
+
+		LineBuilder(Parser p, boolean ignoreNewline = false) {
+			super(p)
+			this.ignoreNewline = ignoreNewline
+		}
+
+		@Override
+		Expression doPush(int cp) {
+			if (!ignoreNewline && (cp == 10 || cp == 13) && endOnDelim) {
+				return doFinish()
+			} else if (null == last) {
+				if (cp == ((char) ';')) semicoloned.add(new ArrayList<>())
+				else if (cp == ((char) '%')) lastPercent = true
+				else if (cp == ((char) '(')) {
+					final b = new BlockBuilder(parser, true)
+					b.bracket = (char) ')'
+					b.requireSeparator = true
+					last = b
+				} else if (cp == ((char) '[')) last = new CallBuilder(parser, true)
+				else if (cp == ((char) '{')) last = new BlockBuilder(parser, true)
+				else if (cp > 47 && cp < 58) (last = new NumberBuilder(parser)).push(cp)
+				else if (cp == ((char) '"') || cp == ((char) '\'')) last = new StringExprBuilder(parser, cp)
+				else if (cp == ((char) '`')) last = new QuoteAtomBuilder(parser)
+				else if (cp == ((char) '.')) {
+					(last = new PathBuilder(parser, whitespaced.pop())).push(cp)
+				} else if (!NameBuilder.isNotIdentifier(cp)) (last = new NameBuilder(parser)).push(cp)
+				if (lastPercent && null != last) {
+					last.percent = true
+					lastPercent = false
+				}
+			} else {
+				Expression x = last.push(cp)
+				if (null != x) {
+					if (last instanceof NameBuilder && cp == ((char) '[')) {
+						(last = new PathBuilder(parser, x)).push(cp)
+					} else {
+						add x
+						final back = last.goBack
+						last = null
+						if (back && cp != ((char) '(')) return doPush(cp)
+					}
+					if (cp == ((char) '(')) {
+						def bb = new BlockBuilder(parser, true)
+						bb.bracket = (char) ')'
+						bb.separator = (char) ','
+						bb.isCallArgs = true
+						bb.requireSeparator = true
+						last = bb
+					}
+				}
+			}
+			(Expression) null
+		}
+
+		Expression fulfillResult(Expression x) {
+			if (null == x) return x
+			Expression r = x
+			if (percent) r = r.percentize(parser)
+			r
+		}
+
+		void add(Expression x) {
+			if (last instanceof BlockBuilder && ((BlockBuilder) last).isCallArgs) {
+				final p = whitespaced.pop()
+				List<Expression> t = new ArrayList<>()
+				if (p instanceof PathExpression) {
+					final pe = (PathExpression) p
+					final r = pe.steps.last()
+					if (r instanceof PathExpression.PropertyStep)
+						t.add(new NameExpression(((PathExpression.PropertyStep) r).name))
+					else if (r instanceof PathExpression.SubscriptStep)
+						t.add(((PathExpression.SubscriptStep) r).expression)
+					else throw new UnexpectedSyntaxException('Unknown step thing')
+					t.add new PathExpression(pe.root, pe.steps.init())
+				} else t.add p
+				x = new CallExpression(t + ((BlockExpression) x).members)
+			}
+			whitespaced.add(x)
+		}
+
+		Expression doFinish() {
+			if (last != null) {
+				add last.finish()
+				last = null
+			}
+			final semsiz = semicoloned.size()
+			if (semsiz > 1) {
+				if (semicoloned.get(semsiz - 1).empty) semicoloned.remove(semsiz - 1)
+				def lm = new ArrayList<Expression>(semicoloned.size())
+				for (int i = 0; i < lm.size(); ++i) lm[i] = form(semicoloned.get(i))
+				new BlockExpression(lm)
+			} else form(whitespaced)
+		}
+
+		Expression form(List<Expression> zib) {
+			final s = zib.size()
+			if (s > 1) {
+				new CallExpression(zib)
+			} else if (s == 1) {
+				zib.get(0)
+			} else NoExpression.INSTANCE
+		}
+
+		boolean isEndOnDelim() {
+			last == null || !last.waitingForDelim()
+		}
+
+		boolean isWarrior() {
+			last == null || last.warrior
+		}
+
+		boolean anyBlocks() {
+			last instanceof BlockBuilder || (last instanceof CallBuilder && ((CallBuilder) last).anyBlocks())
+		}
+
+		boolean waitingForDelim() { !ignoreNewline }
+	}
+
 	static class CallBuilder extends ExprBuilder<CallExpression> {
 		List<Expression> expressions = []
 		ExprBuilder last = null
@@ -219,7 +354,6 @@ class Parser {
 			if (null == x) return x
 			Expression r = x
 			if (percent) r = r.percentize(parser)
-			//else if (parser.optimizer.prelude) r = parser.optimizer.optimize(x)
 			r
 		}
 
@@ -238,7 +372,6 @@ class Parser {
 					t.add new PathExpression(pe.root, pe.steps.init())
 				} else t.add p
 				x = new CallExpression(t + ((BlockExpression) x).members)
-				// x = parser.optimizer.prelude ? parser.optimizer.optimize(call) : call
 			}
 			expressions.add(x)
 		}
