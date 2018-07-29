@@ -1,7 +1,6 @@
 package hlaaftana.kismet.call
 
 import groovy.transform.CompileStatic
-import groovy.transform.InheritConstructors
 import hlaaftana.kismet.Kismet
 import hlaaftana.kismet.exceptions.UnexpectedValueException
 import hlaaftana.kismet.scope.TypedContext
@@ -120,8 +119,9 @@ class VariableSetExpression extends TypedExpression {
 	TypedContext.VariableReference reference
 	TypedExpression value
 
-	VariableSetExpression(TypedContext.VariableReference vr) {
+	VariableSetExpression(TypedContext.VariableReference vr, TypedExpression v) {
 		reference = vr
+		value = v
 	}
 
 	VariableInstruction $instruction
@@ -230,61 +230,6 @@ class IdentityInstruction<T extends IKismetObject> extends Instruction {
 	T evaluate(RuntimeMemory context) { value }
 }
 
-@CompileStatic
-@InheritConstructors
-class ByteInstruction extends IdentityInstruction<KInt8> {
-	byte[] getBytes() { ByteBuffer.allocate(2).put((byte) 16).put(value.inner).array() }
-}
-
-@CompileStatic
-@InheritConstructors
-class ShortInstruction extends IdentityInstruction<KInt16> {
-	byte[] getBytes() { ByteBuffer.allocate(3).put((byte) 17).putShort(value.inner).array() }
-}
-
-@CompileStatic
-@InheritConstructors
-class IntInstruction extends IdentityInstruction<KInt32> {
-	byte[] getBytes() { ByteBuffer.allocate(5).put((byte) 19).putInt(value.inner).array() }
-}
-
-@CompileStatic
-@InheritConstructors
-class LongInstruction extends IdentityInstruction<KInt64> {
-	byte[] getBytes() { ByteBuffer.allocate(9).put((byte) 20).putLong(value.inner).array() }
-}
-
-@CompileStatic
-@InheritConstructors
-class FloatInstruction extends IdentityInstruction<KFloat32> {
-	byte[] getBytes() { ByteBuffer.allocate(5).put((byte) 21).putFloat(value.inner).array() }
-}
-
-@CompileStatic
-@InheritConstructors
-class DoubleInstruction extends IdentityInstruction<KFloat64> {
-	byte[] getBytes() { ByteBuffer.allocate(9).put((byte) 22).putDouble(value.inner).array() }
-}
-
-@CompileStatic
-@InheritConstructors
-class BigIntInstruction extends IdentityInstruction<KInt> {
-	byte[] getBytes() {
-		final vb = value.inner.toByteArray()
-		ByteBuffer.allocate(5 + vb.length).put((byte) 23).putInt(vb.length).put(vb).array()
-	}
-}
-
-@CompileStatic
-@InheritConstructors
-class BigFloatInstruction extends IdentityInstruction<KFloat> {
-	byte[] getBytes() {
-		final val = value.inner
-		final vb = val.unscaledValue().toByteArray()
-		ByteBuffer.allocate(9 + vb.length).put((byte) 24).putInt(val.scale()).putInt(vb.length).put(vb).array()
-	}
-}
-
 import hlaaftana.kismet.type.NumberType
 
 @CompileStatic
@@ -301,38 +246,29 @@ class TypedNumberExpression extends TypedExpression {
 		this.@number = num
 		if (num instanceof Integer) {
 			type = NumberType.Int32
-			instruction = new IntInstruction(new KInt32(num.intValue()))
+			instruction = new IdentityInstruction<>(new KInt32(num.intValue()))
 		} else if (num instanceof BigInteger) {
 			type = NumberType.Int
-			instruction = new BigIntInstruction(new KInt(num))
+			instruction = new IdentityInstruction<>(new KInt((BigInteger) num))
 		} else if (num instanceof BigDecimal) {
 			type = NumberType.Float
-			instruction = new BigFloatInstruction(new KFloat(num))
+			instruction = new IdentityInstruction<>(new KFloat((BigDecimal) num))
 		} else if (num instanceof Byte) {
 			type = NumberType.Int8
-			instruction = new ByteInstruction(new KInt8(num.byteValue()))
+			instruction = new IdentityInstruction<>(new KInt8(num.byteValue()))
 		} else if (num instanceof Double) {
 			type = NumberType.Float64
-			instruction = new DoubleInstruction(new KFloat64(num.doubleValue()))
+			instruction = new IdentityInstruction<>(new KFloat64(num.doubleValue()))
 		} else if (num instanceof Long) {
 			type = NumberType.Int64
-			instruction = new LongInstruction(new KInt64(num.longValue()))
+			instruction = new IdentityInstruction<>(new KInt64(num.longValue()))
 		} else if (num instanceof Float) {
 			type = NumberType.Float32
-			instruction = new FloatInstruction(new KFloat32(num.floatValue()))
+			instruction = new IdentityInstruction<>(new KFloat32(num.floatValue()))
 		} else if (num instanceof Short) {
 			type = NumberType.Int16
-			instruction = new ShortInstruction(new KInt16(num.shortValue()))
+			instruction = new IdentityInstruction<>(new KInt16(num.shortValue()))
 		} else throw new UnexpectedValueException("Unknown number $num with class ${num.class} for typed expression")
-	}
-}
-
-@CompileStatic
-@InheritConstructors
-class StringInstruction extends IdentityInstruction<KismetString> {
-	byte[] getBytes() {
-		def sb = value.inner().getBytes('UTF-8')
-		ByteBuffer.allocate(5 + sb.length).put((byte) 25).putInt(sb.length).put(sb).array()
 	}
 }
 
@@ -349,7 +285,7 @@ class TypedStringExpression extends TypedExpression {
 
 	void setString(String str) {
 		this.@string = str
-		instruction = new StringInstruction(new KismetString(string))
+		instruction = new IdentityInstruction<>(new KismetString(string))
 	}
 
 	Type getType() { StringType.INSTANCE }

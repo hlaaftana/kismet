@@ -75,6 +75,22 @@ abstract class KismetNumber<T extends Number> extends Number implements IKismetO
 }
 
 @CompileStatic
+@Singleton(property = 'INSTANCE')
+class NonPrimitiveNumClass extends KismetNumberClass {
+	KismetNumber instantiate(Number num) {
+		new KNonPrimitiveNum(num)
+	}
+
+	String getName() { 'UnknownNumber' }
+
+	boolean isInstance(IKismetObject object) {
+		object instanceof KNonPrimitiveNum
+	}
+
+	int getBits() { 0 }
+}
+
+@CompileStatic
 abstract class KismetNumberClass<T extends Number> implements IKismetClass<KismetNumber<T>>, IKismetObject<KismetNumberClass<T>> {
 	KismetNumber<T> cast(IKismetObject object) {
 		if (!(object instanceof KismetNumber)) throw new CannotOperateException("cast to non number", "number")
@@ -121,26 +137,6 @@ abstract class KismetNumberClass<T extends Number> implements IKismetClass<Kisme
 	KismetNumber<T> construct(IKismetObject[] args) {
 		instantiate(args[0].inner() as Number)
 	}
-}
-
-@CompileStatic
-class NonPrimitiveNumClass extends KismetNumberClass {
-	static
-	final NonPrimitiveNumClass INSTANCE = new NonPrimitiveNumClass()
-
-	private NonPrimitiveNumClass() {}
-
-	KismetNumber instantiate(Number num) {
-		new KNonPrimitiveNum(num)
-	}
-
-	String getName() { 'UnknownNumber' }
-
-	boolean isInstance(IKismetObject object) {
-		object instanceof KNonPrimitiveNum
-	}
-
-	int getBits() { 0 }
 }
 
 @CompileStatic
@@ -217,11 +213,8 @@ final class KNonPrimitiveNum extends KismetNumber {
 }
 
 @CompileStatic
+@Singleton(property = 'INSTANCE')
 class IntClass extends KismetNumberClass<BigInteger> {
-	static final IntClass INSTANCE = new IntClass()
-
-	private IntClass() {}
-
 	KismetNumber<BigInteger> instantiate(Number num) {
 		new KInt(toBigInt(num))
 	}
@@ -314,11 +307,8 @@ final class KInt extends KismetNumber<BigInteger> {
 
 
 @CompileStatic
+@Singleton(property = 'INSTANCE')
 class FloatClass extends KismetNumberClass<BigDecimal> {
-	static final FloatClass INSTANCE = new FloatClass()
-
-	private FloatClass() {}
-
 	KismetNumber<BigDecimal> instantiate(Number num) {
 		new KFloat(num.doubleValue())
 	}
@@ -408,11 +398,8 @@ final class KFloat extends KismetNumber<BigDecimal> {
 }
 
 @CompileStatic
+@Singleton(property = 'INSTANCE')
 class Float64Class extends KismetNumberClass<Double> {
-	static final Float64Class INSTANCE = new Float64Class()
-
-	private Float64Class() {}
-
 	KismetNumber<Double> instantiate(Number num) {
 		new KFloat64(num.doubleValue())
 	}
@@ -494,11 +481,8 @@ final class KFloat64 extends KismetNumber<Double> {
 }
 
 @CompileStatic
+@Singleton(property = 'INSTANCE')
 class Float32Class extends KismetNumberClass<Float> {
-	static final Float32Class INSTANCE = new Float32Class()
-
-	private Float32Class() {}
-
 	KismetNumber<Float> instantiate(Number num) {
 		new KFloat32(num.floatValue())
 	}
@@ -580,11 +564,8 @@ final class KFloat32 extends KismetNumber<Float> {
 }
 
 @CompileStatic
+@Singleton(property = 'INSTANCE')
 class Int64Class extends KismetNumberClass<Long> {
-	static final Int64Class INSTANCE = new Int64Class()
-
-	private Int64Class() {}
-
 	KismetNumber<Long> instantiate(Number num) {
 		new KInt64(num.longValue())
 	}
@@ -666,11 +647,8 @@ final class KInt64 extends KismetNumber<Long> {
 }
 
 @CompileStatic
+@Singleton(property = 'INSTANCE')
 class Int32Class extends KismetNumberClass<Integer> {
-	static final Int32Class INSTANCE = new Int32Class()
-
-	private Int32Class() {}
-
 	KismetNumber<Integer> instantiate(Number num) {
 		new KInt32(num.intValue())
 	}
@@ -752,11 +730,8 @@ final class KInt32 extends KismetNumber<Integer> {
 }
 
 @CompileStatic
+@Singleton(property = 'INSTANCE')
 class RuneClass extends KismetNumberClass<Integer> {
-	static final RuneClass INSTANCE = new RuneClass()
-
-	private RuneClass() {}
-
 	KismetNumber<Integer> instantiate(Number num) {
 		new KRune(num.intValue())
 	}
@@ -838,11 +813,8 @@ final class KRune extends KismetNumber<Integer> {
 }
 
 @CompileStatic
+@Singleton(property = 'INSTANCE')
 class Int16Class extends KismetNumberClass<Short> {
-	static final Int16Class INSTANCE = new Int16Class()
-
-	private Int16Class() {}
-
 	KismetNumber<Short> instantiate(Number num) {
 		new KInt16(num.shortValue())
 	}
@@ -924,11 +896,8 @@ final class KInt16 extends KismetNumber<Short> {
 }
 
 @CompileStatic
+@Singleton(property = 'INSTANCE')
 class CharClass extends KismetNumberClass<Integer> {
-	static final CharClass INSTANCE = new CharClass()
-
-	private CharClass() {}
-
 	KismetNumber<Integer> instantiate(Number num) {
 		new KChar((char) num.intValue())
 	}
@@ -1010,11 +979,8 @@ final class KChar extends KismetNumber<Integer> {
 }
 
 @CompileStatic
+@Singleton(property = 'INSTANCE')
 class Int8Class extends KismetNumberClass<Byte> {
-	static final Int8Class INSTANCE = new Int8Class()
-
-	private Int8Class() {}
-
 	KismetNumber<Byte> instantiate(Number num) {
 		new KInt8(num.byteValue())
 	}

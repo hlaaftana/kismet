@@ -27,11 +27,11 @@ abstract class Expression {
 
 	TypedExpression type(TypedContext tc) { type(tc, Type.ANY) }
 
-	Collection<Expression> getMembers() { [] }
+	List<Expression> getMembers() { [] }
 
 	Expression getAt(int i) { members[i] }
 
-	Expression join(Collection<Expression> exprs) {
+	Expression join(List<Expression> exprs) {
 		throw new UnsupportedOperationException("Cannot join exprs $exprs on class ${this.class}")
 	}
 
@@ -83,7 +83,7 @@ class PathExpression extends Expression {
 
 	String repr() { root.repr() + steps.join('') }
 
-	Collection<Expression> getMembers() {
+	List<Expression> getMembers() {
 		def result = new ArrayList<Expression>(steps.size() + 1)
 		result.add(root)
 		for (def s: steps) result.add(s.asExpr())
@@ -157,6 +157,41 @@ class PathExpression extends Expression {
 		}
 	}
 
+	static class CallStep implements Step {
+		List<Expression> arguments
+
+		CallStep(List<Expression> arguments) {
+			this.arguments = arguments
+		}
+
+		IKismetObject apply(Context c, IKismetObject obj) {
+			if (obj.inner() instanceof KismetCallable) {
+				((KismetCallable) obj.inner()).call(c, arguments.toArray(new Expression[0]))
+			} else {
+				final arr = new IKismetObject[arguments.size()]
+				for (int i = 0; i < arr.length; ++i) arr[i] = arguments[i].evaluate(c)
+				obj.kismetClass().call(obj, arr)
+			}
+		}
+
+		String toString() { ".(${arguments.join(', ')})" }
+		Expression asExpr() { new TupleExpression(arguments) }
+		CallStep borrow(Expression expr) { new CallStep(expr.members) }
+
+		Instruction instr(TypedContext ctx, Instruction before) {
+			final typed = new Instruction[arguments.size()]
+			for (int i = 0; i < typed.length; ++i) typed[i] = arguments.get(i).type(ctx).instruction
+			new Instruction() {
+				IKismetObject evaluate(RuntimeMemory context) {
+					final val = before.evaluate(context)
+					def args = new IKismetObject[typed.length]
+					for (int i = 0; i < args.length; ++i) args[i] = typed[i].evaluate(context)
+					val.kismetClass().call(val, args)
+				}
+			}
+		}
+	}
+
 	static class EnterStep implements Step {
 		Expression expression
 
@@ -170,7 +205,7 @@ class PathExpression extends Expression {
 			expression.evaluate(ec)
 		}
 
-		String toString() { ".($expression)" }
+		String toString() { ".{$expression}" }
 
 		@InheritConstructors
 		static class EnterContext extends Context {
@@ -216,7 +251,8 @@ class NameExpression extends Expression {
 		def failed = new ArrayList<String>()
 		def vr = tc.getAny(text, preferred, failed)
 		if (null != vr) return new VariableExpression(vr)
-		def msgbase = "Could not find variable \"$text\" for type $preferred"
+		def msgbase = new StringBuilder("Could not find variable \"").append(text)
+			.append("\" for type ").append(preferred.toString()).toString()
 		if (!failed.empty) {
 			def msg = new String[failed.size() + 1]
 			msg[0] = msgbase.concat(", but for these types instead:")
@@ -242,7 +278,7 @@ class DiveExpression extends Expression {
 		inner.evaluate(c)
 	}
 
-	Collection<Expression> getMembers() { [inner] }
+	List<Expression> getMembers() { [inner] }
 	DiveExpression join(Collection<Expression> a) { new DiveExpression(a[0]) }
 
 	TypedDiveExpression type(TypedContext tc, Type preferred) {
@@ -299,7 +335,7 @@ class CallExpression extends Expression {
 
 	CallExpression() {}
 
-	String repr() { "[${members.join(', ')}]" }
+	String repr() { "call(${members.join(', ')})" }
 
 	CallExpression plus(List<Expression> mem) {
 		new CallExpression(members + mem)
@@ -336,7 +372,7 @@ class CallExpression extends Expression {
 		new CallExpression(exprs)
 	}
 	
-	TypedCallExpression type(TypedContext tc, Type preferred) {
+	TypedExpression type(TypedContext tc, Type preferred) {
 		def args = new TypedExpression[arguments.size()]
 		for (int i = 0; i < args.length; ++i) args[i] = arguments.get(i).type(tc)
 		TypedContext.DeclarationReference m
@@ -346,6 +382,36 @@ class CallExpression extends Expression {
 		} else {
 			new ValueCallExpression(callValue.type(tc), args)
 		}
+	}
+}
+
+@CompileStatic
+class ListExpression extends Expression {
+	List<Expression> members
+
+	ListExpression(List<Expression> members) {
+		this.members = members
+	}
+
+	String repr() { "[${members.join(', ')}]" }
+
+	IKismetObject evaluate(Context c) {
+		Kismet.model(members*.evaluate(c))
+	}
+}
+
+@CompileStatic
+class TupleExpression extends Expression {
+	List<Expression> members
+
+	TupleExpression(List<Expression> members) {
+		this.members = members
+	}
+
+	String repr() { "(${members.join(', ')})" }
+
+	IKismetObject evaluate(Context c) {
+		Kismet.model(new Tuple(members*.evaluate(c)))
 	}
 }
 
@@ -372,6 +438,9 @@ class NumberExpression extends ConstantExpression<Number> {
 	NumberExpression(boolean type, StringBuilder[] arr) {
 		StringBuilder x = arr[0]
 		boolean t = false
+		if (null != arr[4] && arr[4].length() % 2 == 1) {
+			x.insert(0, (char) '-')
+		}
 		if (null != arr[1]) {
 			x.append((char) '.').append(arr[1]); t = true
 		}
@@ -379,51 +448,38 @@ class NumberExpression extends ConstantExpression<Number> {
 			x.append((char) 'e').append(arr[2]); t = true
 		}
 		String r = x.toString()
-		if (null == arr[3]) setValue(t ? new BigDecimal(r) : new BigInteger(r)) else {
-			if (type) {
-				if (arr[3].length() == 0) setValue(new BigDecimal(r))
-				else {
-					int b = Integer.valueOf(arr[3].toString())
-					if (b == 1) setValue(-new BigDecimal(r))
-					else if (b == 32) setValue(new Float(r))
-					else if (b == 33) setValue(-new Float(r))
-					else if (b == 64) setValue(new Double(r))
-					else if (b == 65) setValue(-new Double(r))
-					else throw new NumberFormatException("Invalid number of bits $b for explicit float")
-				}
-			} else {
-				if (t) {
-					def v = new BigDecimal(r)
-					if (arr[3].length() == 0) setValue(v.toBigInteger())
-					else {
-						int b = Integer.valueOf(arr[3].toString())
-						if (b == 1) setValue(-v.toBigInteger())
-						else if (b == 8) setValue(v.byteValue())
-						else if (b == 9) setValue(-v.byteValue())
-						else if (b == 16) setValue(v.shortValue())
-						else if (b == 17) setValue(-v.shortValue())
-						else if (b == 32) setValue(v.intValue())
-						else if (b == 33) setValue(-v.intValue())
-						else if (b == 64) setValue(v.longValue())
-						else if (b == 65) setValue(-v.longValue())
-						else throw new NumberFormatException("Invalid number of bits $b for explicit integer")
-					}
-				} else if (arr[3].length() == 0) setValue(new BigInteger(r))
-				else {
-					int b = Integer.valueOf(arr[3].toString())
-					if (b == 1) setValue(-new BigInteger(r))
-					else if (b == 8) setValue(new Byte(r))
-					else if (b == 9) setValue(-new Byte(r))
-					else if (b == 16) setValue(new Short(r))
-					else if (b == 17) setValue(-new Short(r))
-					else if (b == 32) setValue(new Integer(r))
-					else if (b == 33) setValue(-new Integer(r))
-					else if (b == 64) setValue(new Long(r))
-					else if (b == 65) setValue(-new Long(r))
-					else throw new NumberFormatException("Invalid number of bits $b for explicit integer")
-				}
+		Number v
+		if (null == arr[3])
+			v = t ? new BigDecimal(r) : new BigInteger(r)
+		else if (type) {
+			if (arr[3].length() == 0) v = new BigDecimal(r)
+			else {
+				int b = Integer.valueOf(arr[3].toString())
+				if (b == 32) v = new Float(r)
+				else if (b == 64) v = new Double(r)
+				else throw new NumberFormatException("Invalid number of bits $b for explicit float")
 			}
+		} else if (t) {
+			v = new BigDecimal(r)
+			if (arr[3].length() == 0) v = v.toBigInteger()
+			else {
+				int b = Integer.valueOf(arr[3].toString())
+				if (b == 8) v = v.byteValue()
+				else if (b == 16) v = v.shortValue()
+				else if (b == 32) v = v.intValue()
+				else if (b == 64) v = v.longValue()
+				else throw new NumberFormatException("Invalid number of bits $b for explicit integer")
+			}
+		} else if (arr[3].length() == 0) v = new BigInteger(r)
+		else {
+			int b = Integer.valueOf(arr[3].toString())
+			if (b == 8) v = new Byte(r)
+			else if (b == 16) v = new Short(r)
+			else if (b == 32) v = new Integer(r)
+			else if (b == 64) v = new Long(r)
+			else throw new NumberFormatException("Invalid number of bits $b for explicit integer")
 		}
+		setValue(v)
 	}
 
 	NumberExpression(Number v) { setValue(v) }
@@ -548,11 +604,8 @@ class StaticExpression<T extends Expression> extends ConstantExpression<Object> 
 }
 
 @CompileStatic
+@Singleton(property = 'INSTANCE')
 class NoExpression extends Expression {
-	static final NoExpression INSTANCE = new NoExpression()
-
-	private NoExpression() {}
-
 	String repr() { "noexpr" }
 
 	IKismetObject evaluate(Context c) {

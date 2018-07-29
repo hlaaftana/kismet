@@ -17,7 +17,9 @@ class Test {
 		for (f in ['binarysearch', 'compareignorecase', 'factorial', 'fibonacci', 'fizzbuzz', 'memoize']) {
 			println "file: $f"
 			final file = new File("Kismet/examples/${f}.ksmt")
-			parser.parse(file.text).evaluate(parser.context.child())
+			def p = parser.parse(file.text)
+			println p
+			p.evaluate(parser.context.child())
 		}
 	}
 }
