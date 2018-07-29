@@ -99,7 +99,7 @@ class Context {
 		new Block(expr, child())
 	}
 
-	Block child(Expression[] expr) {
+	Block childBlock(Expression[] expr) {
 		new Block(new BlockExpression(expr.toList()), child())
 	}
 

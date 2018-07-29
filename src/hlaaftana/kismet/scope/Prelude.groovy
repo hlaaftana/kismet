@@ -876,13 +876,13 @@ class Prelude {
 						new CallExpression(new StaticExpression(new ContextFunction() {
 							IKismetObject call(Context c, IKismetObject... _) {
 								Kismet.model new KismetFunction(arguments, args.length == 1 ? c.child(a) :
-										c.child(args.tail()))
+										c.childBlock(args.tail()))
 							}
 						}))
 					}
 				},
 				mcr: macr { Context c, Expression... exprs ->
-					new KismetMacro(c.child(exprs))
+					new KismetMacro(c.childBlock(exprs))
 				},
 				defn: macr { Context c, Expression... exprs ->
 					final x = new KismetFunction(c, true, exprs)
@@ -892,7 +892,7 @@ class Prelude {
 					new AbstractTemplate() {
 						@CompileStatic
 						Expression transform(Parser parser, Expression... args) {
-							final co = c.child(exprs)
+							final co = c.childBlock(exprs)
 							for (int i = 0; i < args.length; ++i) {
 								co.context.set("\$$i", Kismet.model(args[i]))
 							}
@@ -927,7 +927,7 @@ class Prelude {
 				block: new Macro() {
 					@CompileStatic
 					IKismetObject call(Context c, Expression... args) {
-						Kismet.model(c.child(args))
+						Kismet.model(c.childBlock(args))
 					}
 				},
 				incr: new AbstractTemplate() {
@@ -1149,7 +1149,7 @@ class Prelude {
 				},
 				'for:': macr { Context c, Expression... exprs ->
 					String n = 'it'
-					Block b = c.child(exprs.drop(2))
+					Block b = c.childBlock(exprs.drop(2))
 					def range = exprs[0] instanceof CallExpression ? ((CallExpression) exprs[0]).members : [exprs[0]]
 					Iterator iter
 					int i = 0
@@ -1180,7 +1180,7 @@ class Prelude {
 				},
 				'&for:': macr { Context c, Expression... exprs ->
 					String n = 'it'
-					Block b = c.child(exprs.drop(2))
+					Block b = c.childBlock(exprs.drop(2))
 					def range = exprs[0] instanceof CallExpression ? ((CallExpression) exprs[0]).members : [exprs[0]]
 					Iterator iter
 					int i = 0
@@ -1211,7 +1211,7 @@ class Prelude {
 					result
 				},
 				for: macr { Context c, Expression... exprs ->
-					Block b = c.child(exprs.tail())
+					Block b = c.childBlock(exprs.tail())
 					def range = exprs[0] instanceof CallExpression ? ((CallExpression) exprs[0]).members : [exprs[0]]
 					String n
 					int bottom, top
@@ -1237,7 +1237,7 @@ class Prelude {
 					Kismet.NULL
 				},
 				'&for': macr { Context c, Expression... exprs ->
-					Block b = c.child(exprs.tail())
+					Block b = c.childBlock(exprs.tail())
 					def range = exprs[0] instanceof CallExpression ? ((CallExpression) exprs[0]).members : [exprs[0]]
 					String n
 					int bottom, top
@@ -1264,7 +1264,7 @@ class Prelude {
 					a
 				},
 				'for<': macr { Context c, Expression... exprs ->
-					Block b = c.child(exprs.tail())
+					Block b = c.childBlock(exprs.tail())
 					def range = exprs[0] instanceof CallExpression ? ((CallExpression) exprs[0]).members : [exprs[0]]
 					String n
 					int bottom, top
@@ -1290,7 +1290,7 @@ class Prelude {
 					Kismet.NULL
 				},
 				'&for<': macr { Context c, Expression... exprs ->
-					Block b = c.child(exprs.tail())
+					Block b = c.childBlock(exprs.tail())
 					def range = exprs[0] instanceof CallExpression ? ((CallExpression) exprs[0]).members : [exprs[0]]
 					String n
 					int bottom, top
@@ -1526,9 +1526,9 @@ class Prelude {
 					Closure fun = args[2].kismetClass().&call.curry(args[2])
 					def b = []
 					for (int i = 0; i <= siz - con; ++i) {
-						def a = new ArrayList(con)
-						for (int j = 0; j < con; ++j) a.add(x.invokeMethod('getAt', i + j))
-						fun(a as Object[])
+						def a = new Object[con]
+						for (int j = 0; j < con; ++j) a[j] = x.invokeMethod('getAt', i + j)
+						fun.invokeMethod('call', a)
 						b.add(a)
 					}
 					b
@@ -1620,7 +1620,7 @@ class Prelude {
 				lcm: funcc { ... args -> lcm(args[0] as Number, args[1] as Number) },
 				reduce_ratio: funcc { ... args ->
 					Pair pair = args[0] as Pair
-					def (Number a, Number b) = [pair.first as Number, pair.second as Number]
+					def a = pair.first as Number, b = pair.second as Number
 					Number gcd = gcd(a, b)
 					(a, b) = [a.intdiv(gcd), b.intdiv(gcd)]
 					new Pair(a, b)
@@ -1628,14 +1628,14 @@ class Prelude {
 				repr_expr: funcc { ... args -> ((Expression) args[0]).repr() },
 				sum_range: funcc { ... args ->
 					Range r = args[0] as Range
-					def (Number to, Number from) = [r.to as Number, r.from as Number]
+					def to = r.to as Number, from = r.from as Number
 					Number x = to.minus(from).next()
 					x.multiply(from.plus(x)).intdiv(2)
 				},
 				sum_range_with_step: funcc { ... args ->
 					Range r = args[0] as Range
 					Number step = args[1] as Number
-					def (Number to, Number from) = [(r.to as Number).next(), r.from as Number]
+					def to = (r.to as Number).next(), from = r.from as Number
 					to.minus(from).intdiv(step).multiply(from.plus(to.minus(step))).intdiv(2)
 				},
 				'subsequence?': funcc { ... args ->
@@ -1660,36 +1660,39 @@ class Prelude {
 				},
 				average_time_nanos: macr { Context c, Expression... args ->
 					int iterations = args[0].evaluate(c).inner() as int
-					def times = new ArrayList<Long>(iterations)
+					long sum = 0, size = 0
 					for (int i = 0; i < iterations; ++i) {
 						long a = System.nanoTime()
 						args[1].evaluate(c)
 						long b = System.nanoTime()
-						times.add(b - a)
+						sum += b - a
+						--size
 					}
-					(times.sum() as long) / times.size()
+					sum / size
 				},
 				average_time_millis: macr { Context c, Expression... args ->
 					int iterations = args[0].evaluate(c).inner() as int
-					def times = new ArrayList<Long>(iterations)
+					long sum = 0, size = 0
 					for (int i = 0; i < iterations; ++i) {
 						long a = System.currentTimeMillis()
 						args[1].evaluate(c)
 						long b = System.currentTimeMillis()
-						times.add(b - a)
+						sum += b - a
+						--size
 					}
-					(times.sum() as long) / times.size()
+					sum / size
 				},
 				average_time_seconds: macr { Context c, Expression... args ->
 					int iterations = args[0].evaluate(c).inner() as int
-					def times = new ArrayList<Long>(iterations)
+					long sum = 0, size = 0
 					for (int i = 0; i < iterations; ++i) {
 						long a = System.currentTimeSeconds()
 						args[1].evaluate(c)
 						long b = System.currentTimeSeconds()
-						times.add(b - a)
+						sum += b - a
+						--size
 					}
-					(times.sum() as long) / times.size()
+					sum / size
 				},
 				list_time_nanos: macr { Context c, Expression... args ->
 					int iterations = args[0].evaluate(c).inner() as int
@@ -1724,8 +1727,10 @@ class Prelude {
 					}
 					times
 				},
-				'|>|': macr { Context c, Expression... args ->
-					infixCallsLTR(c, args.toList())
+				'|>|': new AbstractTemplate() {
+					Expression transform(Parser parser, Expression... args) {
+						infixLTR(args.toList())
+					}
 				},
 				probability: funcc { ... a ->
 					Random rand = a.length > 1 ? a[1] as Random : new Random()
@@ -1873,47 +1878,50 @@ class Prelude {
 		(CallExpression) base
 	}
 
-	static Expression prepareInfixLTR(Context c, Expression expr) {
-		if (expr instanceof BlockExpression) {
-			new StaticExpression(expr, evalInfixLTR(c, expr))
-		} else if (expr instanceof CallExpression) {
-			new StaticExpression(expr, evalInfixLTR(c, expr))
-		} else expr
-	}
-
-	static IKismetObject evalInfixLTR(Context c, Expression expr) {
-		if (expr instanceof CallExpression) infixCallsLTR(c, ((CallExpression) expr).members)
+	static Expression infixLTR(Expression expr) {
+		if (expr instanceof CallExpression) infixLTR(((CallExpression) expr).members)
 		else if (expr instanceof BlockExpression) {
-			def result = Kismet.NULL
-			for (x in ((BlockExpression) expr).members) result = evalInfixLTR(c, x)
-			result
-		} else expr.evaluate(c)
+			final mems = ((BlockExpression) expr).members
+			def result = new ArrayList<Expression>(mems.size())
+			for (x in ((BlockExpression) expr).members) result.add(infixLTR(x))
+			new BlockExpression(result)
+		} else expr
 	}
 
 	private static final NameExpression INFIX_CALLS_LTR_PATH = new NameExpression('|>|')
 
-	static IKismetObject infixCallsLTR(Context c, Collection<Expression> args) {
-		if (args.empty) return Kismet.NULL
-		else if (args.size() == 1) return evalInfixLTR(c, args[0])
+	static Expression infixLTR(Collection<Expression> args) {
+		if (args.empty) return NoExpression.INSTANCE
+		else if (args.size() == 1) return infixLTR(args[0])
 		else if (args.size() == 2) {
-			if (INFIX_CALLS_LTR_PATH == args[0]) return args[1].evaluate(c)
-			final val = evalInfixLTR(c, args[0])
-			val.kismetClass().call(val, evalInfixLTR(c, args[1]))
+			if (INFIX_CALLS_LTR_PATH == args[0]) return args[1]
+			final val = infixLTR(args[0])
+			def result = new CallExpression((Expression[]) null)
+			result.callValue = val
+			result.arguments = Arrays.asList(val, infixLTR(args[1]))
+			result
 		} else if (args.size() % 2 == 0)
 			throw new UnexpectedSyntaxException('Even number of arguments for LTR infix function calls')
-		List<List<Expression>> calls = [[
-				prepareInfixLTR(c, args[1]),
-				prepareInfixLTR(c, args[0]),
-				prepareInfixLTR(c, args[2])]]
+		def calls = new ArrayList<List<Expression>>()
 		for (int i = 3; i < args.size(); ++i) {
-			Expression ex = prepareInfixLTR c, args[i]
+			Expression ex = infixLTR args[i]
 			def last = calls.last()
 			if (i % 2 == 0) last.add(ex)
 			else if (ex != last[0]) calls.add([ex])
 		}
-		new CallExpression((List<Expression>) calls.inject { a, b ->
-			[b[0], new CallExpression(a), *b.tail()]
-		}).evaluate(c)
+		CallExpression result = new CallExpression(
+				infixLTR(args[1]),
+				infixLTR(args[0]),
+				infixLTR(args[2]))
+		for (b in calls) {
+			def exprs = new ArrayList<>(b.size() + 1)
+			int i = 0
+			exprs.add(b.get(i++))
+			exprs.add(result)
+			while (i < b.size()) exprs.add(b.get(i++))
+			result = new CallExpression(exprs)
+		}
+		result
 	}
 
 	static void putPathExpression(Context c, Map map, PathExpression path, value) {

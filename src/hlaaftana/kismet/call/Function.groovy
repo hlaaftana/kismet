@@ -171,7 +171,7 @@ class KismetFunction extends Function implements Nameable {
 			} else {
 				arguments = new Arguments(f)
 			}
-			block = c.child(args.tail())
+			block = c.childBlock(args.tail())
 		}
 	}
 
