@@ -5,10 +5,12 @@ import groovy.transform.InheritConstructors
 import hlaaftana.kismet.Kismet
 import hlaaftana.kismet.exceptions.KismetEvaluationException
 import hlaaftana.kismet.exceptions.UndefinedVariableException
+import hlaaftana.kismet.exceptions.UnexpectedSyntaxException
 import hlaaftana.kismet.exceptions.UnexpectedTypeException
 import hlaaftana.kismet.parser.Parser
 import hlaaftana.kismet.parser.StringEscaper
 import hlaaftana.kismet.scope.Context
+import hlaaftana.kismet.scope.Prelude
 import hlaaftana.kismet.scope.TypedContext
 import hlaaftana.kismet.type.NumberType
 import hlaaftana.kismet.type.StringType
@@ -28,6 +30,8 @@ abstract class Expression {
 	TypedExpression type(TypedContext tc) { type(tc, Type.ANY) }
 
 	List<Expression> getMembers() { [] }
+
+	int size() { members.size() }
 
 	Expression getAt(int i) { members[i] }
 
@@ -157,41 +161,6 @@ class PathExpression extends Expression {
 		}
 	}
 
-	static class CallStep implements Step {
-		List<Expression> arguments
-
-		CallStep(List<Expression> arguments) {
-			this.arguments = arguments
-		}
-
-		IKismetObject apply(Context c, IKismetObject obj) {
-			if (obj.inner() instanceof KismetCallable) {
-				((KismetCallable) obj.inner()).call(c, arguments.toArray(new Expression[0]))
-			} else {
-				final arr = new IKismetObject[arguments.size()]
-				for (int i = 0; i < arr.length; ++i) arr[i] = arguments[i].evaluate(c)
-				obj.kismetClass().call(obj, arr)
-			}
-		}
-
-		String toString() { ".(${arguments.join(', ')})" }
-		Expression asExpr() { new TupleExpression(arguments) }
-		CallStep borrow(Expression expr) { new CallStep(expr.members) }
-
-		Instruction instr(TypedContext ctx, Instruction before) {
-			final typed = new Instruction[arguments.size()]
-			for (int i = 0; i < typed.length; ++i) typed[i] = arguments.get(i).type(ctx).instruction
-			new Instruction() {
-				IKismetObject evaluate(RuntimeMemory context) {
-					final val = before.evaluate(context)
-					def args = new IKismetObject[typed.length]
-					for (int i = 0; i < args.length; ++i) args[i] = typed[i].evaluate(context)
-					val.kismetClass().call(val, args)
-				}
-			}
-		}
-	}
-
 	static class EnterStep implements Step {
 		Expression expression
 
@@ -226,6 +195,8 @@ class PathExpression extends Expression {
 			throw new UnsupportedOperationException('unsupported')
 		}
 	}
+
+	int size() { 1 + steps.size() }
 
 	// replace with symbol calls later
 	TypedExpression type(TypedContext tc, Type preferred) {
@@ -279,6 +250,7 @@ class DiveExpression extends Expression {
 	}
 
 	List<Expression> getMembers() { [inner] }
+	int size() { 1 }
 	DiveExpression join(Collection<Expression> a) { new DiveExpression(a[0]) }
 
 	TypedDiveExpression type(TypedContext tc, Type preferred) {
@@ -368,6 +340,8 @@ class CallExpression extends Expression {
 		r
 	}
 
+	int size() { arguments.size() + 1 }
+
 	CallExpression join(List<Expression> exprs) {
 		new CallExpression(exprs)
 	}
@@ -413,6 +387,91 @@ class TupleExpression extends Expression {
 	IKismetObject evaluate(Context c) {
 		Kismet.model(new Tuple(members*.evaluate(c)))
 	}
+}
+
+@CompileStatic
+class ColonExpression extends Expression {
+	Expression left, right
+
+	ColonExpression(Expression left, Expression right) {
+		this.left = left
+		this.right = right
+	}
+
+	IKismetObject evaluate(Context c) {
+		def value = right.evaluate(c)
+		if (left instanceof StringExpression)
+			c.set(((StringExpression) left).value.inner(), value)
+		else if (left instanceof NameExpression)
+			c.set(((NameExpression) left).text, value)
+		else if (left instanceof PathExpression) {
+			def steps = ((PathExpression) left).steps
+			def toApply = steps.init()
+			def toSet = steps.last()
+			IKismetObject val = PathExpression.applySteps(c, ((PathExpression) left).root.evaluate(c), toApply)
+			if (toSet instanceof PathExpression.PropertyStep)
+				val.kismetClass().propertySet(val, ((PathExpression.PropertyStep) toSet).name, value)
+			else if (toSet instanceof PathExpression.SubscriptStep)
+				val.kismetClass().subscriptSet(val, ((PathExpression.SubscriptStep) toSet).expression.evaluate(c), value)
+		} else throw new UnexpectedSyntaxException("Left hand side of colon $left")
+		value
+	}
+
+	TypedExpression type(TypedContext tc, Type preferred) {
+		def val = right.type(tc, preferred) // no need to check if it satisfies because it will check itself
+		def atom = Prelude.toAtom(left)
+		if (null != atom) {
+			def var = tc.get(atom)
+			if (null == var) var = tc.addVariable(atom, preferred).ref()
+			else if (!var.variable.type.relation(preferred).assignableTo)
+				throw new UnexpectedTypeException("Variable with name $atom had type $var.variable.type, not preferred type $preferred")
+			new VariableSetExpression(var, val)
+		} else if (left instanceof PathExpression) {
+			final p = (PathExpression) left
+			def ea = new PathExpression(p.root, p.steps.init()).type(tc).instruction
+			def vali = val.instruction
+			def rh = p.steps.last()
+			Instruction instr
+			if (rh instanceof PathExpression.PropertyStep) {
+				def text = ((PathExpression.PropertyStep) rh).name
+				instr = new Instruction() {
+					IKismetObject evaluate(RuntimeMemory context) {
+						def v = ea.evaluate(context)
+						v.kismetClass().propertySet(v, text, vali.evaluate(context))
+					}
+				}
+			} else if (rh instanceof PathExpression.SubscriptStep) {
+				def ex = ((PathExpression.SubscriptStep) rh).expression.type(tc).instruction
+				instr = new Instruction() {
+					IKismetObject evaluate(RuntimeMemory context) {
+						def v = ea.evaluate(context)
+						v.kismetClass().subscriptSet(v, ex.evaluate(context), vali.evaluate(context))
+					}
+				}
+			} else throw new UnsupportedOperationException('cant set path step ' + rh)
+			new BasicTypedExpression(preferred, instr)
+		} else if (left instanceof NumberExpression) {
+			def b = left.value.inner().intValue()
+			def var = tc.variables.get(b)
+			if (null == var) var = new TypedContext.Variable(null, b, preferred)
+			else if (!var.type.relation(preferred).assignableTo)
+				throw new UnexpectedTypeException("Variable number $b had type $var.type, not preferred type $preferred")
+			new VariableSetExpression(var.ref(), val)
+		} else {
+			def lhi = left.type(tc).instruction
+			def rhi = val.instruction
+			new BasicTypedExpression(preferred, new Instruction() {
+				@Override
+				IKismetObject evaluate(RuntimeMemory context) {
+					((TypedContext.VariableReference) lhi.evaluate(context).inner()).set(context, rhi.evaluate(context))
+				}
+			})
+		}
+	}
+
+	List<Expression> getMembers() { [left, right] }
+	int size() { 2 }
+	String toString() { "$left: $right" }
 }
 
 @CompileStatic

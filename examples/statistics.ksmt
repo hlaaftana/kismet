@@ -1,15 +1,15 @@
 defn [mean l] [[/ sum size] l]
 
 defn [median l] {
-  := s [size l]
-  := d [div s 2]
+  s: size l
+  d: div s 2
   or? [odd? s] l[d] [div [+ l[d] l[prev d]] 2]
 }
 
 defn [standard_deviation l] {
-  := m [mean l]
-  := s 0
-  for: a l {
+  m: mean l
+  s: 0
+  `for:` a l {
     |>= s [+ [squared [- a m]]
   }
   sqrt [/ s [prev [size l]]]

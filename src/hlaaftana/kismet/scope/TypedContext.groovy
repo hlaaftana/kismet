@@ -50,8 +50,10 @@ class TypedContext {
 		for (call in declarations)
 			if (call.nameHash == h && call.name == name)
 				result.add(new DeclarationReference(call, 0))
-		def p = parent.calls(name)
-		for (c in p) result.add(c.parent())
+		if (null != parent) {
+			def p = parent.calls(name)
+			for (c in p) result.add(c.parent())
+		}
 		result
 	}
 
@@ -89,7 +91,7 @@ class TypedContext {
 	VariableReference get(String name) {
 		final var = getVariable(name)
 		if (null != var) return var.ref()
-		else {
+		else if (null != parent) {
 			final v = parent.get(name)
 			if (null != v) return v.parent()
 		}
@@ -116,7 +118,7 @@ class TypedContext {
 		else for (d in getCallDeclarations(name))
 			if (preferred.relation(d.variable.type).assignableTo) return var.ref()
 			else if (null != failed) failed.add(str(var))
-		else {
+		else if (null != parent) {
 			final v = parent.getAny(name, preferred, failed)
 			if (null != v) return v.parent()
 		}
@@ -128,10 +130,11 @@ class TypedContext {
 		String name
 		int hash, id
 
-		Variable(String name, int id) {
+		Variable(String name, int id, Type type = Type.ANY) {
 			this.name = name
 			hash = name.hashCode()
 			this.id = id
+			this.type = type
 		}
 
 		VariableReference ref(int parent = 0) {
