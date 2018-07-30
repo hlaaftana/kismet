@@ -255,6 +255,7 @@ class Parser {
 		List<List<Expression>> semicoloned = [whitespaced]
 		ExprBuilder last = null
 		boolean lastPercent = false
+		boolean eagerEnd = false
 		boolean ignoreNewline = false
 
 		LineBuilder(Parser p, boolean ignoreNewline = false) {
@@ -267,7 +268,9 @@ class Parser {
 			if (!ignoreNewline && (cp == 10 || cp == 13) && ready) {
 				return doFinish()
 			} else if (null == last) {
-				if (cp == ((char) ';')) semicoloned.add(new ArrayList<>())
+				if (cp == ((char) ';'))
+					if (eagerEnd) return doFinish()
+					else semicoloned.add(whitespaced = new ArrayList<>())
 				else if (cp == ((char) '%')) lastPercent = true
 				else if (cp == ((char) '('))
 					last = new ParenBuilder(parser)
@@ -286,7 +289,7 @@ class Parser {
 			} else {
 				Expression x = last.push(cp)
 				if (null != x) {
-					if (cp == ((char) '[') || cp == ((char) '(')) {
+					if (cp == ((char) '[') || cp == ((char) '(') || cp == ((char) ':')) {
 						(last = new PathBuilder(parser, x)).push(cp)
 					} else {
 						add x
@@ -378,7 +381,7 @@ class Parser {
 			} else if (up == ((char) 'N')) {
 				if (stage != 4) init 4
 				arr[4].append(cp)
-			} else if (newlyStage && stage != 3 && stage) throw new NumberFormatException('Started number but wasnt number')
+			} else if (newlyStage && stage != 3 && stage != 4) throw new NumberFormatException('Started number but wasnt number')
 			else {
 				goBack = true; return new NumberExpression(type, arr)
 			}
@@ -400,7 +403,8 @@ class Parser {
 		static boolean isNotIdentifier(int cp) {
 			Character.isWhitespace(cp) || cp == ((char) '.') || cp == ((char) '[') ||
 					cp == ((char) '(') || cp == ((char) '{') || cp == ((char) ']') ||
-					cp == ((char) ')') || cp == ((char) '}') || cp == ((char) ',')
+					cp == ((char) ')') || cp == ((char) '}') || cp == ((char) ',') ||
+					cp == ((char) ':')
 		}
 
 		@Override
@@ -420,7 +424,7 @@ class Parser {
 		boolean isReady() { true }
 	}
 
-	static class PathBuilder extends RecorderBuilder<PathExpression> {
+	static class PathBuilder extends RecorderBuilder {
 		Expression root
 		List<Step> steps = []
 		Kind kind
@@ -452,9 +456,12 @@ class Parser {
 					kind = Kind.PROPERTY
 					last = new QuoteAtomBuilder(parser)
 					return null
-				} else {
+				} else if (!Character.isWhitespace(cp)) {
 					kind = Kind.PROPERTY
 					last = new NameBuilder(parser)
+				} else {
+					inPropertyQueue = true
+					return (PathExpression) null
 				}
 			}
 			if (null != last) {
@@ -474,8 +481,10 @@ class Parser {
 				} else if (cp == ((char) '(')) {
 					kind = Kind.CALL
 					last = new ParenBuilder(parser)
-				}
-				else {
+				} else if (cp == ((char) ':')) {
+					kind = Kind.COLON
+					(last = new LineBuilder(parser, true)).eagerEnd = true
+				} else {
 					goBack = true
 					return new PathExpression(root, steps)
 				}
@@ -500,18 +509,22 @@ class Parser {
 					root = new CallExpression(list)
 				}
 				steps.clear()
-			}
-			else steps.add(kind.toStep(e))
+			} else if (kind == Kind.COLON) {
+				final ss = steps.size()
+				def lhs = ss == 0 ? root : new PathExpression(root, steps)
+				root = new ColonExpression(lhs, e)
+				steps.clear()
+			} else steps.add(kind.toStep(e))
 		}
 
 		boolean isReady() { !inPropertyQueue && (null == last || last.ready) }
 
-		PathExpression doFinish() {
+		Expression doFinish() {
 			if (null != last) {
 				add last.finish()
 				last = null
 			}
-			new PathExpression(root, steps)
+			steps.empty ? root : new PathExpression(root, steps)
 		}
 
 		enum Kind {
@@ -524,17 +537,13 @@ class Parser {
 					new PathExpression.SubscriptStep(expr instanceof CallExpression &&
 							expr.arguments.empty ? expr.callValue : expr)
 				}
-			}, CALL {
-				Step toStep(Expression expr) {
-					new PathExpression.CallStep(expr.members)
-				}
-			}, BLOCK {
+			}, CALL, BLOCK {
 				Step toStep(Expression expr) {
 					new PathExpression.EnterStep(expr)
 				}
-			}
+			}, COLON
 
-			abstract Step toStep(Expression expr)
+			Step toStep(Expression expr) { throw new UnsupportedOperationException('Cannot convert to step path step kind ' + this) }
 		}
 	}
 

@@ -172,6 +172,13 @@ class Optimizer {
 			toSet = arguments.last()
 		}
 
+		PathStepSetExpression(CallExpression original, PathExpression path, Expression set) {
+			super(original)
+			value = new PathExpression(path.root, path.steps.init())
+			step = path.steps.last()
+			toSet = set
+		}
+
 		IKismetObject evaluate(Context c) {
 			final v = value.evaluate(c)
 			if (step instanceof PathExpression.SubscriptStep)

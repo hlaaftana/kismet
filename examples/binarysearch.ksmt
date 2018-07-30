@@ -1,14 +1,13 @@
 defn [binary_search a k] {
-  let [b [size a] c b i 0]
+  c: b: size a
+  i: 0
   while [< i b] {
-    let [mid [half [+ i b]]]
-    [or? [< a[mid] k]
-      [= i [next mid]]
-      [= b mid]]
+    mid: half [+ i b]
+    or?(< a[mid] k, i: next mid, b: mid)
   }
-  unless [and [< i c] [is? a[i] k]] [= i [negative 1]]
+  unless [and [< i c] [is? a[i] k]] i: 1n
   i
 }
 
-assert_is [binary_search &(1, 2, 3, 4, 5, 6) 4] 3
-assert_is [binary_search &(3, 5, 1, 4, 1) 1] negative(1)
+assert_is [binary_search [1, 2, 3, 4, 5, 6] 4] 3
+assert_is [binary_search [3, 5, 1, 4, 1] 1] 1n

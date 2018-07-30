@@ -1,9 +1,9 @@
 defn [memoized f] {
-  := cache [new_map]
+  cache: [new_map]
   fn [get_or_set cache $all [call f $all]]
 }
 
-:= memoize [tmpl [call_expr [static_expr ::=] $0 [call_expr [name_expr "memoized"] $0]]]
+static memoize: tmpl call_expr(static_expr set_to, $0, call_expr [name_expr "memoized"] $0)
 
 defn [nth_fibonacci n] [check n
   zero 1
