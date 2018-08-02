@@ -11,12 +11,12 @@ defn [fizzbuzz_imperative n] {
 }
 
 defn [fizzbuzz_functional n] {
-  |> [range 1 n] {
-    collect [fn i [check i
-                  [divs 15] "FizzBuzz"
-                  [divs 3] "Fizz"
-                  [divs 5] "Buzz"
-                  i]]
+  |> [i 1 n] {
+    &for [check i
+      [divs 15] "FizzBuzz"
+      [divs 3] "Fizz"
+      [divs 5] "Buzz"
+      i]
     join "\n"
   }
 }

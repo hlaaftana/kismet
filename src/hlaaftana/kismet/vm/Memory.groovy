@@ -1,29 +1,29 @@
-package hlaaftana.kismet.vm;
+package hlaaftana.kismet.vm
 
-public interface IRuntimeMemory {
-	IRuntimeMemory relative(int id);
+abstract class Memory {
+	abstract Memory relative(int id)
 
-	default IKismetObject get(int id, int[] path) {
-		IRuntimeMemory mem = this;
-		for (final int p : path) mem = mem.relative(p);
-		return mem.get(id);
+	IKismetObject get(int id, int[] path) {
+		def mem = this
+		for (final p : path) mem = mem.relative(p)
+		mem.get(id)
 	}
 
-	IKismetObject get(int id);
+	abstract IKismetObject get(int id)
 
-	default IKismetObject get(String name) {
-		throw new UnsupportedOperationException("getting name on class " + this.getClass() + " is unsupported (name used was " + name + ")");
+	IKismetObject get(String name) {
+		throw new UnsupportedOperationException("getting name on class " + this.class + " is unsupported (name used was " + name + ")")
 	}
 
-	default void set(int id, int[] path, IKismetObject value) {
-		IRuntimeMemory mem = this;
-		for (final int p : path) mem = mem.relative(p);
-		mem.set(id, value);
+	void set(int id, int[] path, IKismetObject value) {
+		def mem = this
+		for (final p : path) mem = mem.relative(p)
+		mem.set(id, value)
 	}
 
-	void set(int id, IKismetObject value);
+	abstract void set(int id, IKismetObject value)
 
-	default void set(String name, IKismetObject value) {
-		throw new UnsupportedOperationException("setting name on class " + this.getClass() + " is unsupported (name used was " + name + ", value was " + value + ")");
+	void set(String name, IKismetObject value) {
+		throw new UnsupportedOperationException("setting name on class " + this.class + " is unsupported (name used was " + name + ", value was " + value + ")")
 	}
 }

@@ -38,6 +38,12 @@ class TypeRelation {
 				((isSuper() || sub) && o.kind == kind && value < o.value)
 	}
 
+	Boolean subber() {
+		if (sub) true
+		else if (isSuper()) false
+		else null
+	}
+
 	boolean equals(o) {
 		o instanceof TypeRelation && o.kind == kind && o.value == value
 	}

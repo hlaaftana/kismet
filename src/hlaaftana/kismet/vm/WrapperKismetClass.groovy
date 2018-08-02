@@ -6,6 +6,8 @@ import hlaaftana.kismet.Kismet
 import hlaaftana.kismet.call.Function
 import hlaaftana.kismet.exceptions.CannotOperateException
 import hlaaftana.kismet.exceptions.ForbiddenAccessException
+import hlaaftana.kismet.type.Type
+import hlaaftana.kismet.type.TypeRelation
 
 @CompileStatic
 class WrapperKismetClass<T> implements IKismetClass<WrapperKismetObject> {
@@ -90,6 +92,18 @@ class WrapperKismetClass<T> implements IKismetClass<WrapperKismetObject> {
 				if (this == x || isChild(x))
 					return true
 		false
+	}
+
+	TypeRelation relation(Type other) {
+		if (other instanceof WrapperKismetClass) {
+			if (this == other) return TypeRelation.equal()
+			def rs = relationScore(other.orig)
+			if (rs == -1) {
+				def ors = other.relationScore(orig)
+				if (ors == -1) return TypeRelation.none()
+				else TypeRelation.supertype(ors)
+			} else TypeRelation.subtype(rs)
+		} else TypeRelation.none()
 	}
 
 	int relationScore(Class c) {

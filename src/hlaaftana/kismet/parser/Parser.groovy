@@ -25,7 +25,7 @@ class Parser {
 
 	@SuppressWarnings('GroovyVariableNotAssigned')
 	Expression parseAST(String code) {
-		BlockBuilder builder = new BlockBuilder(this, false)
+		BlockBuilder builder = new BlockBuilder(this)
 		char[] arr = code.toCharArray()
 		int len = arr.length
 		boolean comment
@@ -128,7 +128,15 @@ class Parser {
 					}
 					last.push(cp)
 				}
-			} else last.doPush(cp)
+			} else {
+				def x = last.push(cp)
+				if (null != x) {
+					expressions.add(x)
+					final back = last.goBack
+					last = null
+					if (back) return doPush(cp)
+				}
+			}
 			(Expression) null
 		}
 
@@ -176,7 +184,15 @@ class Parser {
 					last = new LineBuilder(parser, true)
 					last.push(cp)
 				}
-			} else last.doPush(cp)
+			} else {
+				def x = last.push(cp)
+				if (null != x) {
+					expressions.add(x)
+					final back = last.goBack
+					last = null
+					if (back) return doPush(cp)
+				}
+			}
 			(Expression) null
 		}
 
@@ -199,27 +215,87 @@ class Parser {
 		}
 	}
 
-	static class BlockBuilder extends RecorderBuilder {
+	static class CurlyBuilder extends RecorderBuilder {
 		List<Expression> expressions = []
 		LineBuilder last = null
-		boolean bracketed
-		boolean requireSeparator = false
-		char bracket = (char) '}'
-		boolean isCallArgs
+		boolean commad = false, first = true, map = false
 
-		BlockBuilder(Parser p, boolean b) { super(p); bracketed = b }
+		CurlyBuilder(Parser p) { super(p) }
 
 		@Override
 		Expression doPush(int cp) {
+			if (first) {
+				first = false
+				if ((map = commad = cp == ((char) '#'))) return (Expression) null
+			}
 			final lastNull = null == last
-			if (bracketed && cp == bracket && (lastNull || last.ready)) {
+			if (cp == ((char) '}') && (lastNull || last.ready)) {
 				return doFinish()
+			} else if (cp == ((char) ',') && (lastNull || last.ready)) {
+				commad = true
+				if (null != last) {
+					def x = last.finish()
+					expressions.add(x)
+					last = null
+				}
 			} else if (lastNull) {
 				if (!Character.isWhitespace(cp)) {
-					(last = new LineBuilder(parser, requireSeparator)).push(cp)
+					last = new LineBuilder(parser, commad)
+					last.push(cp)
 				}
 			} else {
-				Expression x = last.doPush(cp)
+				def x = last.push(cp)
+				if (null != x) {
+					expressions.add(x)
+					final back = last.goBack
+					last = null
+					if (back) return doPush(cp)
+				}
+			}
+			(Expression) null
+		}
+
+		boolean isOverrideComments() {
+			null != last && last.overrideComments
+		}
+
+		boolean isReady() { false }
+
+		Expression doFinish() {
+			if (last != null) {
+				def x = last.finish()
+				if (null != x) expressions.add(x)
+				last = null
+			}
+			def es = expressions.size()
+			if (map) {
+				def result = new ArrayList<ColonExpression>(expressions.size())
+				for (e in expressions) {
+					if (e instanceof ColonExpression) result.add((ColonExpression) e)
+					else if (e instanceof NameExpression) result.add(new ColonExpression(new StringExpression(e.toString()), e))
+					else result.add(new ColonExpression(e, e))
+				}
+				new MapExpression(result)
+			} else if (es == 0) new SetExpression(Collections.<Expression>emptyList())
+			else if (commad) new SetExpression(expressions)
+			else new BlockExpression(expressions)
+		}
+	}
+
+	static class BlockBuilder extends RecorderBuilder {
+		List<Expression> expressions = []
+		LineBuilder last = null
+
+		BlockBuilder(Parser p) { super(p) }
+
+		@Override
+		Expression doPush(int cp) {
+			if (null == last) {
+				if (!Character.isWhitespace(cp)) {
+					(last = new LineBuilder(parser, false)).push(cp)
+				}
+			} else {
+				Expression x = last.push(cp)
 				if (null != x) {
 					add x
 					final back = last.goBack
@@ -234,7 +310,7 @@ class Parser {
 			null != last && last.overrideComments
 		}
 
-		boolean isReady() { !bracketed && (null == last || last.ready) }
+		boolean isReady() { null == last || last.ready }
 
 		BlockExpression doFinish() {
 			if (last != null) {
@@ -275,7 +351,7 @@ class Parser {
 				else if (cp == ((char) '('))
 					last = new ParenBuilder(parser)
 				else if (cp == ((char) '[')) last = new BracketBuilder(parser)
-				else if (cp == ((char) '{')) last = new BlockBuilder(parser, true)
+				else if (cp == ((char) '{')) last = new CurlyBuilder(parser)
 				else if (cp > 47 && cp < 58) (last = new NumberBuilder(parser)).push(cp)
 				else if (cp == ((char) '"') || cp == ((char) '\'')) last = new StringExprBuilder(parser, cp)
 				else if (cp == ((char) '`')) last = new QuoteAtomBuilder(parser)
@@ -437,7 +513,7 @@ class Parser {
 		}
 
 		@Override
-		PathExpression doPush(int cp) {
+		Expression doPush(int cp) {
 			if (inPropertyQueue) {
 				inPropertyQueue = false
 				if (cp == ((char) '[')) {
@@ -450,7 +526,7 @@ class Parser {
 					return null
 				} else if (cp == ((char) '{')) {
 					kind = Kind.BLOCK
-					last = new BlockBuilder(parser, true)
+					last = new CurlyBuilder(parser)
 					return null
 				} else if (cp == ((char) '`')) {
 					kind = Kind.PROPERTY
@@ -486,7 +562,7 @@ class Parser {
 					(last = new LineBuilder(parser, true)).eagerEnd = true
 				} else {
 					goBack = true
-					return new PathExpression(root, steps)
+					return steps.empty ? root : new PathExpression(root, steps)
 				}
 			}
 			null
@@ -511,7 +587,7 @@ class Parser {
 				steps.clear()
 			} else if (kind == Kind.COLON) {
 				final ss = steps.size()
-				def lhs = ss == 0 ? root : new PathExpression(root, steps)
+				def lhs = ss == 0 ? root : new PathExpression(root, new ArrayList<>(steps))
 				root = new ColonExpression(lhs, e)
 				steps.clear()
 			} else steps.add(kind.toStep(e))

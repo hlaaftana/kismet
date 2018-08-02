@@ -2,12 +2,17 @@ package hlaaftana.kismet.vm
 
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.exceptions.CannotOperateException
+import hlaaftana.kismet.type.MetaType
+import hlaaftana.kismet.type.NoType
+import hlaaftana.kismet.type.Type
+import hlaaftana.kismet.type.TypeRelation
 
 @CompileStatic
 class NullClass implements IKismetClass, IKismetObject<NullClass> {
 	static final NullClass INSTANCE = new NullClass()
 	static final IKismetObject OBJECT = new IKismetObject() {
 		IKismetClass kismetClass() { INSTANCE }
+		Type getType() { NoType.INSTANCE }
 		def inner() { null }
 	}
 	private NullClass() {}
@@ -44,5 +49,11 @@ class NullClass implements IKismetClass, IKismetObject<NullClass> {
 
 	IKismetObject construct(IKismetObject[] args) {
 		throw new CannotOperateException('construct object', 'null')
+	}
+
+	Type getType() { new MetaType(this) }
+
+	TypeRelation relation(Type other) {
+		TypeRelation.subtype(Integer.MAX_VALUE)
 	}
 }

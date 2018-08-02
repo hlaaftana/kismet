@@ -4,29 +4,25 @@ import groovy.transform.CompileStatic
 import hlaaftana.kismet.scope.TypedContext
 
 @CompileStatic
-class RuntimeMemory {
-	RuntimeMemory parent
+class RuntimeMemory extends Memory {
+	Memory[] heritage
 	IKismetObject[] memory
 
 	RuntimeMemory(TypedContext contxt) {
-		parent = new RuntimeMemory(contxt.parent)
-		memory = new IKismetObject[contxt.variables.size()]
+		heritage = new Memory[contxt.heritage.size()]
+		memory = new IKismetObject[contxt.size()]
 	}
 
-	RuntimeMemory(RuntimeMemory parent, int stackSize) {
-		this.parent = parent
+	RuntimeMemory(Memory[] heritage, int stackSize) {
+		this.heritage = heritage
 		memory = new IKismetObject[stackSize]
 	}
 
-	IKismetObject get(int id, int p) {
-		def contx = this
-		for (int i = 0; i < p; ++i) contx = contx.parent
-		contx.memory[id]
-	}
+	IKismetObject get(int id) { try { memory[id] } catch (ArrayIndexOutOfBoundsException ignored) { null } }
 
-	void set(int id, int p, IKismetObject obj) {
-		def contx = this
-		for (int i = 0; i < p; ++i) contx = contx.parent
-		contx.memory[id] = obj
-	}
+	void set(int id, IKismetObject obj) { memory[id] = obj }
+
+	Memory relative(int id) { heritage[id] }
+
+	int size() { memory.length }
 }

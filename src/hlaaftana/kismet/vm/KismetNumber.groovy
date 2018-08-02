@@ -2,6 +2,10 @@ package hlaaftana.kismet.vm
 
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.exceptions.CannotOperateException
+import hlaaftana.kismet.type.MetaType
+import hlaaftana.kismet.type.NumberType
+import hlaaftana.kismet.type.Type
+import hlaaftana.kismet.type.TypeRelation
 
 @CompileStatic
 abstract class KismetNumber<T extends Number> extends Number implements IKismetObject<T>, Comparable<KismetNumber<T>> {
@@ -72,6 +76,8 @@ abstract class KismetNumber<T extends Number> extends Number implements IKismetO
 	String toString() { inner().toString() }
 
 	def asType(Class type) { inner().asType(type) }
+
+	Type getType() { kismetClass().theType() }
 }
 
 @CompileStatic
@@ -88,6 +94,8 @@ class NonPrimitiveNumClass extends KismetNumberClass {
 	}
 
 	int getBits() { 0 }
+
+	NumberType theType() { null }
 }
 
 @CompileStatic
@@ -137,6 +145,12 @@ abstract class KismetNumberClass<T extends Number> implements IKismetClass<Kisme
 	KismetNumber<T> construct(IKismetObject[] args) {
 		instantiate(args[0].inner() as Number)
 	}
+
+	abstract NumberType theType()
+
+	Type getType() { new MetaType(theType()) }
+
+	TypeRelation relation(Type other) { theType().relation(other) }
 }
 
 @CompileStatic
@@ -232,6 +246,8 @@ class IntClass extends KismetNumberClass<BigInteger> {
 	int getBits() { 0 }
 
 	String getName() { 'Integer' }
+
+	NumberType theType() { NumberType.Int }
 }
 
 @CompileStatic
@@ -326,6 +342,8 @@ class FloatClass extends KismetNumberClass<BigDecimal> {
 	int getBits() { 0 }
 
 	String getName() { 'Float' }
+
+	NumberType theType() { NumberType.Float }
 }
 
 @CompileStatic
@@ -411,6 +429,8 @@ class Float64Class extends KismetNumberClass<Double> {
 	int getBits() { 64 }
 
 	String getName() { 'Float64' }
+
+	NumberType theType() { NumberType.Float64 }
 }
 
 @CompileStatic
@@ -494,6 +514,8 @@ class Float32Class extends KismetNumberClass<Float> {
 	int getBits() { 32 }
 
 	String getName() { 'Float32' }
+
+	NumberType theType() { NumberType.Float32 }
 }
 
 @CompileStatic
@@ -577,6 +599,8 @@ class Int64Class extends KismetNumberClass<Long> {
 	int getBits() { 64 }
 
 	String getName() { 'Int64' }
+
+	NumberType theType() { NumberType.Int64 }
 }
 
 @CompileStatic
@@ -660,6 +684,8 @@ class Int32Class extends KismetNumberClass<Integer> {
 	int getBits() { 32 }
 
 	String getName() { 'Int32' }
+
+	NumberType theType() { NumberType.Int32 }
 }
 
 @CompileStatic
@@ -743,6 +769,8 @@ class RuneClass extends KismetNumberClass<Integer> {
 	int getBits() { 32 }
 
 	String getName() { 'Rune' }
+
+	NumberType theType() { NumberType.Rune }
 }
 
 @CompileStatic
@@ -826,6 +854,8 @@ class Int16Class extends KismetNumberClass<Short> {
 	int getBits() { 16 }
 
 	String getName() { 'Int16' }
+
+	NumberType theType() { NumberType.Int16 }
 }
 
 @CompileStatic
@@ -909,6 +939,8 @@ class CharClass extends KismetNumberClass<Integer> {
 	int getBits() { 16 }
 
 	String getName() { 'Character' }
+
+	NumberType theType() { NumberType.Char }
 }
 
 @CompileStatic
@@ -992,6 +1024,8 @@ class Int8Class extends KismetNumberClass<Byte> {
 	int getBits() { 8 }
 
 	String getName() { 'Int8' }
+
+	NumberType theType() { NumberType.Int8 }
 }
 
 @CompileStatic

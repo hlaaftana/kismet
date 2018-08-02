@@ -57,7 +57,7 @@ class Prelude {
 			Block: new WrapperKismetClass(Block, 'Block').object,
 			Callable: new WrapperKismetClass(KismetCallable, 'Callable').object,
 			Function: new WrapperKismetClass(Function, 'Function').object,
-			FunctionArguments: new WrapperKismetClass(KismetFunction.Arguments, 'FunctionArguments').object,
+			FunctionArguments: new WrapperKismetClass(Arguments, 'FunctionArguments').object,
 			Template: new WrapperKismetClass(Template, 'Template').object,
 			Macro: new WrapperKismetClass(Macro, 'Macro').object,
 			Native: new WrapperKismetClass(Object, 'Native').object,
@@ -70,7 +70,7 @@ class Prelude {
 			Date: new WrapperKismetClass(Date, 'Date').object,
 			JSONParser: new WrapperKismetClass(JsonSlurper, 'JSONParser').object,
 			KismetParser: new WrapperKismetClass(Parser, 'KismetParser').object,
-			Variable: new WrapperKismetClass(Variable, 'Variable').object]
+			Address: new WrapperKismetClass(Address, 'Address').object]
 
 	static {
 		Map<String, Object> toConvert = [
@@ -118,17 +118,20 @@ class Prelude {
 					}
 					true
 				},
-				variable: new Macro() {
+				variable: new ContextFunction() {
 					@CompileStatic
-					IKismetObject call(Context c, Expression... args) {
-						if (args.length == 0) throw new UnexpectedSyntaxException('No arguments for variable')
-						final first = args[0].evaluate(c)
+					IKismetObject call(Context c, IKismetObject... args) {
+						if (args.length == 0) throw new UnexpectedSyntaxException('No arguments for variable function')
+						final first = args[0]
 						if (first.inner() instanceof String) {
 							final name = (String) first.inner()
-							args.length == 2 ? c.set(name, args[1].evaluate(c)) : c.get(name)
-						} else if (first.inner() instanceof Variable && args.length == 2) {
-							final val = args[1].evaluate(c)
-							((Variable) first.inner()).value = val
+							if (args.length == 2) {
+								c.set(name, args[1])
+								args[1]
+							} else c.get(name)
+						} else if (first.inner() instanceof Address && args.length == 2) {
+							final val = args[1]
+							((Address) first.inner()).value = val
 							val
 						} else throw new UnexpectedSyntaxException("weird argument for variable: " + first)
 					}
@@ -161,7 +164,7 @@ class Prelude {
 					else throw new UnexpectedValueException('raise called with non-throwable ' + args[0])
 				},
 				do: Function.NOP,
-				'don\'t': new AbstractTemplate() {
+				'don\'t': new Template() {
 					@CompileStatic
 					Expression transform(Parser parser, Expression... args) {
 						NoExpression.INSTANCE
@@ -262,7 +265,7 @@ class Prelude {
 						def iter = p.steps.iterator()
 						while (result.inner() != null && iter.hasNext()) {
 							final b = iter.next()
-							result = b.apply(c, result)
+							result = b.get(c, result)
 						}
 						result
 					}
@@ -352,7 +355,7 @@ class Prelude {
 					else if (value instanceof float) Math.round(value.floatValue())
 					else Math.round(((Number) value).doubleValue())
 				},
-				round: new AbstractTemplate() {
+				round: new Template() {
 					@Override
 					Expression transform(Parser parser, Expression... args) {
 						def x = new ArrayList<Expression>(4)
@@ -701,7 +704,14 @@ class Prelude {
 				},
 				'unique_via!': func { IKismetObject... args -> args[0].inner().invokeMethod('unique', args[1].kismetClass().&call.curry(args[1])) },
 				unique_via: func { IKismetObject... args -> args[0].inner().invokeMethod('unique', [false, args[1].kismetClass().&call.curry(args[1])]) },
-				spread: funcc { ... args -> args[0].invokeMethod('toSpreadMap', null) },
+				spread_map: funcc { ... args -> args[0].invokeMethod('toSpreadMap', null) },
+				spread: new Template() {
+					Expression transform(Parser parser, Expression... args) {
+						def m = new ArrayList<Expression>(args.length - 1)
+						for (int i = 1; i < args.length; ++i) m.add(args[i])
+						new CallExpression(args[0], new ListExpression(m))
+					}
+				},
 				invert_map: funcc { ... args ->
 					final m0 = args[0] as Map
 					def m = new HashMap(m0.size())
@@ -773,8 +783,9 @@ class Prelude {
 				lines: funcc { ... args -> args[0].invokeMethod('readLines', null) },
 				denormalize: funcc { ... args -> args[0].toString().denormalize() },
 				normalize: funcc { ... args -> args[0].toString().normalize() },
-				hex: new AbstractTemplate() {
-					@Override
+				hex: new Template() {
+					boolean isHungry() { true }
+
 					Expression transform(Parser parser, Expression... args) {
 						if (args[0] instanceof NumberExpression || args[0] instanceof NameExpression) {
 							String t = args[0] instanceof NumberExpression ?
@@ -786,8 +797,9 @@ class Prelude {
 								+ ' and to convert integers to hex strings do [to_base i 16].')
 					}
 				},
-				binary: new AbstractTemplate() {
-					@Override
+				binary: new Template() {
+					boolean isHungry() { true }
+
 					Expression transform(Parser parser, Expression... args) {
 						if (args[0] instanceof NumberExpression) {
 							String t = ((NumberExpression) args[0]).value.inner().toString()
@@ -797,8 +809,9 @@ class Prelude {
 								+ ' and to convert integers to binary strings do [to_base i 2].')
 					}
 				},
-				octal: new AbstractTemplate() {
-					@Override
+				octal: new Template() {
+					boolean isHungry() { true }
+
 					Expression transform(Parser parser, Expression... args) {
 						if (args[0] instanceof NumberExpression) {
 							String t = ((NumberExpression) args[0]).value.inner().toString()
@@ -810,68 +823,39 @@ class Prelude {
 				},
 				to_base: funcc { ... a -> (a[0] as BigInteger).toString(a[1] as int) },
 				from_base: funcc { ... a -> new BigInteger(a[0].toString(), a[1] as int) },
-				':::=': macr { Context c, Expression... x ->
-					if (x.length == 0) throw new UnexpectedSyntaxException('0 arguments for :::=')
-					IKismetObject value = x.length == 1 ? Kismet.NULL : x.last().evaluate(c)
-					int i = 1
-					for (a in x.init()) {
-						c.change(resolveName(a, c, ":::= argument $i"), value)
-						++i
+				':::=': new AssignTemplate(AssignmentType.CHANGE),
+				'::=': new AssignTemplate(AssignmentType.SET),
+				':=': new AssignTemplate(AssignmentType.DEFINE),
+				'=': new AssignTemplate(AssignmentType.ASSIGN),
+				'+=': new Template() {
+					boolean isHungry() { true }
+
+					Expression transform(Parser parser, Expression... args) {
+						new CallExpression([new NameExpression('='), args[0],
+								new CallExpression([new NameExpression('+'), args[0], args[1]])])
 					}
-					value
 				},
-				'::=': macr { Context c, Expression... x ->
-					if (x.length == 0) throw new UnexpectedSyntaxException('0 arguments for ::=')
-					IKismetObject value = x.length == 1 ? Kismet.NULL : x.last().evaluate(c)
-					int i = 1
-					for (a in x.init()) {
-						c.set(resolveName(a, c, "::= argument $i"), value)
-						++i
-					}
-					value
-				},
-				':=': macr { Context c, Expression... x ->
-					if (x.length == 0) throw new UnexpectedSyntaxException('0 arguments for :=')
-					IKismetObject value = x.length == 1 ? Kismet.NULL : x.last().evaluate(c)
-					int i = 1
-					for (a in x.init()) {
-						c.define(resolveName(a, c, ":= argument $i"), value)
-						++i
-					}
-					value
-				},
-				'=': macr { Context c, Expression... x ->
-					if (x.length == 0) throw new UnexpectedSyntaxException('0 arguments for =')
-					assign(c, x.init(), x.length == 1 ? Kismet.NULL : x.last().evaluate(c))
-				},
-				'+=': (Template) { Expression... args ->
-					new CallExpression([new NameExpression('='), args[0],
-							new CallExpression([new NameExpression('+'), args[0], args[1]])])
-				},
-				def: macr { Context c, Expression... x ->
-					if (x.length == 0) throw new UnexpectedSyntaxException('0 arguments for :=')
-					if (x[0] instanceof NameExpression) {
-						IKismetObject value = x.length == 1 ? Kismet.NULL : x.last().evaluate(c)
-						int i = 1
-						for (a in x.init()) {
-							c.define(resolveName(a, c, "def argument $i"), value)
-							++i
+				def: new Template() {
+					boolean isHungry() { true }
+
+					Expression transform(Parser parser, Expression... args) {
+						if (args.length == 0) throw new UnexpectedSyntaxException('Cannot def without any arguments')
+						if (args[0] instanceof NameExpression) {
+							new VariableModifyExpression(AssignmentType.DEFINE, ((NameExpression) args[0]).text, args[1])
+						} else {
+							new FunctionDefineExpression(args)
 						}
-						value
-					} else {
-						final f = new KismetFunction(c, true, x)
-						c.define(f.name, Kismet.model(f))
 					}
 				},
-				fn: new AbstractTemplate() {
+				fn: new Template() {
 					@Override
 					Expression transform(Parser parser, Expression... args) {
-						KismetFunction.Arguments arguments
+						Arguments arguments
 						final a = args[0]
 						if (args.length == 1) {
-							arguments = KismetFunction.Arguments.EMPTY
+							arguments = Arguments.EMPTY
 						} else {
-							arguments = new KismetFunction.Arguments(a instanceof CallExpression ?
+							arguments = new Arguments(a instanceof CallExpression ?
 									((CallExpression) a).members : a instanceof BlockExpression ?
 									((BlockExpression) a).members : [a])
 						}
@@ -886,12 +870,30 @@ class Prelude {
 				mcr: macr { Context c, Expression... exprs ->
 					new KismetMacro(c.childBlock(exprs))
 				},
-				defn: macr { Context c, Expression... exprs ->
-					final x = new KismetFunction(c, true, exprs)
-					c.define(x.name, Kismet.model(x))
+				defn: new Template() {
+					boolean isHungry() { true }
+					boolean isOptimized() { true }
+
+					@CompileStatic
+					Expression transform(Parser parser, Expression... a) {
+						final String name
+						final Arguments args
+
+						def f = a[0]
+						if (f instanceof NameExpression) {
+							name = ((NameExpression) f).text
+							args = new Arguments(null)
+						} else if (f instanceof CallExpression && f[0] instanceof NameExpression) {
+							name = ((NameExpression) ((CallExpression) f).callValue).text
+							args = new Arguments(((CallExpression) f).arguments)
+						} else throw new UnexpectedSyntaxException("Can't define function with declaration " + f)
+						def exprs = new ArrayList<Expression>(a.length - 1)
+						for (int i = 1; i < a.length; ++i) exprs.add(null == parser ? a[i] : parser.optimizer.optimize(a[i]))
+						new FunctionDefineExpression(name, args, exprs.size() == 1 ? exprs[0] : new BlockExpression(exprs))
+					}
 				},
 				tmpl: macr { Context c, Expression... exprs ->
-					new AbstractTemplate() {
+					new Template() {
 						@CompileStatic
 						Expression transform(Parser parser, Expression... args) {
 							final co = c.childBlock(exprs)
@@ -902,7 +904,7 @@ class Prelude {
 						}
 					}
 				},
-				defmcr: new AbstractTemplate() {
+				defmcr: new Template() {
 					@CompileStatic
 					Expression transform(Parser parser, Expression... args) {
 						def a = new ArrayList<Expression>()
@@ -912,7 +914,7 @@ class Prelude {
 						new CallExpression([new NameExpression(':='), args[0], new CallExpression(a)])
 					}
 				},
-				'fn*': new AbstractTemplate() {
+				'fn*': new Template() {
 					@Override
 					Expression transform(Parser parser, Expression... args) {
 						def kill = new ArrayList<Expression>()
@@ -920,7 +922,8 @@ class Prelude {
 						kill.addAll(args)
 						new CallExpression(new NameExpression('fn'), new CallExpression(
 								new NameExpression('call'), new CallExpression(kill),
-								new NameExpression('$0')))
+								new PathExpression(new NameExpression('_all'), [
+										(PathExpression.Step) new PathExpression.SubscriptStep(new NumberExpression(0))])))
 					}
 				},
 				undef: macr { Context c, Expression... exprs ->
@@ -932,86 +935,96 @@ class Prelude {
 						Kismet.model(c.childBlock(args))
 					}
 				},
-				incr: new AbstractTemplate() {
+				incr: new Template() {
 					Expression transform(Parser parser, Expression... args) {
 						def val = args.length > 1 ? new CallExpression(new NameExpression('+'), args[0], args[1]) :
 								new CallExpression(new NameExpression('next'), args[0])
 						def atom = toAtom(args[0])
-						if (null != atom) new Optimizer.AssignExpression(null, atom, val)
+						if (null != atom) new VariableModifyExpression(AssignmentType.ASSIGN, atom, val)
 						else if (args[0] instanceof PathExpression)
-							new Optimizer.PathStepSetExpression(null, (PathExpression) args[0], val)
+							new Optimizer.PathStepSetExpression((PathExpression) args[0], val)
 						else throw new UnexpectedSyntaxException("Cant incr LHS ${args[0]}")
 					}
 				},
-				decr: new AbstractTemplate() {
+				decr: new Template() {
 					Expression transform(Parser parser, Expression... args) {
 						def val = args.length > 1 ? new CallExpression(new NameExpression('-'), args[0], args[1]) :
 								new CallExpression(new NameExpression('prev'), args[0])
 						def atom = toAtom(args[0])
-						if (null != atom) new Optimizer.AssignExpression(null, atom, val)
+						if (null != atom) new VariableModifyExpression(AssignmentType.ASSIGN, atom, val)
 						else if (args[0] instanceof PathExpression)
-							new Optimizer.PathStepSetExpression(null, (PathExpression) args[0], val)
+							new Optimizer.PathStepSetExpression((PathExpression) args[0], val)
 						else throw new UnexpectedSyntaxException("Cant decr LHS ${args[0]}")
 					}
 				},
-				'|>=': new AbstractTemplate() {
+				'|>=': new Template() {
 					@CompileStatic
 					Expression transform(Parser parser, Expression... args) {
 						def val = pipeForwardExpr(args[0], args.tail().toList())
 						def atom = toAtom(args[0])
-						if (null != atom) new Optimizer.AssignExpression(null, atom, val)
+						if (null != atom) new VariableModifyExpression(AssignmentType.ASSIGN, atom, val)
 						else if (args[0] instanceof PathExpression)
-							new Optimizer.PathStepSetExpression(null, (PathExpression) args[0], val)
+							new Optimizer.PathStepSetExpression((PathExpression) args[0], val)
 						else throw new UnexpectedSyntaxException("Cant pipe forward assign LHS ${args[0]}")
 					}
 				},
-				'<|=': new AbstractTemplate() {
+				'<|=': new Template() {
 					@CompileStatic
 					Expression transform(Parser parser, Expression... args) {
 						def val = pipeBackwardExpr(args[0], args.tail().toList())
 						def atom = toAtom(args[0])
-						if (null != atom) new Optimizer.AssignExpression(null, atom, val)
+						if (null != atom) new VariableModifyExpression(AssignmentType.ASSIGN, atom, val)
 						else if (args[0] instanceof PathExpression)
-							new Optimizer.PathStepSetExpression(null, (PathExpression) args[0], val)
+							new Optimizer.PathStepSetExpression((PathExpression) args[0], val)
 						else throw new UnexpectedSyntaxException("Cant pipe backward assign LHS ${args[0]}")
 					}
 				},
-				dive: new AbstractTemplate() {
+				dive: new Template() {
 					@CompileStatic
 					Expression transform(Parser parser, Expression... args) {
 						new DiveExpression(args.length == 1 ? args[0] : new BlockExpression(args.toList()))
 					}
 				},
-				static: new AbstractTemplate() {
+				static: new Template() {
 					@CompileStatic
 					Expression transform(Parser parser, Expression... args) {
-						new StaticExpression(args.length == 1 ? args[0] : new BlockExpression(args.toList()), parser.context)
+						def expr = args.length == 1 ? args[0] : new BlockExpression(args.toList())
+						null == parser ? new OnceExpression(expr) : new StaticExpression(expr, parser.context)
 					}
 				},
-				let: new AbstractTemplate() {
+				let: new Template() {
 					@CompileStatic
 					Expression transform(Parser parser, Expression... args) {
 						if (args.length == 0) throw new UnexpectedSyntaxException('Empty let expression not allowed')
-						final mems = args[0].members
-						String resultVar = null
+						final mems = args[0] instanceof CallExpression ? [args[0]] : args[0].members
+						Expression resultVar = null
 						def result = new ArrayList<Expression>(mems.size())
 						for (set in mems) {
 							if (set instanceof ColonExpression) {
 								result.add((Expression) set)
 							} else if (set instanceof CallExpression) {
+								if (set.size() == 2 && 'result' == toAtom(set[0]) && set[1] instanceof ColonExpression) {
+									result.add(set[1])
+									resultVar = ((ColonExpression) set[1]).left
+									continue
+								}
 								def lem = set.members
 								def val = lem.pop()
 								for (em in lem) {
 									def atom = toAtom(em)
-									if (null != atom) result.add(new Optimizer.ContextSetExpression(null, atom, val))
+									if (null != atom)
+										result.add(new VariableModifyExpression(AssignmentType.SET, atom, val))
 									else if (em instanceof CallExpression && em.size() == 2 &&
-											null != (atom = toAtom(em[0])))
-										result.add(new Optimizer.ContextSetExpression(null, resultVar = atom, val))
+											'result' == toAtom(em[0])) {
+										def name = toAtom(em[1])
+										result.add(new VariableModifyExpression(AssignmentType.SET, name, val))
+										resultVar = new NameExpression(name)
+									}
 								}
 							} else throw new UnexpectedSyntaxException("Unsupported let parameter $set. If you think it makes sense that iw as supported tell me")
 						}
 						result.addAll(args.tail())
-						if (null != resultVar) result.add(new NameExpression(resultVar))
+						if (null != resultVar) result.add(resultVar)
 						final r = new BlockExpression(result)
 						args.length == 1 ? r : new DiveExpression(r)
 					}
@@ -1031,7 +1044,7 @@ class Prelude {
 						else throw new UnexpectedValueException('Expected first argument of eval to be an expression, block, path or string')
 					}
 				},
-				quote: new AbstractTemplate() {
+				quote: new Template() {
 					@CompileStatic
 					Expression transform(Parser parser, Expression... args) {
 						def slowdown = new ArrayList<Expression>(args.length + 1)
@@ -1162,7 +1175,7 @@ class Prelude {
 				'for:': macr { Context c, Expression... exprs ->
 					String n = 'it'
 					Block b = c.childBlock(exprs.drop(2))
-					def range = exprs[0] instanceof CallExpression ? ((CallExpression) exprs[0]).members : [exprs[0]]
+					def range = exprs[0] instanceof CallExpression ? exprs[0].members : [exprs[0]]
 					Iterator iter
 					int i = 0
 					String ni
@@ -1357,13 +1370,13 @@ class Prelude {
 							: args[0] as Collection)
 				},
 				'any?': func { IKismetObject... args ->
-					args.length > 1 ? args[0].inner().any(args[1].kismetClass().&call.curry(args[1])) : args[0].inner().any()
+					args.length > 1 ? args[0].inner().any { args[1].kismetClass().call(args[1], Kismet.model(it)) } : args[0].inner().any()
 				},
 				'every?': func { IKismetObject... args ->
-					args.length > 1 ? args[0].inner().every(args[1].kismetClass().&call.curry(args[1])) : args[0].inner().every()
+					args.length > 1 ? args[0].inner().every { args[1].kismetClass().call(args[1], Kismet.model(it)) } : args[0].inner().every()
 				},
 				'none?': func { IKismetObject... args ->
-					!(args.length > 1 ? args[0].inner().any(args[1].kismetClass().&call.curry(args[1])) : args[0].inner().any())
+					!(args.length > 1 ? args[0].inner().any { args[1].kismetClass().call(args[1], Kismet.model(it)) } : args[0].inner().any())
 				},
 				find: func { IKismetObject... args -> args[0].inner().invokeMethod('find', args[1].kismetClass().&call.curry(args[1])) },
 				find_result: func { IKismetObject... args -> args[0].inner().invokeMethod('findResult', args[1].kismetClass().&call.curry(args[1])) },
@@ -1616,13 +1629,13 @@ class Prelude {
 					}
 				},
 				'number?': funcc { ... args -> args[0] instanceof Number },
-				'|>': new AbstractTemplate() {
+				'|>': new Template() {
 					@CompileStatic
 					Expression transform(Parser parser, Expression... args) {
 						pipeForwardExpr(args[0], args.tail().toList())
 					}
 				},
-				'<|': new AbstractTemplate() {
+				'<|': new Template() {
 					@CompileStatic
 					Expression transform(Parser parser, Expression... args) {
 						pipeBackwardExpr(args[0], args.tail().toList())
@@ -1739,7 +1752,7 @@ class Prelude {
 					}
 					times
 				},
-				'|>|': new AbstractTemplate() {
+				'|>|': new Template() {
 					Expression transform(Parser parser, Expression... args) {
 						infixLTR(args.toList())
 					}
@@ -1793,29 +1806,6 @@ class Prelude {
 			else throw new UnexpectedValueException("Name in $op wasnt a string")
 		}
 		name
-	}
-
-	static IKismetObject assign(Context c, Expression[] x, IKismetObject value, String op = '=') {
-		int i = 1
-		for (a in x) {
-			if (a instanceof StringExpression)
-				c.assign(((StringExpression) a).value.inner(), value)
-			else if (a instanceof NameExpression)
-				c.assign(((NameExpression) a).text, value)
-			else if (a instanceof PathExpression) {
-				def steps = ((PathExpression) a).steps
-				def toApply = steps.init()
-				def toSet = steps.last()
-				IKismetObject val = PathExpression.applySteps(c, ((PathExpression) a).root.evaluate(c), toApply)
-				if (toSet instanceof PathExpression.PropertyStep)
-					val.kismetClass().propertySet(val, ((PathExpression.PropertyStep) toSet).name, value)
-				else if (toSet instanceof PathExpression.SubscriptStep)
-					val.kismetClass().subscriptSet(val, ((PathExpression.SubscriptStep) toSet).expression.evaluate(c), value)
-			} else throw new UnexpectedSyntaxException(
-					"Did not expect expression type for argument $i of $op to be ${a.class.simpleName - 'Expression'}")
-			++i
-		}
-		value
 	}
 
 	static Iterator toIterator(x) {
@@ -2057,6 +2047,35 @@ class Prelude {
 			return ((NameExpression) expression).text
 		}
 		null
+	}
+
+	static class AssignTemplate extends Template {
+		AssignmentType type
+
+		AssignTemplate(AssignmentType type) {
+			this.type = type
+		}
+
+		boolean isHungry() { true }
+
+		Expression transform(Parser parser, Expression... args) {
+			final size = args.length
+			def last = args[size - 1]
+			for (int i = size - 2; i >= 0; --i) {
+				final name = args[i]
+				final atom = toAtom(name)
+				if (null != atom)
+					last = new VariableModifyExpression(type, atom, last)
+				else if (name instanceof CallExpression)
+					last = new FunctionDefineExpression(args)
+				else if (name instanceof PathExpression)
+					last = new Optimizer.PathStepSetExpression((PathExpression) name, last)
+				else throw new UnexpectedSyntaxException("Cannot perform assignment $type $name, value expression is $last")
+			}
+			if (last instanceof NameExpression)
+				last = new VariableModifyExpression(AssignmentType.SET, ((NameExpression) last).text, NoExpression.INSTANCE)
+			last
+		}
 	}
 }
 

@@ -12,7 +12,7 @@ import java.nio.ByteBuffer
 @CompileStatic
 // abstraction for now
 abstract class Instruction {
-	abstract IKismetObject evaluate(RuntimeMemory context)
+	abstract IKismetObject evaluate(Memory context)
 
 	byte[] getBytes() { throw new UnsupportedOperationException('Cant turn ' + this + ' to bytes, roer.') }
 }
@@ -37,7 +37,7 @@ class BasicTypedExpression extends TypedExpression {
 @CompileStatic
 @Singleton(property = 'INSTANCE')
 class NoInstruction extends Instruction {
-	IKismetObject evaluate(RuntimeMemory context) {
+	IKismetObject evaluate(Memory context) {
 		Kismet.NULL
 	}
 
@@ -54,19 +54,21 @@ class TypedNoExpression extends TypedExpression {
 @CompileStatic
 class VariableInstruction extends Instruction {
 	int id
-	int parent
+	int[] path
 
-	VariableInstruction(int id, int parent) {
+	VariableInstruction(int id, int[] path) {
 		this.id = id
-		this.parent = parent
+		this.path = path
 	}
 
-	IKismetObject evaluate(RuntimeMemory context) {
-		context.get(id, parent)
+	IKismetObject evaluate(Memory context) {
+		context.get(id, path)
 	}
 
 	byte[] getBytes() {
-		ByteBuffer.allocate(9).put((byte) 1).putInt(id).putInt(parent).array()
+		def res = ByteBuffer.allocate(9 + path.length * 4).put((byte) 1).putInt(id).putInt(path.length)
+		for (int i = 0; i < path.length; ++i) res.putInt(path[i])
+		res.array()
 	}
 }
 
@@ -82,7 +84,7 @@ class VariableExpression extends TypedExpression {
 
 	Instruction getInstruction() {
 		if (null == $instruction) {
-			$instruction = new VariableInstruction(reference.variable.id, reference.parentPath)
+			$instruction = new VariableInstruction(reference.variable.id, reference.pathArray)
 		}
 		$instruction
 	}
@@ -93,24 +95,26 @@ class VariableExpression extends TypedExpression {
 @CompileStatic
 class VariableSetInstruction extends Instruction {
 	int id
-	int parent
+	int[] path
 	Instruction value
 
-	VariableSetInstruction(int id, int parent, Instruction value) {
+	VariableSetInstruction(int id, int[] path, Instruction value) {
 		this.id = id
-		this.parent = parent
+		this.path = path
 		this.value = value
 	}
 
-	IKismetObject evaluate(RuntimeMemory context) {
+	IKismetObject evaluate(Memory context) {
 		final val = value.evaluate(context)
-		context.set(id, parent, val)
+		context.set(id, path, val)
 		val
 	}
 
 	byte[] getBytes() {
 		def valueBytes = value.bytes
-		ByteBuffer.allocate(9 + valueBytes.length).put((byte) 2).putInt(id).putInt(parent).put(valueBytes).array()
+		def res = ByteBuffer.allocate(9 + 4 * path.length + valueBytes.length).put((byte) 2).putInt(id).putInt(path.length)
+		for (final p : path) res = res.putInt(p)
+		res.put(valueBytes).array()
 	}
 }
 
@@ -124,11 +128,11 @@ class VariableSetExpression extends TypedExpression {
 		value = v
 	}
 
-	VariableInstruction $instruction
+	VariableSetInstruction $instruction
 
 	Instruction getInstruction() {
 		if (null == $instruction) {
-			$instruction = new VariableInstruction(reference.variable.id, reference.parentPath)
+			$instruction = new VariableSetInstruction(reference.variable.id, reference.pathArray, value.instruction)
 		}
 		$instruction
 	}
@@ -146,8 +150,8 @@ class DiveInstruction extends Instruction {
 		this.other = other
 	}
 
-	IKismetObject evaluate(RuntimeMemory context) {
-		other.evaluate(new RuntimeMemory(context, stackSize))
+	IKismetObject evaluate(Memory context) {
+		other.evaluate(new RuntimeMemory([context] as Memory[], stackSize))
 	}
 
 	byte[] getBytes() {
@@ -172,7 +176,7 @@ class TypedDiveExpression extends TypedExpression {
 
 	Instruction getInstruction() {
 		if (null == $instruction) {
-			$instruction = new DiveInstruction(context.variables.size(), inner.instruction)
+			$instruction = new DiveInstruction(context.size(), inner.instruction)
 		}
 		$instruction
 	}
@@ -192,7 +196,7 @@ class SequentialInstruction extends Instruction {
 	}
 
 	@Override
-	IKismetObject evaluate(RuntimeMemory context) {
+	IKismetObject evaluate(Memory context) {
 		int i = 0
 		for (; i < instructions.length - 1; ++i) instructions[i].evaluate(context)
 		instructions[i].evaluate(context)
@@ -227,7 +231,7 @@ class IdentityInstruction<T extends IKismetObject> extends Instruction {
 		this.value = value
 	}
 	
-	T evaluate(RuntimeMemory context) { value }
+	T evaluate(Memory context) { value }
 }
 
 import hlaaftana.kismet.type.NumberType
@@ -308,7 +312,7 @@ class CallInstruction extends Instruction {
 	}
 
 	CallInstruction(TypedContext.VariableReference var, TypedExpression[] zro) {
-		this(new VariableInstruction(var.variable.id, var.parentPath), zro)
+		this(new VariableInstruction(var.variable.id, var.pathArray), zro)
 	}
 
 	CallInstruction(TypedExpression value, TypedExpression[] zro) {
@@ -316,7 +320,7 @@ class CallInstruction extends Instruction {
 	}
 
 	@Override
-	IKismetObject evaluate(RuntimeMemory context) {
+	IKismetObject evaluate(Memory context) {
 		def arr = new IKismetObject[arguments.length]
 		for (int i = 0; i < arguments.length; ++i) arr[i] = arguments[i].evaluate(context)
 		def val = value.evaluate(context)
@@ -342,49 +346,14 @@ class CallInstruction extends Instruction {
 	}
 }
 
-// will be entirely replaced by DeclarationCallExpression
 @CompileStatic
-abstract class TypedCallExpression extends TypedExpression {
+class TypedCallExpression extends BasicTypedExpression {
+	TypedExpression value
 	TypedExpression[] arguments
 
-	TypedCallExpression(TypedExpression[] arguments) {
+	TypedCallExpression(TypedExpression value, TypedExpression[] arguments, Type type) {
+		super(type, new CallInstruction(value, arguments))
+		this.value = value
 		this.arguments = arguments
 	}
-
-	abstract Instruction getValueInstruction()
-	Instruction getInstruction() { new CallInstruction(valueInstruction, arguments) }
-}
-
-@CompileStatic
-// based!
-class DeclarationCallExpression extends TypedCallExpression {
-	TypedContext.DeclarationReference value
-
-	DeclarationCallExpression(TypedContext.DeclarationReference value, TypedExpression[] arguments) {
-		super(arguments)
-		this.value = value
-	}
-
-	Type getType() {
-		value.declaration.returnType
-	}
-
-	Instruction getValueInstruction() {
-		new VariableInstruction(value.declaration.variable.id, value.parentPath)
-	}
-}
-
-@CompileStatic
-// cringe!
-class ValueCallExpression extends TypedCallExpression {
-	TypedExpression value
-
-	ValueCallExpression(TypedExpression value, TypedExpression[] arguments) {
-		super(arguments)
-		this.value = value
-	}
-
-	Type getType() { Type.ANY }
-
-	Instruction getValueInstruction() { value.instruction }
 }

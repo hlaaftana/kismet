@@ -3,6 +3,7 @@ package hlaaftana.kismet.vm
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.Kismet
 import hlaaftana.kismet.call.Function
+import hlaaftana.kismet.type.Type
 
 @CompileStatic
 class WrapperKismetObject<T> implements IKismetObject<T> {
@@ -122,5 +123,7 @@ class WrapperKismetObject<T> implements IKismetObject<T> {
 	Iterator iterator() {
 		inner.iterator()
 	}
+
+	Type getType() { kclass.inner() }
 }
 
