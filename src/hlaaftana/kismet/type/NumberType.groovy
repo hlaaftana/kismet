@@ -43,10 +43,18 @@ enum NumberType implements Type {
 								num.doubleValue() :
 								num.longValue()))
 		}
+	}, Char {
+		KChar instantiate(Number num) {
+			new KChar((char) num.intValue())
+		}
+	}, Rune {
+		KRune instantiate(Number num) {
+			new KRune(num.intValue())
+		}
 	}
 
 	TypeRelation relation(Type other) {
-		if (other instanceof NumberType) {
+		if (other instanceof NumberType && character ^ other.character) {
 			final k = ordinal() - other.ordinal()
 			TypeRelation.some(k)
 		} else TypeRelation.none()
@@ -55,6 +63,7 @@ enum NumberType implements Type {
 	/// temporary until i get overloads
 	abstract KismetNumber instantiate(Number num)
 
+	boolean isCharacter() { ordinal() > Float.ordinal() }
 	boolean isInteger() { ordinal() < Float32.ordinal() }
 	boolean isFloat() { ordinal() > Int.ordinal() }
 }

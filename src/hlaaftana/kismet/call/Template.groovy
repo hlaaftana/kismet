@@ -1,18 +1,20 @@
-package hlaaftana.kismet.call;
+package hlaaftana.kismet.call
 
-import hlaaftana.kismet.parser.Parser;
-import hlaaftana.kismet.scope.Context;
-import hlaaftana.kismet.vm.IKismetObject;
+import groovy.transform.CompileStatic
+import hlaaftana.kismet.parser.Parser
+import hlaaftana.kismet.scope.Context
+import hlaaftana.kismet.vm.IKismetObject
 
-public interface Template extends KismetCallable {
+@CompileStatic
+abstract class Template implements KismetCallable {
 	// doesn't transform arguments if true
-	default boolean isHungry() { return false; }
+	boolean isHungry() { false }
 	// doesn't transform result if true
-	default boolean isOptimized() { return false; }
+	boolean isOptimized() { false }
 
-	Expression transform(Parser parser, Expression... args);
+	abstract Expression transform(Parser parser, Expression... args)
 
-	default IKismetObject call(Context c, Expression... args) {
-		return transform(null, args).evaluate(c);
+	IKismetObject call(Context c, Expression... args) {
+		transform(null, args).evaluate(c)
 	}
 }

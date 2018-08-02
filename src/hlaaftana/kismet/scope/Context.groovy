@@ -5,23 +5,21 @@ import hlaaftana.kismet.Kismet
 import hlaaftana.kismet.call.Block
 import hlaaftana.kismet.call.BlockExpression
 import hlaaftana.kismet.call.Expression
-import hlaaftana.kismet.call.KismetFunction
 import hlaaftana.kismet.exceptions.UndefinedVariableException
-import hlaaftana.kismet.exceptions.VariableExistsException
 import hlaaftana.kismet.vm.IKismetObject
+import hlaaftana.kismet.vm.Memory
 
 @CompileStatic
-class Context {
+class Context extends Memory {
 	Context parent
-	Map<String, Pair<Variable, List<KismetFunction.Arguments>>> declarations
-	List<Variable> variables
+	List<Address> variables
 
 	Context(Context parent = null, Map<String, IKismetObject> variables) {
 		this.parent = parent
 		setVariables variables
 	}
 
-	Context(Context parent = null, List<Variable> variables = []) {
+	Context(Context parent = null, List<Address> variables = []) {
 		this.parent = parent
 		setVariables variables
 	}
@@ -30,17 +28,12 @@ class Context {
 		variables.add(new NamedVariable(name, value))
 	}
 
-	IKismetObject addAndReturn(String name, IKismetObject value) {
-		add(name, value)
-		value
-	}
-
 	void setVariables(Map<String, IKismetObject> data) {
 		variables = new ArrayList<>(data.size())
 		for (e in data) add(e.key, e.value)
 	}
 
-	void setVariables(List<Variable> data) {
+	void setVariables(List<Address> data) {
 		this.@variables = data
 	}
 
@@ -48,51 +41,48 @@ class Context {
 		get(name)
 	}
 
-	Variable getVariable(String name) {
+	Address getVariable(String name) {
 		final hash = name.hashCode()
 		for (v in variables) {
 			if (v.name.hashCode() == hash && v.name == name) {
 				return v
 			}
 		}
-		(Variable) null
+		(Address) null
 	}
 
-	IKismetObject get(String name) {
+	IKismetObject get(String name) throws UndefinedVariableException {
+		final v = getSafe(name)
+		if (null != v) v.value else throw new UndefinedVariableException(name)
+	}
+
+	Address getSafe(String name) {
 		final v = getVariable(name)
-		if (null != v) v.value
-		else if (null != parent) parent.get(name)
-		else throw new UndefinedVariableException(name)
+		if (null != v) v
+		else if (null != parent) parent.getSafe(name)
+		else null
 	}
 
-	IKismetObject set(String name, IKismetObject value) {
-		final v = getVariable(name)
-		if (null != v) {
-			v.value = value; value
-		} else addAndReturn(name, value)
-	}
-
-	IKismetObject define(String name, IKismetObject value) {
-		if (null != getVariable(name)) throw new VariableExistsException("Variable $name already exists")
-		addAndReturn(name, value)
-	}
-
-	IKismetObject assign(Context original = this, String name, IKismetObject value) {
+	void set(String name, IKismetObject value) {
 		final v = getVariable(name)
 		if (null != v) {
-			v.value = value; value
-		} else if (null != parent)
-			parent.assign(original, name, value)
-		else original.addAndReturn(name, value)
+			v.value = value
+		} else add(name, value)
 	}
 
-	IKismetObject change(String name, IKismetObject value) {
-		final v = getVariable(name)
-		if (null != v) {
-			v.value = value; value
-		} else if (null != parent)
-			parent.change(name, value)
-		else throw new UndefinedVariableException(name)
+	IKismetObject get(int id) {
+		final v = variables.get(id)
+		null == v ? null : v.value
+	}
+
+	void set(int id, IKismetObject value) {
+		final v = variables.get(id)
+		if (null == v) throw new UndefinedVariableException("Cannot set variable with id $id on dynamic context")
+		v.value = value
+	}
+
+	Memory relative(int id) {
+		id == 0 ? parent : null
 	}
 
 	Block child(Expression expr) {
@@ -143,7 +133,7 @@ class Context {
 		new Context(parent, getVariables())
 	}
 
-	static class NamedVariable implements Variable {
+	static class NamedVariable implements Address {
 		String name
 		IKismetObject value
 

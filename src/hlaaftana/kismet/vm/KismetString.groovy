@@ -2,6 +2,8 @@ package hlaaftana.kismet.vm
 
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.exceptions.UnexpectedValueException
+import hlaaftana.kismet.type.StringType
+import hlaaftana.kismet.type.Type
 
 @CompileStatic
 class StringClass extends BasicClass<KismetString> {
@@ -40,6 +42,8 @@ class KismetString implements IKismetObject<String>, CharSequence {
 	KismetString(StringBuilder string) { inner = string }
 
 	IKismetClass kismetClass() { StringClass.INSTANCE }
+
+	Type getType() { StringType.INSTANCE }
 
 	String inner() { toString() }
 

@@ -9,8 +9,8 @@ defn [median l] {
 defn [standard_deviation l] {
   m: mean l
   s: 0
-  `for:` a l {
-    |>= s [+ [squared [- a m]]
+  `for:` [a l] {
+    incr s [squared [- a m]]
   }
   sqrt [/ s [prev [size l]]]
 }

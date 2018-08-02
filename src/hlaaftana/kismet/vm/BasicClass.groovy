@@ -3,6 +3,9 @@ package hlaaftana.kismet.vm
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.Kismet
 import hlaaftana.kismet.exceptions.CannotOperateException
+import hlaaftana.kismet.type.MetaType
+import hlaaftana.kismet.type.Type
+import hlaaftana.kismet.type.TypeRelation
 import org.codehaus.groovy.runtime.DefaultGroovyMethods
 
 @CompileStatic
@@ -48,5 +51,11 @@ class BasicClass<T extends IKismetObject> implements IKismetClass<T>, IKismetObj
 
 	T construct(IKismetObject[] args) {
 		throw new CannotOperateException('construct', "class $name")
+	}
+
+	Type getType() { new MetaType(this) }
+
+	TypeRelation relation(Type other) {
+		other == this ? TypeRelation.equal() : TypeRelation.none()
 	}
 }

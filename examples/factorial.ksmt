@@ -3,7 +3,7 @@ functional: dive {
   defn [permutation n r] [product [range [next [- n r]] n]]
   defn [combination n r] [div [permutation n r] [factorial r]]
 
-  ##(factorial, permutation, combination)
+  {#factorial, permutation, combination}
 }
 
 imperative: dive {
@@ -21,9 +21,9 @@ imperative: dive {
     x
   }
 
-  defn [combination n r] [let [[result x] 1] [for< [i 0 r] x: / [* x [- n i]] [- r i]]]
+  defn [combination n r] [let [result x: 1] [for< [i 0 r] x: / [* x [- n i]] [- r i]]]
 
-  ##(factorial, permutation, combination)
+  {#factorial, permutation, combination}
 }
 
 assert_is [functional.factorial 5] [imperative.factorial 5] 120

@@ -1,7 +1,7 @@
-defn [compare_ignore_case? [x [slice]]] {
-  |> x ~ [collect lower] [consecutives 2] [every? [fn* [a b] [is? a b]]
+defn compare_ignore_case?(x) {
+  |> x to_iterator [collect lower] [consecutives 2] [every? [fn* [a b] [is? a b]]]
 }
 
-assert [compare_ignore_case? 'abcD' 'AbCD' 'ABCd' 'ABCD' 'abcd']
-assert_not [compare_ignore_case? ' ab CD' 'abcd']
-assert_not [compare_ignore_case? 'bcda' 'cbad' 'dabdab']
+assert [spread compare_ignore_case? 'abcD' 'AbCD' 'ABCd' 'ABCD' 'abcd']
+assert_not [spread compare_ignore_case? ' ab CD' 'abcd']
+assert_not [spread compare_ignore_case? 'bcda' 'cbad' 'dabdab']

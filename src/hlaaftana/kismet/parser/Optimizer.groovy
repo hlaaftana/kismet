@@ -4,7 +4,6 @@ import groovy.transform.CompileStatic
 import hlaaftana.kismet.Kismet
 import hlaaftana.kismet.call.*
 import hlaaftana.kismet.exceptions.UndefinedVariableException
-import hlaaftana.kismet.exceptions.UnexpectedSyntaxException
 import hlaaftana.kismet.scope.Prelude
 import hlaaftana.kismet.scope.Context
 import hlaaftana.kismet.scope.TypedContext
@@ -48,7 +47,6 @@ class Optimizer {
 			}
 			if (null != func) {
 				def inner = func.inner()
-				int equalsType = 0
 				if (template && inner instanceof Template) {
 					final tmpl = (Template) inner
 					Expression[] arguments
@@ -65,35 +63,6 @@ class Optimizer {
 					Expression currentExpression = expr
 					//noinspection GroovyFallthrough
 					switch (text) {
-						case "change":
-						case ":::=": ++equalsType
-						case "set_to":
-						case "::=": ++equalsType
-						case "define":
-						case ":=": ++equalsType
-						case "assign":
-						case "=":
-							final size = expr.arguments.size()
-							def last = expr.arguments[size - 1]
-							for (int i = size - 2; i >= 0; --i) {
-								def name = expr.arguments[i]
-								def atom = Prelude.toAtom(name)
-								def orig = new CallExpression(expr.callValue, name, last)
-								if (null != atom) switch (equalsType) {
-									case 3: last = new ChangeExpression(orig, atom, last); break
-									case 2: last = new ContextSetExpression(orig, atom, last); break
-									case 1: last = new DefineExpression(orig, atom, last); break
-									case 0: last = new AssignExpression(orig, atom, last); break
-								} else if (name instanceof CallExpression)
-									last = new DefineFunctionExpression(orig)
-								else if (name instanceof PathExpression)
-									last = new PathStepSetExpression(orig, (PathExpression) name)
-								else throw new UnexpectedSyntaxException("During $text, got for name: $name")
-							}
-							if (last instanceof NameExpression)
-								last = new DefineExpression(expr, ((NameExpression) last).text, NoExpression.INSTANCE)
-							return (CallExpression) last
-						case "defn": return new DefineFunctionExpression(expr)
 						case "for": return new ForExpression(expr, parser.context, false, false)
 						case "for<": return new ForExpression(expr, parser.context, false, true)
 						case "&for": return new ForExpression(expr, parser.context, true, false)
@@ -134,7 +103,7 @@ class Optimizer {
 
 	static class FakeCallExpression extends CallExpression {
 		FakeCallExpression(CallExpression original) {
-			super(original.members)
+			super(original?.members)
 		}
 
 		String repr() { "fake" + super }
@@ -160,20 +129,12 @@ class Optimizer {
 		String repr() { "identity(${arguments.join(', ')})" }
 	}
 
-	static class PathStepSetExpression extends FakeCallExpression {
+	static class PathStepSetExpression extends Expression {
 		Expression value
 		PathExpression.Step step
 		Expression toSet
 
-		PathStepSetExpression(CallExpression original, PathExpression path) {
-			super(original)
-			value = new PathExpression(path.root, path.steps.init())
-			step = path.steps.last()
-			toSet = arguments.last()
-		}
-
-		PathStepSetExpression(CallExpression original, PathExpression path, Expression set) {
-			super(original)
+		PathStepSetExpression(PathExpression path, Expression set) {
 			value = new PathExpression(path.root, path.steps.init())
 			step = path.steps.last()
 			toSet = set
@@ -185,7 +146,7 @@ class Optimizer {
 				return v.kismetClass().subscriptSet(v, ((PathExpression.SubscriptStep) step).expression.evaluate(c), toSet.evaluate(c))
 			else if (step instanceof PathExpression.PropertyStep)
 				return v.kismetClass().propertySet(v, ((PathExpression.PropertyStep) step).name, toSet.evaluate(c))
-			else println "Unknown pathstep"
+			else step.get(c, v)
 			Kismet.NULL
 		}
 	}
@@ -198,7 +159,7 @@ class Optimizer {
 		CheckExpression(CallExpression original) {
 			super(original)
 			value = original.arguments[0]
-			if (value instanceof DefineExpression) name = ((DefineExpression) value).name
+			if (value instanceof VariableModifyExpression) name = value.name
 			branches = new ArrayList<>(original.arguments.size() - 1)
 			addBranches(original.arguments.tail())
 		}
@@ -238,99 +199,6 @@ class Optimizer {
 			}
 			Kismet.NULL
 		}
-	}
-
-	static class DefineFunctionExpression extends FakeCallExpression {
-		String name
-		KismetFunction.Arguments args
-		BlockExpression block
-
-		DefineFunctionExpression(CallExpression original) {
-			super(original)
-			def a = original.arguments[0]
-			if (a instanceof NameExpression) {
-				name = ((NameExpression) a).text
-				args = new KismetFunction.Arguments(null)
-			} else if (a instanceof CallExpression) {
-				name = ((NameExpression) ((CallExpression) a).callValue).text
-				args = new KismetFunction.Arguments(((CallExpression) a).arguments)
-			}
-			block = new BlockExpression(original.arguments.tail())
-		}
-
-		IKismetObject<KismetFunction> evaluate(Context c) {
-			def f = new KismetFunction()
-			f.name = name
-			f.arguments = args
-			f.block = c.child(block)
-			c.define(name, Kismet.model(f))
-		}
-
-		String repr() { "defn(${arguments.join(', ')})" }
-	}
-
-	static class VariableModifyExpression extends FakeCallExpression {
-		String name
-		Expression expression
-
-		VariableModifyExpression(CallExpression original, String name, Expression expression) {
-			super(original)
-			this.name = name
-			this.expression = expression
-		}
-
-		TypedExpression type(TypedContext tc, Type preferred) {
-			def v = expression.type(tc, preferred)
-			new VariableSetExpression(tc.addVariable(name, preferred).ref(), v)
-		}
-	}
-
-	static class DefineExpression extends VariableModifyExpression {
-		DefineExpression(CallExpression original, String name, Expression expression) {
-			super(original, name, expression)
-		}
-
-		IKismetObject evaluate(Context c) {
-			c.define(name, c.eval(expression))
-		}
-
-		String repr() { "define[$name, $expression]" }
-	}
-
-	static class ChangeExpression extends VariableModifyExpression {
-		ChangeExpression(CallExpression original, String name, Expression expression) {
-			super(original, name, expression)
-		}
-
-		IKismetObject evaluate(Context c) {
-			c.change(name, c.eval(expression))
-		}
-
-		String repr() { "change[$name, $expression]" }
-	}
-
-	static class AssignExpression extends VariableModifyExpression {
-		AssignExpression(CallExpression original, String name, Expression expression) {
-			super(original, name, expression)
-		}
-
-		IKismetObject evaluate(Context c) {
-			c.assign(name, c.eval(expression))
-		}
-
-		String repr() { "assign[$name, $expression]" }
-	}
-
-	static class ContextSetExpression extends VariableModifyExpression {
-		ContextSetExpression(CallExpression original, String name, Expression expression) {
-			super(original, name, expression)
-		}
-
-		IKismetObject evaluate(Context c) {
-			c.set(name, c.eval(expression))
-		}
-
-		String repr() { "set_to[$name, $expression]" }
 	}
 
 	static class NopExpression extends FakeCallExpression {

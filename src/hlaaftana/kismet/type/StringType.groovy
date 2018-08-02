@@ -8,4 +8,6 @@ class StringType implements Type {
 	TypeRelation relation(Type other) {
 		TypeRelation.some(other == this)
 	}
+
+	String toString() { 'String' }
 }
