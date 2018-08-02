@@ -1,18 +1,18 @@
-package hlaaftana.kismet.call
+package hlaaftana.kismet.call;
 
-import hlaaftana.kismet.parser.Parser
-import hlaaftana.kismet.scope.Context
-import hlaaftana.kismet.vm.IKismetObject
+import hlaaftana.kismet.parser.Parser;
+import hlaaftana.kismet.scope.Context;
+import hlaaftana.kismet.vm.IKismetObject;
 
-trait Template implements KismetCallable {
+public interface Template extends KismetCallable {
 	// doesn't transform arguments if true
-	boolean isHungry() { false }
+	default boolean isHungry() { return false; }
 	// doesn't transform result if true
-	boolean isOptimized() { false }
+	default boolean isOptimized() { return false; }
 
-	abstract Expression transform(Parser parser, Expression... args)
+	Expression transform(Parser parser, Expression... args);
 
-	IKismetObject call(Context c, Expression... args) {
-		transform(null, args).evaluate(c)
+	default IKismetObject call(Context c, Expression... args) {
+		return transform(null, args).evaluate(c);
 	}
 }
