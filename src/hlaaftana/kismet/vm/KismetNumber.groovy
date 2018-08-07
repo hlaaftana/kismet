@@ -2,10 +2,7 @@ package hlaaftana.kismet.vm
 
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.exceptions.CannotOperateException
-import hlaaftana.kismet.type.MetaType
 import hlaaftana.kismet.type.NumberType
-import hlaaftana.kismet.type.Type
-import hlaaftana.kismet.type.TypeRelation
 
 @CompileStatic
 abstract class KismetNumber<T extends Number> extends Number implements IKismetObject<T>, Comparable<KismetNumber<T>> {
@@ -42,8 +39,8 @@ abstract class KismetNumber<T extends Number> extends Number implements IKismetO
 	abstract KismetNumber or(KismetNumber obj)
 
 	abstract KismetNumber xor(KismetNumber obj)
-
-	abstract KismetNumberClass kismetClass()
+	
+	abstract NumberType getType()
 
 	int hashCode() { inner().hashCode() }
 
@@ -76,82 +73,8 @@ abstract class KismetNumber<T extends Number> extends Number implements IKismetO
 	String toString() { inner().toString() }
 
 	def asType(Class type) { inner().asType(type) }
-
-	Type getType() { kismetClass().theType() }
 }
 
-@CompileStatic
-@Singleton(property = 'INSTANCE')
-class NonPrimitiveNumClass extends KismetNumberClass {
-	KismetNumber instantiate(Number num) {
-		new KNonPrimitiveNum(num)
-	}
-
-	String getName() { 'UnknownNumber' }
-
-	boolean isInstance(IKismetObject object) {
-		object instanceof KNonPrimitiveNum
-	}
-
-	int getBits() { 0 }
-
-	NumberType theType() { null }
-}
-
-@CompileStatic
-abstract class KismetNumberClass<T extends Number> implements IKismetClass<KismetNumber<T>>, IKismetObject<KismetNumberClass<T>> {
-	KismetNumber<T> cast(IKismetObject object) {
-		if (!(object instanceof KismetNumber)) throw new CannotOperateException("cast to non number", "number")
-		instantiate(((KismetNumber) object).inner())
-	}
-
-	abstract KismetNumber<T> instantiate(Number num)
-
-	abstract int getBits()
-
-	IKismetClass kismetClass() { MetaKismetClass.INSTANCE }
-
-	KismetNumberClass<T> inner() { this }
-
-	IKismetObject propertyGet(KismetNumber<T> obj, String name) {
-		throw new CannotOperateException("get property", "number")
-	}
-
-	IKismetObject propertySet(KismetNumber<T> obj, String name, IKismetObject value) {
-		throw new CannotOperateException("set property", "number")
-	}
-
-	KismetNumber subscriptGet(KismetNumber<T> obj, IKismetObject key) {
-		if (obj instanceof KismetNumber) obj.plus((KismetNumber) key)
-		else obj
-	}
-
-	IKismetObject subscriptSet(KismetNumber<T> obj, IKismetObject key, IKismetObject value) {
-		if (value instanceof KismetNumber)
-			if (key instanceof KismetNumber)
-				obj.set(((KismetNumber) value).plus((KismetNumber) key))
-			else
-				obj.set((KismetNumber) value)
-		else if (obj instanceof KismetNumber)
-			obj.set(obj.plus((KismetNumber) key))
-		this
-	}
-
-	KismetNumber call(KismetNumber<T> obj, IKismetObject... args) {
-		if (args[0] instanceof KismetNumber) obj.multiply((KismetNumber) args[0])
-		else throw new CannotOperateException("call", "number")
-	}
-
-	KismetNumber<T> construct(IKismetObject[] args) {
-		instantiate(args[0].inner() as Number)
-	}
-
-	abstract NumberType theType()
-
-	Type getType() { new MetaType(theType()) }
-
-	TypeRelation relation(Type other) { theType().relation(other) }
-}
 
 @CompileStatic
 final class KNonPrimitiveNum extends KismetNumber {
@@ -161,9 +84,7 @@ final class KNonPrimitiveNum extends KismetNumber {
 		this.inner = inner
 	}
 
-	NonPrimitiveNumClass kismetClass() {
-		NonPrimitiveNumClass.INSTANCE
-	}
+	NumberType getType() { NumberType.Number }
 
 	Number inner() { inner }
 
@@ -226,29 +147,6 @@ final class KNonPrimitiveNum extends KismetNumber {
 	}
 }
 
-@CompileStatic
-@Singleton(property = 'INSTANCE')
-class IntClass extends KismetNumberClass<BigInteger> {
-	KismetNumber<BigInteger> instantiate(Number num) {
-		new KInt(toBigInt(num))
-	}
-
-	static BigInteger toBigInt(Number num) {
-		if (num instanceof BigInteger) (BigInteger) num
-		else if (num instanceof BigDecimal) ((BigDecimal) num).toBigInteger()
-		else BigInteger.valueOf(num.longValue())
-	}
-
-	boolean isInstance(IKismetObject object) {
-		object instanceof KInt
-	}
-
-	int getBits() { 0 }
-
-	String getName() { 'Integer' }
-
-	NumberType theType() { NumberType.Int }
-}
 
 @CompileStatic
 final class KInt extends KismetNumber<BigInteger> {
@@ -258,34 +156,40 @@ final class KInt extends KismetNumber<BigInteger> {
 
 	KInt(Number inner) { set(inner) }
 
-	IntClass kismetClass() { IntClass.INSTANCE }
+	static BigInteger toBigInt(Number num) {
+		if (num instanceof BigInteger) (BigInteger) num
+		else if (num instanceof BigDecimal) ((BigDecimal) num).toBigInteger()
+		else BigInteger.valueOf(num.longValue())
+	}
+
+	NumberType getType() { NumberType.Int }
 
 	BigInteger inner() { inner }
 
-	void set(Number value) { inner = IntClass.toBigInt(value) }
+	void set(Number value) { inner = toBigInt(value) }
 
 	KInt plus(KismetNumber obj) {
-		new KInt(inner.add(IntClass.toBigInt(obj.inner())))
+		new KInt(inner.add(toBigInt(obj.inner())))
 	}
 
 	KInt minus(KismetNumber obj) {
-		new KInt(inner.subtract(IntClass.toBigInt(obj.inner())))
+		new KInt(inner.subtract(toBigInt(obj.inner())))
 	}
 
 	KInt multiply(KismetNumber obj) {
-		new KInt(inner.multiply(IntClass.toBigInt(obj.inner())))
+		new KInt(inner.multiply(toBigInt(obj.inner())))
 	}
 
 	KInt div(KismetNumber obj) {
-		new KInt(inner.divide(IntClass.toBigInt(obj.inner())))
+		new KInt(inner.divide(toBigInt(obj.inner())))
 	}
 
 	KInt intdiv(KismetNumber obj) {
-		new KInt(inner.intdiv(IntClass.toBigInt(obj.inner())))
+		new KInt(inner.intdiv(toBigInt(obj.inner())))
 	}
 
 	KInt mod(KismetNumber obj) {
-		new KInt(inner.mod(IntClass.toBigInt(obj.inner())))
+		new KInt(inner.mod(toBigInt(obj.inner())))
 	}
 
 	KInt unaryPlus() { new KInt(inner) }
@@ -293,7 +197,7 @@ final class KInt extends KismetNumber<BigInteger> {
 	KInt unaryMinus() { new KInt(inner.negate()) }
 
 	int compareTo(KismetNumber obj) {
-		inner.compareTo(IntClass.toBigInt(obj.inner()))
+		inner.compareTo(toBigInt(obj.inner()))
 	}
 
 	KInt leftShift(KismetNumber obj) {
@@ -309,42 +213,18 @@ final class KInt extends KismetNumber<BigInteger> {
 	}
 
 	KInt and(KismetNumber obj) {
-		new KInt(inner.and(IntClass.toBigInt(obj.inner())))
+		new KInt(inner.and(toBigInt(obj.inner())))
 	}
 
 	KInt or(KismetNumber obj) {
-		new KInt(inner.or(IntClass.toBigInt(obj.inner())))
+		new KInt(inner.or(toBigInt(obj.inner())))
 	}
 
 	KInt xor(KismetNumber obj) {
-		new KInt(inner.xor(IntClass.toBigInt(obj.inner())))
+		new KInt(inner.xor(toBigInt(obj.inner())))
 	}
 }
 
-
-@CompileStatic
-@Singleton(property = 'INSTANCE')
-class FloatClass extends KismetNumberClass<BigDecimal> {
-	KismetNumber<BigDecimal> instantiate(Number num) {
-		new KFloat(num.doubleValue())
-	}
-
-	static BigDecimal toBigDec(Number num) {
-		if (num instanceof BigDecimal) (BigDecimal) num
-		else if (num instanceof BigInteger) ((BigInteger) num).toBigDecimal()
-		else BigDecimal.valueOf(num.doubleValue())
-	}
-
-	boolean isInstance(IKismetObject object) {
-		object instanceof KFloat
-	}
-
-	int getBits() { 0 }
-
-	String getName() { 'Float' }
-
-	NumberType theType() { NumberType.Float }
-}
 
 @CompileStatic
 final class KFloat extends KismetNumber<BigDecimal> {
@@ -354,34 +234,40 @@ final class KFloat extends KismetNumber<BigDecimal> {
 
 	KFloat(Number inner) { set(inner) }
 
-	FloatClass kismetClass() { FloatClass.INSTANCE }
+	static BigDecimal toBigDec(Number num) {
+		if (num instanceof BigDecimal) (BigDecimal) num
+		else if (num instanceof BigInteger) ((BigInteger) num).toBigDecimal()
+		else BigDecimal.valueOf(num.doubleValue())
+	}
+
+	NumberType getType() { NumberType.Float }
 
 	BigDecimal inner() { inner }
 
-	void set(Number value) { inner = FloatClass.toBigDec(value) }
+	void set(Number value) { inner = toBigDec(value) }
 
 	KFloat plus(KismetNumber obj) {
-		new KFloat(inner.add(FloatClass.toBigDec(obj.inner())))
+		new KFloat(inner.add(toBigDec(obj.inner())))
 	}
 
 	KFloat minus(KismetNumber obj) {
-		new KFloat(inner.subtract(FloatClass.toBigDec(obj.inner())))
+		new KFloat(inner.subtract(toBigDec(obj.inner())))
 	}
 
 	KFloat multiply(KismetNumber obj) {
-		new KFloat(inner.multiply(FloatClass.toBigDec(obj.inner())))
+		new KFloat(inner.multiply(toBigDec(obj.inner())))
 	}
 
 	KFloat div(KismetNumber obj) {
-		new KFloat(inner.divide(FloatClass.toBigDec(obj.inner())))
+		new KFloat(inner.divide(toBigDec(obj.inner())))
 	}
 
 	KFloat intdiv(KismetNumber obj) {
-		new KFloat(inner.intdiv(FloatClass.toBigDec(obj.inner())))
+		new KFloat(inner.intdiv(toBigDec(obj.inner())))
 	}
 
 	KFloat mod(KismetNumber obj) {
-		new KFloat(inner.mod(FloatClass.toBigDec(obj.inner())))
+		new KFloat(inner.mod(toBigDec(obj.inner())))
 	}
 
 	KFloat unaryPlus() { new KFloat(inner) }
@@ -415,23 +301,6 @@ final class KFloat extends KismetNumber<BigDecimal> {
 	}
 }
 
-@CompileStatic
-@Singleton(property = 'INSTANCE')
-class Float64Class extends KismetNumberClass<Double> {
-	KismetNumber<Double> instantiate(Number num) {
-		new KFloat64(num.doubleValue())
-	}
-
-	boolean isInstance(IKismetObject object) {
-		object instanceof KFloat64
-	}
-
-	int getBits() { 64 }
-
-	String getName() { 'Float64' }
-
-	NumberType theType() { NumberType.Float64 }
-}
 
 @CompileStatic
 final class KFloat64 extends KismetNumber<Double> {
@@ -439,7 +308,7 @@ final class KFloat64 extends KismetNumber<Double> {
 
 	KFloat64(double inner) { this.inner = inner }
 
-	Float64Class kismetClass() { Float64Class.INSTANCE }
+	NumberType getType() { NumberType.Float64 }
 
 	Double inner() { inner }
 
@@ -500,23 +369,6 @@ final class KFloat64 extends KismetNumber<Double> {
 	}
 }
 
-@CompileStatic
-@Singleton(property = 'INSTANCE')
-class Float32Class extends KismetNumberClass<Float> {
-	KismetNumber<Float> instantiate(Number num) {
-		new KFloat32(num.floatValue())
-	}
-
-	boolean isInstance(IKismetObject object) {
-		object instanceof KFloat32
-	}
-
-	int getBits() { 32 }
-
-	String getName() { 'Float32' }
-
-	NumberType theType() { NumberType.Float32 }
-}
 
 @CompileStatic
 final class KFloat32 extends KismetNumber<Float> {
@@ -524,7 +376,7 @@ final class KFloat32 extends KismetNumber<Float> {
 
 	KFloat32(float inner) { this.inner = inner }
 
-	Float32Class kismetClass() { Float32Class.INSTANCE }
+	NumberType getType() { NumberType.Float32 }
 
 	Float inner() { inner }
 
@@ -585,23 +437,6 @@ final class KFloat32 extends KismetNumber<Float> {
 	}
 }
 
-@CompileStatic
-@Singleton(property = 'INSTANCE')
-class Int64Class extends KismetNumberClass<Long> {
-	KismetNumber<Long> instantiate(Number num) {
-		new KInt64(num.longValue())
-	}
-
-	boolean isInstance(IKismetObject object) {
-		object instanceof KInt64
-	}
-
-	int getBits() { 64 }
-
-	String getName() { 'Int64' }
-
-	NumberType theType() { NumberType.Int64 }
-}
 
 @CompileStatic
 final class KInt64 extends KismetNumber<Long> {
@@ -609,7 +444,7 @@ final class KInt64 extends KismetNumber<Long> {
 
 	KInt64(long inner) { this.inner = inner }
 
-	Int64Class kismetClass() { Int64Class.INSTANCE }
+	NumberType getType() { NumberType.Int64 }
 
 	Long inner() { inner }
 
@@ -670,23 +505,6 @@ final class KInt64 extends KismetNumber<Long> {
 	}
 }
 
-@CompileStatic
-@Singleton(property = 'INSTANCE')
-class Int32Class extends KismetNumberClass<Integer> {
-	KismetNumber<Integer> instantiate(Number num) {
-		new KInt32(num.intValue())
-	}
-
-	boolean isInstance(IKismetObject object) {
-		object instanceof KInt32
-	}
-
-	int getBits() { 32 }
-
-	String getName() { 'Int32' }
-
-	NumberType theType() { NumberType.Int32 }
-}
 
 @CompileStatic
 final class KInt32 extends KismetNumber<Integer> {
@@ -694,7 +512,7 @@ final class KInt32 extends KismetNumber<Integer> {
 
 	KInt32(int inner) { this.inner = inner }
 
-	Int32Class kismetClass() { Int32Class.INSTANCE }
+	NumberType getType() { NumberType.Int32 }
 
 	Integer inner() { inner }
 
@@ -755,23 +573,6 @@ final class KInt32 extends KismetNumber<Integer> {
 	}
 }
 
-@CompileStatic
-@Singleton(property = 'INSTANCE')
-class RuneClass extends KismetNumberClass<Integer> {
-	KismetNumber<Integer> instantiate(Number num) {
-		new KRune(num.intValue())
-	}
-
-	boolean isInstance(IKismetObject object) {
-		object instanceof KRune
-	}
-
-	int getBits() { 32 }
-
-	String getName() { 'Rune' }
-
-	NumberType theType() { NumberType.Rune }
-}
 
 @CompileStatic
 final class KRune extends KismetNumber<Integer> {
@@ -779,7 +580,7 @@ final class KRune extends KismetNumber<Integer> {
 
 	KRune(int inner) { this.inner = inner }
 
-	RuneClass kismetClass() { RuneClass.INSTANCE }
+	NumberType getType() { NumberType.Rune }
 
 	Integer inner() { inner }
 
@@ -840,23 +641,6 @@ final class KRune extends KismetNumber<Integer> {
 	}
 }
 
-@CompileStatic
-@Singleton(property = 'INSTANCE')
-class Int16Class extends KismetNumberClass<Short> {
-	KismetNumber<Short> instantiate(Number num) {
-		new KInt16(num.shortValue())
-	}
-
-	boolean isInstance(IKismetObject object) {
-		object instanceof KInt16
-	}
-
-	int getBits() { 16 }
-
-	String getName() { 'Int16' }
-
-	NumberType theType() { NumberType.Int16 }
-}
 
 @CompileStatic
 final class KInt16 extends KismetNumber<Short> {
@@ -864,7 +648,7 @@ final class KInt16 extends KismetNumber<Short> {
 
 	KInt16(short inner) { this.inner = inner }
 
-	Int16Class kismetClass() { Int16Class.INSTANCE }
+	NumberType getType() { NumberType.Int16 }
 
 	Short inner() { inner }
 
@@ -925,23 +709,6 @@ final class KInt16 extends KismetNumber<Short> {
 	}
 }
 
-@CompileStatic
-@Singleton(property = 'INSTANCE')
-class CharClass extends KismetNumberClass<Integer> {
-	KismetNumber<Integer> instantiate(Number num) {
-		new KChar((char) num.intValue())
-	}
-
-	boolean isInstance(IKismetObject object) {
-		object instanceof KChar
-	}
-
-	int getBits() { 16 }
-
-	String getName() { 'Character' }
-
-	NumberType theType() { NumberType.Char }
-}
 
 @CompileStatic
 final class KChar extends KismetNumber<Integer> {
@@ -949,7 +716,7 @@ final class KChar extends KismetNumber<Integer> {
 
 	KChar(char inner) { this.inner = inner }
 
-	CharClass kismetClass() { CharClass.INSTANCE }
+	NumberType getType() { NumberType.Char }
 
 	Integer inner() { Integer.valueOf((int) inner) }
 
@@ -1010,23 +777,6 @@ final class KChar extends KismetNumber<Integer> {
 	}
 }
 
-@CompileStatic
-@Singleton(property = 'INSTANCE')
-class Int8Class extends KismetNumberClass<Byte> {
-	KismetNumber<Byte> instantiate(Number num) {
-		new KInt8(num.byteValue())
-	}
-
-	boolean isInstance(IKismetObject object) {
-		object instanceof KInt8
-	}
-
-	int getBits() { 8 }
-
-	String getName() { 'Int8' }
-
-	NumberType theType() { NumberType.Int8 }
-}
 
 @CompileStatic
 final class KInt8 extends KismetNumber<Byte> {
@@ -1034,7 +784,7 @@ final class KInt8 extends KismetNumber<Byte> {
 
 	KInt8(byte inner) { this.inner = inner }
 
-	Int8Class kismetClass() { Int8Class.INSTANCE }
+	NumberType getType() { NumberType.Int8 }
 
 	Byte inner() { inner }
 

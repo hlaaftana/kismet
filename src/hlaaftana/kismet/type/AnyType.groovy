@@ -10,4 +10,6 @@ class AnyType implements Type {
 	}
 
 	String toString() { 'Any' }
+
+	boolean losesAgainst(Type other) { false }
 }

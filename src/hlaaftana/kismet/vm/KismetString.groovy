@@ -1,30 +1,10 @@
 package hlaaftana.kismet.vm
 
 import groovy.transform.CompileStatic
-import hlaaftana.kismet.exceptions.UnexpectedValueException
+import hlaaftana.kismet.scope.Prelude
 import hlaaftana.kismet.type.StringType
 import hlaaftana.kismet.type.Type
 
-@CompileStatic
-class StringClass extends BasicClass<KismetString> {
-	static final StringClass INSTANCE = new StringClass()
-
-	private StringClass() {
-		super('String')
-	}
-
-	IKismetObject subscriptGet(KismetString obj, IKismetObject key) {
-		if (key instanceof KismetString) obj.concat((KismetString) key)
-		else if (key instanceof KismetNumber) obj.codePointAt(((KismetNumber) key).intValue())
-		else throw new UnexpectedValueException('Tried to subscript get on string with ')
-	}
-
-	IKismetObject call(KismetString obj, IKismetObject[] args) {
-		StringBuilder builder = new StringBuilder(obj.inner)
-		for (final c : args) builder.append(cast(c).inner)
-		new KismetString(builder)
-	}
-}
 
 @CompileStatic
 @SuppressWarnings("GroovyUnusedDeclaration")
@@ -41,9 +21,7 @@ class KismetString implements IKismetObject<String>, CharSequence {
 
 	KismetString(StringBuilder string) { inner = string }
 
-	IKismetClass kismetClass() { StringClass.INSTANCE }
-
-	Type getType() { StringType.INSTANCE }
+	Type getType() { Prelude.STRING_TYPE }
 
 	String inner() { toString() }
 

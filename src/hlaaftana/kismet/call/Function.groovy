@@ -7,8 +7,7 @@ import hlaaftana.kismet.exceptions.UnexpectedSyntaxException
 import hlaaftana.kismet.scope.Context
 import hlaaftana.kismet.scope.Prelude
 import hlaaftana.kismet.scope.TypedContext
-import hlaaftana.kismet.type.FunctionType
-import hlaaftana.kismet.type.MetaType
+import hlaaftana.kismet.type.GenericType
 import hlaaftana.kismet.type.TupleType
 import hlaaftana.kismet.type.Type
 import hlaaftana.kismet.vm.IKismetObject
@@ -16,9 +15,26 @@ import hlaaftana.kismet.vm.Memory
 import hlaaftana.kismet.vm.RuntimeMemory
 
 @CompileStatic
-abstract class Function implements KismetCallable {
+abstract class Function implements KismetCallable, IKismetObject<Function> {
 	boolean pure
 	int precedence
+
+	static IKismetObject tryCall(Memory c, String name, IKismetObject[] args) {
+		final v = c.get(name)
+		if (v instanceof Function) v.call(args)
+		else {
+			def a = new IKismetObject[args.length + 1]
+			a[0] = v
+			for (int i = 0; i < a.length; ++i) a[i + 1] = args[i]
+			((Function) c.get('call')).call(a)
+		}
+	}
+
+	static IKismetObject callOrNull(Memory c, String name, IKismetObject[] args) {
+		final v = c.get(name)
+		if (v instanceof Function) v.call(args)
+		else null
+	}
 
 	static final Function IDENTITY = new Function() {
 		{
@@ -126,6 +142,16 @@ abstract class Function implements KismetCallable {
 			}
 		}
 	}
+
+	Function inner() { this }
+
+	Closure toClosure() {
+		return { ...args ->
+			def a = new IKismetObject[args.length]
+			for (int i = 0; i < a.length; ++i) a[i] = Kismet.model(args[i])
+			this.call(a)
+		}
+	}
 }
 
 @CompileStatic
@@ -136,26 +162,6 @@ interface Invertable {
 @CompileStatic
 interface Nameable {
 	String getName()
-}
-
-@CompileStatic
-class KismetMethod extends Function implements Nameable {
-	String name = 'anonymousMethod'
-	List<KismetFunction> functions = []
-
-	IKismetObject call(IKismetObject... args) {
-		for (f in functions) {
-			Context c
-			try {
-				c = f.block.context
-				f.arguments.setArgs(c, args)
-			} catch (CheckFailedException ignored) {
-				continue
-			}
-			return f.block.expression.evaluate(c)
-		}
-		throw new CheckFailedException("No method matched for $name with arguments $args")
-	}
 }
 
 @CompileStatic
@@ -221,26 +227,72 @@ class FunctionDefineExpression extends Expression {
 		result.name = name
 		result.arguments = arguments
 		result.block = c.child(expression)
-		def val = Kismet.model(result)
-		c.set(name, val)
-		val
+		c.set(name, result)
+		result
 	}
 
 	TypedExpression type(TypedContext tc, Type preferred) {
 		def fnb = tc.child()
-		def pmt = arguments.fill(fnb)
 		def block = expression.type(fnb, preferred)
-		final ret = block.type
-		final typ = new FunctionType(new TupleType(pmt), ret)
+		final typ = Prelude.func(block.type, arguments.fill(fnb))
 		final var = tc.addVariable(name, typ)
 		new VariableSetExpression(var.ref(), new BasicTypedExpression(typ, new Instruction() {
 			final Instruction inner = block.instruction
 			final int stackSize = fnb.size()
 
 			IKismetObject evaluate(Memory context) {
-				Kismet.model(new TypedFunction([context] as Memory[], inner, stackSize, name))
+				new TypedFunction([context] as Memory[], inner, stackSize, name)
 			}
 		}))
+	}
+}
+
+@CompileStatic
+class FunctionExpression extends Expression {
+	String name
+	Arguments arguments
+	Expression expression
+
+	FunctionExpression(boolean named, Expression[] args) {
+		final first = args[0]
+		final f = first.members ?: [first]
+		if (named) {
+			name = ((NameExpression) f[0]).text
+			arguments = new Arguments(f.tail())
+		} else {
+			arguments = new Arguments(f)
+		}
+		expression = args.length == 1 ? null : new BlockExpression(args.tail().toList())
+	}
+
+	FunctionExpression(String name = null, Arguments arguments, Expression expr) {
+		this.name = name
+		this.arguments = arguments
+		this.expression = expr
+	}
+
+	FunctionExpression() {}
+
+	IKismetObject evaluate(Context c) {
+		def result = new KismetFunction()
+		result.name = name
+		result.arguments = arguments
+		result.block = c.child(expression)
+		result
+	}
+
+	TypedExpression type(TypedContext tc, Type preferred) {
+		def fnb = tc.child()
+		def block = expression.type(fnb, preferred)
+		final typ = Prelude.func(block.type, arguments.fill(fnb))
+		new BasicTypedExpression(typ, new Instruction() {
+			final Instruction inner = block.instruction
+			final int stackSize = fnb.size()
+
+			IKismetObject evaluate(Memory context) {
+				new TypedFunction([context] as Memory[], inner, stackSize, name)
+			}
+		})
 	}
 }
 
@@ -276,7 +328,6 @@ class Arguments {
 		else parseCall(p, [(Expression) e])
 	}
 
-	// rewrite better please
 	void parseCall(Parameter p = new Parameter(), Collection<Expression> exprs) {
 		BlockExpression block = null
 		for (e in exprs) {
@@ -322,7 +373,7 @@ class Arguments {
 
 		Type getType(TypedContext tc) {
 			def expr = typeExpression.type(tc)
-			if (!MetaType.ALL.relation(expr.type).assignableFrom) expr.type
+			if (!expr.type.relation(Prelude.META_TYPE).assignableTo) expr.type
 			else (Type) expr.instruction.evaluate(tc).inner()
 		}
 

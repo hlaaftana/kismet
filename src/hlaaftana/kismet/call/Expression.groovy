@@ -13,14 +13,14 @@ import hlaaftana.kismet.scope.AssignmentType
 import hlaaftana.kismet.scope.Context
 import hlaaftana.kismet.scope.Prelude
 import hlaaftana.kismet.scope.TypedContext
-import hlaaftana.kismet.type.FunctionType
-import hlaaftana.kismet.type.ListType
+import hlaaftana.kismet.type.GenericType
 import hlaaftana.kismet.type.NumberType
-import hlaaftana.kismet.type.StringType
 import hlaaftana.kismet.type.TupleType
 import hlaaftana.kismet.type.Type
 import hlaaftana.kismet.vm.IKismetObject
+import hlaaftana.kismet.vm.KismetString
 import hlaaftana.kismet.vm.Memory
+import hlaaftana.kismet.vm.WrapperKismetObject
 
 @CompileStatic
 abstract class Expression {
@@ -65,7 +65,7 @@ class PathExpression extends Expression {
 
 	IKismetObject evaluate(Context c) {
 		if (null == root || root instanceof NoExpression) {
-			Kismet.model(new PathFunction(c, steps))
+			new PathFunction(c, steps)
 		} else {
 			applySteps(c, root.evaluate(c), steps)
 		}
@@ -115,7 +115,8 @@ class PathExpression extends Expression {
 		IKismetObject set(Context c, IKismetObject object, IKismetObject value)
 		Expression asExpr()
 		Step borrow(Expression expr)
-		Instruction instr(TypedContext ctx, Instruction before)
+		TypedExpression type(TypedContext ctx, TypedExpression before)
+		TypedExpression typeSet(TypedContext ctx, TypedExpression before, TypedExpression value)
 	}
 
 	static class PropertyStep implements Step {
@@ -126,24 +127,52 @@ class PathExpression extends Expression {
 		}
 
 		IKismetObject get(Context c, IKismetObject object) {
-			object.kismetClass().propertyGet(object, name)
+			final n = Function.callOrNull(c, getterName(name), object)
+			if (null != n) return n
+			Function.tryCall(c, '.property', object, new KismetString(name))
 		}
 
 		IKismetObject set(Context c, IKismetObject object, IKismetObject value) {
-			object.kismetClass().propertySet(object, name, value)
+			final n = Function.callOrNull(c, setterName(name), object, value)
+			if (null != n) return n
+			Function.tryCall(c, '.property=', object, new KismetString(name), value)
 		}
 
-		String toString() { ".$name" }
+		static String getterName(String prop) {
+			def res = new char[prop.length() + 1]
+			res[0] = (char) '.'
+			prop.getChars(0, prop.length(), res, 1)
+			String.valueOf(res)
+		}
+
+		static String setterName(String prop) {
+			def res = new char[prop.length() + 2]
+			res[0] = (char) '.'
+			prop.getChars(0, prop.length(), res, 1)
+			res[res.length - 1] = (char) '='
+			String.valueOf(res)
+		}
+
+		String toString() { getterName(name) }
 		Expression asExpr() { new NameExpression(name) }
 		PropertyStep borrow(Expression expr) { new PropertyStep(expr.toString()) }
 
-		Instruction instr(TypedContext ctx, Instruction before) {
-			new Instruction() {
-				IKismetObject evaluate(Memory context) {
-					final val = before.evaluate(context)
-					val.kismetClass().propertyGet(val, name)
-				}
-			}
+		TypedExpression type(TypedContext ctx, TypedExpression before) {
+			def m = ctx.find(getterName(name), Prelude.func(Type.ANY, before.type))
+			if (null != m) return new TypedCallExpression(new VariableExpression(m), [before] as TypedExpression[],
+					((GenericType) m.variable.type)[1])
+			m = ctx.findThrow('.property', Prelude.func(Type.ANY, before.type, Prelude.STRING_TYPE))
+			new TypedCallExpression(new VariableExpression(m), [before, new TypedStringExpression(name)] as TypedExpression[],
+					((GenericType) m.variable.type)[1])
+		}
+
+		TypedExpression typeSet(TypedContext ctx, TypedExpression before, TypedExpression value) {
+			def m = ctx.find(setterName(name), Prelude.func(Type.ANY, before.type, value.type))
+			if (null != m) return new TypedCallExpression(new VariableExpression(m), [before, value] as TypedExpression[],
+					((GenericType) m.variable.type)[1])
+			m = ctx.findThrow('.property=', Prelude.func(Type.ANY, before.type, Prelude.STRING_TYPE, value.type))
+			new TypedCallExpression(new VariableExpression(m), [before, new TypedStringExpression(name), value] as TypedExpression[],
+					((GenericType) m.variable.type)[1])
 		}
 	}
 
@@ -155,24 +184,29 @@ class PathExpression extends Expression {
 		}
 
 		IKismetObject get(Context c, IKismetObject object) {
-			object.kismetClass().subscriptGet(object, expression.evaluate(c))
+			Function.tryCall(c, '.[]', object, expression.evaluate(c))
 		}
 
 		IKismetObject set(Context c, IKismetObject object, IKismetObject value) {
-			object.kismetClass().subscriptSet(object, expression.evaluate(c), value)
+			Function.tryCall(c, '.[]=', object, expression.evaluate(c), value)
 		}
 
 		String toString() { ".[$expression]" }
 		Expression asExpr() { expression }
 		SubscriptStep borrow(Expression expr) { new SubscriptStep(expr) }
 
-		Instruction instr(TypedContext ctx, Instruction before) {
-			new Instruction() {
-				IKismetObject evaluate(Memory context) {
-					final val = before.evaluate(context)
-					val.kismetClass().subscriptGet(val, expression.type(ctx).instruction.evaluate(context))
-				}
-			}
+		TypedExpression type(TypedContext ctx, TypedExpression before) {
+			def key = expression.type(ctx)
+			def m = ctx.findThrow('.[]', Prelude.func(Type.ANY, before.type, key.type))
+			new TypedCallExpression(new VariableExpression(m), [before, key] as TypedExpression[],
+					((GenericType) m.variable.type)[1])
+		}
+
+		TypedExpression typeSet(TypedContext ctx, TypedExpression before, TypedExpression value) {
+			def key = expression.type(ctx)
+			def m = ctx.findThrow('.[]=', Prelude.func(Type.ANY, before.type, key.type, value.type))
+			new TypedCallExpression(new VariableExpression(m), [before, key, value] as TypedExpression[],
+					((GenericType) m.variable.type)[1])
 		}
 	}
 
@@ -203,25 +237,28 @@ class PathExpression extends Expression {
 				try {
 					super.get(name)
 				} catch (UndefinedVariableException ignored) {
-					object.kismetClass().propertyGet(object, name)
+					Function.tryCall(this, '.property', object, new KismetString(name))
 				}
 			}
 		}
 		Expression asExpr() { expression }
 		EnterStep borrow(Expression expr) { new EnterStep(expr) }
 
-		Instruction instr(TypedContext ctx, Instruction before) {
+		TypedExpression type(TypedContext ctx, TypedExpression before) {
+			throw new UnsupportedOperationException('unsupported')
+		}
+
+		TypedExpression typeSet(TypedContext ctx, TypedExpression before, TypedExpression value) {
 			throw new UnsupportedOperationException('unsupported')
 		}
 	}
 
 	int size() { 1 + steps.size() }
 
-	// replace with symbol calls later
 	TypedExpression type(TypedContext tc, Type preferred) {
-		Instruction result = root.type(tc).instruction
-		for (s in steps) result = s.instr(tc, result)
-		new BasicTypedExpression(preferred, result)
+		TypedExpression result = root.type(tc)
+		for (s in steps) result = s.type(tc, result)
+		result
 	}
 }
 
@@ -267,18 +304,7 @@ class NameExpression extends Expression {
 	String repr() { text }
 
 	VariableExpression type(TypedContext tc, Type preferred) {
-		def failed = new ArrayList<String>()
-		def vr = tc.findAny(text, preferred, failed)
-		if (null != vr) return new VariableExpression(vr)
-		def msgbase = new StringBuilder("Could not find variable \"").append(text)
-			.append("\" for type ").append(preferred.toString()).toString()
-		if (!failed.empty) {
-			def msg = new String[failed.size() + 1]
-			msg[0] = msgbase.concat(", but for these types instead:")
-			for (int i = 1; i < msg.length; ++i) msg[i--] = failed.get(i++)
-			msgbase = String.join('\n  ', msg)
-		}
-		throw new UndefinedVariableException(msgbase)
+		new VariableExpression(tc.findThrow(text, preferred))
 	}
 }
 
@@ -299,7 +325,7 @@ class DiveExpression extends Expression {
 
 	List<Expression> getMembers() { [inner] }
 	int size() { 1 }
-	DiveExpression join(Collection<Expression> a) { new DiveExpression(a[0]) }
+	@Override DiveExpression join(List<Expression> a) { new DiveExpression(a[0]) }
 
 	TypedDiveExpression type(TypedContext tc, Type preferred) {
 		final child = tc.child()
@@ -399,9 +425,10 @@ class CallExpression extends Expression {
 		if (obj.inner() instanceof KismetCallable) {
 			((KismetCallable) obj.inner()).call(c, arguments.toArray(new Expression[0]))
 		} else {
-			final arr = new IKismetObject[arguments.size()]
-			for (int i = 0; i < arr.length; ++i) arr[i] = arguments[i].evaluate(c)
-			obj.kismetClass().call(obj, arr)
+			final arr = new IKismetObject[arguments.size() + 1]
+			arr[0] = obj
+			for (int i = 0; i < arr.length; ++i) arr[i+1] = arguments[i].evaluate(c)
+			((Function) c.get('call')).call(arr)
 		}
 	}
 
@@ -419,14 +446,31 @@ class CallExpression extends Expression {
 	}
 	
 	TypedExpression type(TypedContext tc, Type preferred) {
-		def args = new TypedExpression[arguments.size()]
-		for (int i = 0; i < args.length; ++i) args[i] = arguments.get(i).type(tc)
 		TypedContext.VariableReference m
-		if (callValue instanceof NameExpression && null != (m =
-				tc.findCall(((NameExpression) callValue).text, args, preferred))) {
-			new TypedCallExpression(new VariableExpression(m), args, ((FunctionType) m.variable.type).returnType)
+		if (callValue instanceof NameExpression && null != (m = tc.findStatic(callValue.text, Prelude.TEMPLATE_TYPE))) {
+			return ((Template) ((TypedContext.StaticVariable) m.variable).value)
+					.transform(null, arguments.toArray(new Expression[0])).type(tc, preferred)
+		} else if (callValue instanceof NameExpression && null != (m = tc.findStatic(callValue.text, Prelude.TYPE_CHECKER_TYPE))) {
+			return ((TypeChecker) ((TypedContext.StaticVariable) m.variable).value)
+					.transform(tc, arguments.toArray(new Expression[0]))
+		}
+		def args = new TypedExpression[arguments.size()]
+		def argtypes = new Type[args.length]
+		for (int i = 0; i < args.length; ++i) argtypes[i] = (args[i] = arguments.get(i).type(tc)).type
+		def fn = Prelude.func(preferred, argtypes)
+		if (callValue instanceof NameExpression && null != (m = tc.find(callValue.text, fn))) {
+			new TypedCallExpression(new VariableExpression(m), args, ((GenericType) m.variable.type)[1])
 		} else {
-			new TypedCallExpression(callValue.type(tc), args, Type.ANY)
+			def calltyped = callValue.type(tc)
+			if (calltyped.type.relation(fn).assignableTo) {
+				new TypedCallExpression(calltyped, args, ((GenericType) calltyped.type)[1])
+			} else {
+				def typs = new Type[args.length + 1]
+				typs[0] = calltyped.type
+				System.arraycopy(argtypes, 0, typs, 1, argtypes.length)
+				def cc = tc.findThrow('call', Prelude.func(preferred, new TupleType(typs)))
+				new TypedCallExpression(new VariableExpression(cc), args, ((GenericType) cc.variable.type)[1])
+			}
 		}
 	}
 }
@@ -442,7 +486,16 @@ class ListExpression extends Expression {
 	String repr() { "[${members.join(', ')}]" }
 
 	IKismetObject evaluate(Context c) {
-		Kismet.model(members*.evaluate(c))
+		new WrapperKismetObject(members*.evaluate(c))
+	}
+
+	TypedExpression type(TypedContext tc, Type preferred) {
+		if (!preferred.relation(Prelude.LIST_TYPE).assignableTo)
+			throw new UnexpectedTypeException('Tried to infer list expression as non-list type '.concat(preferred.toString()))
+		def bound = preferred instanceof GenericType ? ((GenericType) preferred)[0] : Type.ANY
+		def arr = new TypedExpression[members.size()]
+		for (int i = 0; i < arr.length; ++i) arr[i] = members.get(i).type(tc, bound)
+		new Typed(arr)
 	}
 
 	static class Typed extends TypedExpression {
@@ -453,9 +506,13 @@ class ListExpression extends Expression {
 		}
 
 		Type getType() {
-			def typ = new ListType()
-			for (final m : members) typ.feed(m.type)
-			typ
+			def bound = Type.ANY
+			for (final m : members) {
+				def rel = bound.relation(m.type)
+				if (rel.sub) bound = m.type
+				else if (rel.none) throw new UnexpectedTypeException('Type ' + m.type + ' is incompatible with list with bound ' + bound)
+			}
+			new GenericType(Prelude.LIST_TYPE, bound)
 		}
 
 		Instruction getInstruction() { new Instr(members) }
@@ -475,8 +532,13 @@ class ListExpression extends Expression {
 			IKismetObject evaluate(Memory context) {
 				def arr = new ArrayList<IKismetObject>(members.length)
 				for (int i = 0; i < members.length; ++i) arr.add(members[i].evaluate(context))
-				Kismet.model(arr)
+				new WrapperKismetObject(arr)
 			}
+		}
+
+		boolean isRuntimeOnly() {
+			for (final m : members) if (m.runtimeOnly) return true
+			false
 		}
 	}
 }
@@ -494,7 +556,18 @@ class TupleExpression extends Expression {
 	IKismetObject evaluate(Context c) {
 		def arr = new IKismetObject[members.size()]
 		for (int i = 0; i < arr.length; ++i) arr[i] = members.get(i).evaluate(c)
-		Kismet.model(new Tuple<IKismetObject>(arr))
+		new WrapperKismetObject(new Tuple<IKismetObject>(arr))
+	}
+
+	TypedExpression type(TypedContext tc, Type preferred) {
+		if (!preferred.relation(TupleType.ANY).assignableTo)
+			throw new UnexpectedTypeException('Tried to infer tuple expression as non-tuple type '.concat(preferred.toString()))
+		final bounds = preferred instanceof TupleType ? preferred.bounds : (Type[]) null
+		if (null != bounds && members.size() != bounds.length)
+			throw new UnexpectedTypeException("Tuple expression length ${members.size()} did not match expected tuple type length $len")
+		def arr = new TypedExpression[members.size()]
+		for (int i = 0; i < arr.length; ++i) arr[i] = members.get(i).type(tc, null == bounds ? Type.ANY : bounds[i])
+		new Typed(arr)
 	}
 
 	static class Typed extends TypedExpression {
@@ -529,6 +602,11 @@ class TupleExpression extends Expression {
 				for (int i = 0; i < arr.length; ++i) arr[i] = members[i].evaluate(context)
 				Kismet.model(new Tuple<IKismetObject>(arr))
 			}
+		}
+
+		boolean isRuntimeOnly() {
+			for (final m : members) if (m.runtimeOnly) return true
+			false
 		}
 	}
 }
@@ -582,6 +660,11 @@ class SetExpression extends Expression {
 				Kismet.model(arr)
 			}
 		}
+
+		boolean isRuntimeOnly() {
+			for (final m : members) if (m.runtimeOnly) return true
+			false
+		}
 	}
 }
 
@@ -634,6 +717,11 @@ class MapExpression extends Expression {
 				Kismet.model(arr)
 			}
 		}
+
+		boolean isRuntimeOnly() {
+			for (final m : members) if (m.runtimeOnly) return true
+			false
+		}
 	}
 }
 
@@ -657,10 +745,7 @@ class ColonExpression extends Expression {
 			def toApply = steps.init()
 			def toSet = steps.last()
 			IKismetObject val = PathExpression.applySteps(c, ((PathExpression) left).root.evaluate(c), toApply)
-			if (toSet instanceof PathExpression.PropertyStep)
-				val.kismetClass().propertySet(val, ((PathExpression.PropertyStep) toSet).name, value)
-			else if (toSet instanceof PathExpression.SubscriptStep)
-				val.kismetClass().subscriptSet(val, ((PathExpression.SubscriptStep) toSet).expression.evaluate(c), value)
+			toSet.set(c, val, value)
 		} else throw new UnexpectedSyntaxException("Left hand side of colon $left")
 		value
 	}
@@ -676,28 +761,8 @@ class ColonExpression extends Expression {
 			new VariableSetExpression(var, val)
 		} else if (left instanceof PathExpression) {
 			final p = (PathExpression) left
-			def ea = new PathExpression(p.root, p.steps.init()).type(tc).instruction
-			def vali = val.instruction
 			def rh = p.steps.last()
-			Instruction instr
-			if (rh instanceof PathExpression.PropertyStep) {
-				def text = ((PathExpression.PropertyStep) rh).name
-				instr = new Instruction() {
-					IKismetObject evaluate(Memory context) {
-						def v = ea.evaluate(context)
-						v.kismetClass().propertySet(v, text, vali.evaluate(context))
-					}
-				}
-			} else if (rh instanceof PathExpression.SubscriptStep) {
-				def ex = ((PathExpression.SubscriptStep) rh).expression.type(tc).instruction
-				instr = new Instruction() {
-					IKismetObject evaluate(Memory context) {
-						def v = ea.evaluate(context)
-						v.kismetClass().subscriptSet(v, ex.evaluate(context), vali.evaluate(context))
-					}
-				}
-			} else throw new UnsupportedOperationException('cant set path step ' + rh)
-			new BasicTypedExpression(preferred, instr)
+			rh.typeSet(tc, new PathExpression(p.root, p.steps.init()).type(tc), val)
 		} else if (left instanceof NumberExpression) {
 			def b = left.value.inner().intValue()
 			def var = tc.getVariable(b)
@@ -706,8 +771,8 @@ class ColonExpression extends Expression {
 				throw new UnexpectedTypeException("Variable number $b had type $var.type, not preferred type $preferred")
 			new VariableSetExpression(var.ref(), val)
 		} else {
-			def lhi = left.type(tc).instruction
-			def rhi = val.instruction
+			final lhi = left.type(tc).instruction
+			final rhi = val.instruction
 			new BasicTypedExpression(preferred, new Instruction() {
 				@Override
 				IKismetObject evaluate(Memory context) {
@@ -886,7 +951,7 @@ class StringExpression extends ConstantExpression<String> {
 
 	TypedStringExpression type(TypedContext tc, Type preferred) {
 		final str = evaluate(null).inner()
-		if (!preferred.relation(StringType.INSTANCE).assignableFrom)
+		if (!preferred.relation(Prelude.STRING_TYPE).assignableFrom)
 			throw new UnexpectedTypeException("Preferred non-string type $preferred for literal with string \"${StringEscaper.escape(str)}\"")
 		new TypedStringExpression(str)
 	}

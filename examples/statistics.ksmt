@@ -1,4 +1,4 @@
-defn [mean l] [[/ sum size] l]
+mean: / sum size
 
 defn [median l] {
   s: size l
@@ -15,4 +15,4 @@ defn [standard_deviation l] {
   sqrt [/ s [prev [size l]]]
 }
 
-defn [skewness l] [/ [* 3 [- mean median](l)]] [standard_deviation l]]
+skewness: / [* [- mean median] [fn 3]] standard_deviation

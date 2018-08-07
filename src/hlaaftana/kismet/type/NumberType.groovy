@@ -5,7 +5,11 @@ import hlaaftana.kismet.vm.*
 
 @CompileStatic
 enum NumberType implements Type {
-	Int8 {
+	Number {
+		KNonPrimitiveNum instantiate(Number num) {
+			new KNonPrimitiveNum(num)
+		}
+	}, Int8 {
 		KInt8 instantiate(Number num) {
 			new KInt8(num.byteValue())
 		}
@@ -23,8 +27,7 @@ enum NumberType implements Type {
 		}
 	}, Int {
 		KInt instantiate(Number num) {
-			new KInt(num instanceof BigInteger ?
-					num : BigInteger.valueOf(num.longValue()))
+			new KInt(KInt.toBigInt(num.longValue()))
 		}
 	}, Float32 {
 		KFloat32 instantiate(Number num) {
@@ -36,12 +39,7 @@ enum NumberType implements Type {
 		}
 	}, Float {
 		KFloat instantiate(Number num) {
-			new KFloat(num instanceof BigDecimal ?
-					num : BigDecimal.valueOf(
-						num instanceof Float ||
-						num instanceof Double ?
-								num.doubleValue() :
-								num.longValue()))
+			new KFloat(KFloat.toBigDec(num))
 		}
 	}, Char {
 		KChar instantiate(Number num) {
@@ -54,11 +52,13 @@ enum NumberType implements Type {
 	}
 
 	TypeRelation relation(Type other) {
-		if (other instanceof NumberType && character ^ other.character) {
+		if (other instanceof NumberType && !(character ^ other.character)) {
 			final k = ordinal() - other.ordinal()
 			TypeRelation.some(k)
 		} else TypeRelation.none()
 	}
+
+	boolean losesAgainst(Type other) { ordinal() >= ((NumberType) other).ordinal() }
 
 	/// temporary until i get overloads
 	abstract KismetNumber instantiate(Number num)

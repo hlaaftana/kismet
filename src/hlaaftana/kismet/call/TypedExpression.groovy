@@ -3,6 +3,8 @@ package hlaaftana.kismet.call
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.Kismet
 import hlaaftana.kismet.exceptions.UnexpectedValueException
+import hlaaftana.kismet.scope.Address
+import hlaaftana.kismet.scope.Prelude
 import hlaaftana.kismet.scope.TypedContext
 import hlaaftana.kismet.type.Type
 import hlaaftana.kismet.vm.*
@@ -21,6 +23,7 @@ abstract class Instruction {
 abstract class TypedExpression {
 	abstract Type getType()
 	abstract Instruction getInstruction()
+	boolean isRuntimeOnly() { true }
 }
 
 @CompileStatic
@@ -49,6 +52,7 @@ class NoInstruction extends Instruction {
 class TypedNoExpression extends TypedExpression {
 	Type getType() { Type.NONE }
 	Instruction getInstruction() { NoInstruction.INSTANCE }
+	boolean isRuntimeOnly() { false }
 }
 
 @CompileStatic
@@ -90,6 +94,7 @@ class VariableExpression extends TypedExpression {
 	}
 
 	Type getType() { reference.variable.type }
+	boolean isRuntimeOnly() { !(reference.variable instanceof Address) }
 }
 
 @CompileStatic
@@ -138,6 +143,7 @@ class VariableSetExpression extends TypedExpression {
 	}
 
 	Type getType() { reference.variable.type }
+	boolean isRuntimeOnly() { !(reference.variable instanceof Address) }
 }
 
 @CompileStatic
@@ -180,6 +186,7 @@ class TypedDiveExpression extends TypedExpression {
 		}
 		$instruction
 	}
+	boolean isRuntimeOnly() { inner.runtimeOnly }
 }
 
 @CompileStatic
@@ -221,6 +228,10 @@ class SequentialExpression extends TypedExpression {
 
 	Type getType() { members.length == 0 ? Type.NONE : members.last().type }
 	Instruction getInstruction() { new SequentialInstruction(members) }
+	boolean isRuntimeOnly() {
+		for (final m : members) if (m.runtimeOnly) return true
+		false
+	}
 }
 
 @CompileStatic
@@ -238,7 +249,7 @@ import hlaaftana.kismet.type.NumberType
 
 @CompileStatic
 class TypedNumberExpression extends TypedExpression {
-	Type type
+	NumberType type
 	Instruction instruction
 	Number number
 
@@ -250,33 +261,26 @@ class TypedNumberExpression extends TypedExpression {
 		this.@number = num
 		if (num instanceof Integer) {
 			type = NumberType.Int32
-			instruction = new IdentityInstruction<>(new KInt32(num.intValue()))
 		} else if (num instanceof BigInteger) {
 			type = NumberType.Int
-			instruction = new IdentityInstruction<>(new KInt((BigInteger) num))
 		} else if (num instanceof BigDecimal) {
 			type = NumberType.Float
-			instruction = new IdentityInstruction<>(new KFloat((BigDecimal) num))
 		} else if (num instanceof Byte) {
 			type = NumberType.Int8
-			instruction = new IdentityInstruction<>(new KInt8(num.byteValue()))
 		} else if (num instanceof Double) {
 			type = NumberType.Float64
-			instruction = new IdentityInstruction<>(new KFloat64(num.doubleValue()))
 		} else if (num instanceof Long) {
 			type = NumberType.Int64
-			instruction = new IdentityInstruction<>(new KInt64(num.longValue()))
 		} else if (num instanceof Float) {
 			type = NumberType.Float32
-			instruction = new IdentityInstruction<>(new KFloat32(num.floatValue()))
 		} else if (num instanceof Short) {
 			type = NumberType.Int16
-			instruction = new IdentityInstruction<>(new KInt16(num.shortValue()))
 		} else throw new UnexpectedValueException("Unknown number $num with class ${num.class} for typed expression")
+		instruction = new IdentityInstruction<>(type.instantiate(num))
 	}
-}
 
-import hlaaftana.kismet.type.StringType
+	boolean isRuntimeOnly() { false }
+}
 
 @CompileStatic
 class TypedStringExpression extends TypedExpression {
@@ -292,7 +296,8 @@ class TypedStringExpression extends TypedExpression {
 		instruction = new IdentityInstruction<>(new KismetString(string))
 	}
 
-	Type getType() { StringType.INSTANCE }
+	Type getType() { Prelude.STRING_TYPE }
+	boolean isRuntimeOnly() { false }
 }
 
 @CompileStatic
@@ -324,8 +329,7 @@ class CallInstruction extends Instruction {
 		def arr = new IKismetObject[arguments.length]
 		for (int i = 0; i < arguments.length; ++i) arr[i] = arguments[i].evaluate(context)
 		def val = value.evaluate(context)
-		// will change to call symbol lookup
-		val.kismetClass().call(val, arr)
+		((Function) val).call(arr)
 	}
 
 	byte[] getBytes() {
@@ -355,5 +359,11 @@ class TypedCallExpression extends BasicTypedExpression {
 		super(type, new CallInstruction(value, arguments))
 		this.value = value
 		this.arguments = arguments
+	}
+
+	boolean isRuntimeOnly() {
+		if (value.runtimeOnly) return true
+		for (final arg : arguments) if (arg.runtimeOnly) return true
+		false
 	}
 }

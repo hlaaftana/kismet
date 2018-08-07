@@ -2,7 +2,6 @@ package hlaaftana.kismet.scope
 
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.exceptions.UndefinedVariableException
-import hlaaftana.kismet.exceptions.UnexpectedTypeException
 import hlaaftana.kismet.exceptions.VariableExistsException
 import hlaaftana.kismet.type.Type
 import hlaaftana.kismet.vm.IKismetObject
@@ -17,13 +16,9 @@ enum AssignmentType {
 		}
 
 		TypedContext.VariableReference set(TypedContext tc, String name, Type type) {
-			final v = tc.find(name)
+			final v = tc.find(name, type)
 			if (null == v) tc.addVariable(name, type).ref()
-			else {
-				if (!type.relation(v.variable.type).assignableTo)
-					throw new UnexpectedTypeException("Could not assign variable $name with type $v.variable.type to type $type")
-				v
-			}
+			else v
 		}
 	}, DEFINE {
 		void set(Context c, String name, IKismetObject value) {
@@ -35,9 +30,7 @@ enum AssignmentType {
 		TypedContext.VariableReference set(TypedContext tc, String name, Type type) {
 			final v = tc.find(name)
 			if (null == v) tc.addVariable(name, type).ref()
-			else {
-				throw new VariableExistsException("Cannot define existing variable $name (tried to assign type $type)")
-			}
+			else throw new VariableExistsException("Cannot define existing variable $name (tried to assign type $type)")
 		}
 	}, SET {
 		void set(Context c, String name, IKismetObject value) {
@@ -47,13 +40,19 @@ enum AssignmentType {
 		}
 
 		TypedContext.VariableReference set(TypedContext tc, String name, Type type) {
-			final v = tc.getVariable(name)
-			if (null == v) tc.addVariable(name, type).ref()
-			else {
-				if (!type.relation(v.type).assignableTo)
-					throw new UnexpectedTypeException("Could not assign variable $name with type $v.type to type $type")
-				v.ref()
+			final hash = name.hashCode()
+			def cands = new ArrayList<TypedContext.Variable>()
+			for (v in tc.variables) {
+				if (v.hash == hash && v.name == name && type.relation(v.type).assignableTo)
+					cands.add(v)
 			}
+			if (cands.empty) return tc.addVariable(name, type).ref()
+			def winner = cands.get(0)
+			for (int i = 1; i < cands.size(); ++i) {
+				final e = cands.get(i)
+				if (winner.type.losesAgainst(e.type)) winner = e
+			}
+			winner.ref()
 		}
 	}, CHANGE {
 		void set(Context c, String name, IKismetObject value) {
@@ -64,14 +63,10 @@ enum AssignmentType {
 		}
 
 		TypedContext.VariableReference set(TypedContext tc, String name, Type type) {
-			final v = tc.find(name)
+			final v = tc.find(name, type)
 			if (null == v)
 				throw new UndefinedVariableException("Can't change undefined variable $name to type $type")
-			else {
-				if (!type.relation(v.variable.type).assignableTo)
-					throw new UnexpectedTypeException("Could not assign variable $name with type $v.variable.type to type $type")
-				v
-			}
+			else v
 		}
 	}
 

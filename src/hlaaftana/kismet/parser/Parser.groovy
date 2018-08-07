@@ -660,11 +660,6 @@ class Parser {
 				case '?optimize_closure':
 					result = new StaticExpression(x, parser.optimizer.closure)
 					break
-				case 'optimize_pure': parser.optimizer.pure = true; break
-				case '!optimize_pure': parser.optimizer.pure = false; break
-				case '?optimize_pure':
-					result = new StaticExpression(x, parser.optimizer.pure)
-					break
 				case 'fill_templates': parser.optimizer.template = true; break
 				case '!fill_templates': parser.optimizer.template = false; break
 				case '?fill_templates':
@@ -674,7 +669,7 @@ class Parser {
 				case '!optimize': parser.optimizer.off(); break
 				case '?optimize':
 					result = new StaticExpression(x, parser.optimizer.template ||
-							parser.optimizer.pure || parser.optimizer.closure || parser.optimizer.prelude)
+							parser.optimizer.closure || parser.optimizer.prelude)
 					break
 				case 'parser': result = new StaticExpression(x, parser); break
 			}

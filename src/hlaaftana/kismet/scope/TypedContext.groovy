@@ -1,12 +1,9 @@
 package hlaaftana.kismet.scope
 
 import groovy.transform.CompileStatic
-import hlaaftana.kismet.call.TypedExpression
 import hlaaftana.kismet.exceptions.ForbiddenAccessException
-import hlaaftana.kismet.exceptions.UnexpectedTypeException
-import hlaaftana.kismet.type.FunctionType
+import hlaaftana.kismet.exceptions.UndefinedSymbolException
 import hlaaftana.kismet.type.Type
-import hlaaftana.kismet.type.TypeRelation
 import hlaaftana.kismet.vm.IKismetObject
 import hlaaftana.kismet.vm.Memory
 
@@ -66,58 +63,11 @@ class TypedContext extends Memory {
 		null
 	}
 
-	List<VariableReference> calls(String name) {
-		final h = name.hashCode()
-		def result = new ArrayList<VariableReference>()
-		for (var in variables)
-			if (var.hash == h && var.name == name && var.type instanceof FunctionType)
-				result.add(new VariableReference(var))
-		for (int i = 0; i < heritage.size(); ++i) {
-			def p = heritage.get(i).calls(name)
-			for (c in p) result.add(c.relative(i))
-		}
-		result
-	}
-
-	@SuppressWarnings("GroovyVariableNotAssigned")
-	VariableReference findCall(String name, TypedExpression[] args, Type returnType = Type.ANY) {
-		def match = new ArrayList<VariableReference>()
-		def matchRels = new ArrayList<List<TypeRelation>>()
-		big: for (d in calls(name)) {
-			def typ = (FunctionType) d.variable.type
-			if (typ.parameters.elements.length != args.length) continue
-			def rels = new ArrayList<TypeRelation>(args.length)
-			def rtrel = returnType.relation(typ.returnType)
-			if (!rtrel.assignableTo) continue
-			rels.add(rtrel)
-			for (int i = 0; i < args.length; ++i) {
-				final rel = args[i].type.relation(typ.parameters.elements[i])
-				if (!rel.assignableTo) continue big
-				rels.add(rel)
-			}
-			match.add(d)
-			matchRels.add(rels)
-		}
-		if (match.empty) return null
-		def winner = match.get(0)
-		def winnerRels = matchRels.get(0)
-		for (int i = 1; i < match.size(); ++i) {
-			final rels = matchRels.get(i)
-			for (int j = 0; j < rels.size(); ++j) {
-				if (winnerRels.get(j).worse(rels.get(j))) {
-					winner = match.get(i)
-					winnerRels = rels
-				}
-			}
-		}
-		winner
-	}
-
 	VariableReference find(int h, String name) {
 		for (var in variables)
 			if (var.hash == h && var.name == name)
 				return var.ref()
-		else for (int i = 0; i < heritage.size(); ++i) {
+		for (int i = 0; i < heritage.size(); ++i) {
 			final v = heritage.get(i).find(h, name)
 			if (null != v) return v.relative(i)
 		}
@@ -126,39 +76,95 @@ class TypedContext extends Memory {
 
 	VariableReference find(String name) { find(name.hashCode(), name) }
 
-	IKismetObject getStatic(int h, String name) {
-		for (var in variables) if (var instanceof StaticVariable && var.hash == h && var.name == name) return var.value
-		for (r in heritage) {
-			def v = r.getStatic(h, name)
-			if (null != v) return v
+	List<VariableReference> getAll(int h, String name) {
+		def result = new ArrayList<VariableReference>()
+		for (var in variables)
+			if (var.hash == h && var.name == name)
+				result.add(var.ref())
+		for (int i = 0; i < heritage.size(); ++i) {
+			final v = heritage.get(i).getAll(h, name)
+			for (r in v) result.add(r.relative(i))
 		}
-		(IKismetObject) null
+		result
 	}
 
-	IKismetObject getStatic(String name) { getStatic(name.hashCode(), name) }
+	List<VariableReference> getAll(String name) { getAll(name.hashCode(), name) }
 
-	private String str(Variable var) {
-		final typestr = var.type.toString()
-		final len = var.name.length() + typestr.length() + 2
-		StringBuilder result
-		if (null == label) result = new StringBuilder(len)
-		else {
-			result = new StringBuilder(len + label.length() + 1)
-			result.append(label).append((char) '@')
+	VariableReference find(String name, Type expected) {
+		def match = new ArrayList<VariableReference>()
+		for (d in getAll(name)) {
+			def typ = d.variable.type
+			if (typ.relation(expected).assignableTo) match.add(d)
 		}
-		result.append(var.name).append(': ').append(typestr).toString()
+		if (match.empty) return null
+		def winner = match.get(0)
+		for (int i = 1; i < match.size(); ++i) {
+			final e = match.get(i)
+			if (winner.variable.type.losesAgainst(e.variable.type)) winner = e
+		}
+		winner
 	}
 
-	VariableReference findAny(String name, Type preferred = Type.ANY, List<String> failed = null) {
-		final var = getVariable(name)
-		if (null != var)
-			if (preferred.relation(var.type).assignableTo) return var.ref()
-			else if (null != failed) failed.add(str(var))
-		else for (int i = 0; i < heritage.size(); ++i) {
-			final v = heritage.get(i).findAny(name, preferred, failed)
-			if (null != v) return v.relative(i)
+	List<VariableReference> getAll(Set<String> names) {
+		def result = new ArrayList<VariableReference>()
+		for (var in variables)
+			if (names.contains(var.name))
+				result.add(var.ref())
+		for (int i = 0; i < heritage.size(); ++i) {
+			final v = heritage.get(i).getAll(names)
+			for (r in v) result.add(r.relative(i))
 		}
-		null
+		result
+	}
+
+	VariableReference find(Set<String> names, Type expected) {
+		def match = new ArrayList<VariableReference>()
+		for (d in getAll(names)) {
+			def typ = d.variable.type
+			if (typ.relation(expected).assignableTo) match.add(d)
+		}
+		if (match.empty) return null
+		def winner = match.get(0)
+		for (int i = 1; i < match.size(); ++i) {
+			final e = match.get(i)
+			if (winner.variable.type.losesAgainst(e.variable.type)) winner = e
+		}
+		winner
+	}
+
+	VariableReference findThrow(String name, Type expected) {
+		def var = find(name, expected)
+		if (null == var) throw new UndefinedSymbolException("Could not find variable with name $name and type $expected")
+		else var
+	}
+
+	List<VariableReference> getAllStatic(int h, String name) {
+		def result = new ArrayList<VariableReference>()
+		for (var in variables)
+			if (var instanceof StaticVariable && var.hash == h && var.name == name)
+				result.add(var.ref())
+		for (int i = 0; i < heritage.size(); ++i) {
+			final v = heritage.get(i).getAllStatic(h, name)
+			for (r in v) result.add(r.relative(i))
+		}
+		result
+	}
+
+	List<VariableReference> getAllStatic(String name) { getAllStatic(name.hashCode(), name) }
+
+	VariableReference findStatic(String name, Type expected) {
+		def match = new ArrayList<VariableReference>()
+		for (d in getAllStatic(name)) {
+			def typ = d.variable.type
+			if (typ.relation(expected).assignableTo) match.add(d)
+		}
+		if (match.empty) return null
+		def winner = match.get(0)
+		for (int i = 1; i < match.size(); ++i) {
+			final e = match.get(i)
+			if (winner.variable.type.losesAgainst(e.variable.type)) winner = e
+		}
+		winner
 	}
 
 	IKismetObject get(int id) {
@@ -170,7 +176,11 @@ class TypedContext extends Memory {
 	void set(int id, IKismetObject value) {
 		final v = getVariable(id)
 		if (v instanceof StaticVariable) ((StaticVariable) v).value = value
-		else variables.set(id, new StaticVariable(null, id, value, value.type))
+		else {
+			def n = new StaticVariable(null, id, value)
+			if (id >= variables.size()) variables.add(n)
+			else variables.set(id, n)
+		}
 	}
 
 	static class Variable {
@@ -196,12 +206,6 @@ class TypedContext extends Memory {
 		StaticVariable(String name, int id, IKismetObject value, Type type = Type.ANY) {
 			super(name, id, type)
 			this.value = value
-		}
-
-		void setValue(IKismetObject val) {
-			if (!type.relation(val.type).assignableFrom)
-				throw new UnexpectedTypeException("Tried to set static variable $name with type $type to $val with type $val.type")
-			this.@value = value
 		}
 	}
 

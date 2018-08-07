@@ -3,47 +3,37 @@ package hlaaftana.kismet.vm
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.Kismet
 import hlaaftana.kismet.call.Function
-import hlaaftana.kismet.type.Type
 
 @CompileStatic
 class WrapperKismetObject<T> implements IKismetObject<T> {
-	IKismetObject<WrapperKismetClass> kclass
 	T inner
 
-	WrapperKismetClass kismetClass() { kclass.inner() }
-
 	T inner() { this.@inner }
-
-	WrapperKismetObject(T i, IKismetObject<WrapperKismetClass> c) { this(i); this.@kclass = c }
 
 	WrapperKismetObject(T i) { this.@inner = i }
 
 	IKismetObject propertyGet(String name) {
-		kclass.inner().getter.call(this, Kismet.model(name))
+		Kismet.model(inner().invokeMethod('getProperty', [name] as Object[]))
 	}
 
 	void setProperty(String name, value) {
-		kclass.inner().setter.call(this, Kismet.model(name), Kismet.model(value))
+		inner().invokeMethod('setProperty', [name, value] as Object[])
 	}
 
 	IKismetObject propertySet(String name, IKismetObject value) {
-		kclass.inner().setter.call(this, Kismet.model(name), value)
+		Kismet.model(inner().invokeMethod('setProperty', [name, value.inner()] as Object[]))
 	}
 
-	IKismetObject getAt(IKismetObject obj) {
-		kclass.inner().subscriptGet.call(this, obj)
-	}
+	IKismetObject getAt(IKismetObject obj) { getAt(obj.inner()) }
 
-	IKismetObject putAt(IKismetObject obj, IKismetObject val) {
-		kclass.inner().subscriptSet.call(this, obj, val)
-	}
+	IKismetObject putAt(IKismetObject obj, IKismetObject val) { putAt(obj.inner(), val.inner()) }
 
 	IKismetObject getAt(obj) {
-		kclass.inner().subscriptGet.call(this, Kismet.model(obj))
+		Kismet.model(inner().invokeMethod('getAt', [obj] as Object[]))
 	}
 
 	IKismetObject putAt(obj, val) {
-		kclass.inner().subscriptSet.call(this, Kismet.model(obj), Kismet.model(val))
+		Kismet.model(inner().invokeMethod('putAt', [obj, val] as Object[]))
 	}
 
 	def methodMissing(String name, ... args) {
@@ -72,36 +62,12 @@ class WrapperKismetObject<T> implements IKismetObject<T> {
 	}
 
 	IKismetObject call(IKismetObject... args) {
-		final l = args.length
-		def x = new IKismetObject[l + 1]
-		x[0] = this
-		System.arraycopy(args, 0, x, 1, l)
-		kclass.inner().caller.call(x)
-	}
-
-	def "as"(Class c) {
-		WrapperKismetClass k = WrapperKismetClass.from(c)
-		def p = null == k ? (Function) null : kclass.inner().converters[k]
-		if (null != p) p(this)
-		else try {
-			inner.asType(c)
+		if (inner() instanceof Function) ((Function) inner()).call(args)
+		else {
+			def x = new Object[args.length]
+			for (int i = 0; i < x.length; ++i) x[i] = args[i].inner()
+			Kismet.model(inner().invokeMethod('call', x))
 		}
-		catch (ClassCastException ex) {
-			if (c == Closure) this.&call else throw ex
-		}
-	}
-
-	def "as"(WrapperKismetClass c) {
-		if (c && kclass.inner().converters.containsKey(c)) kclass.inner().converters[c](this)
-		else throw new ClassCastException('Can\'t cast object with class ' +
-				kclass + ' to class ' + c)
-	}
-
-	IKismetObject convert(IKismetClass c) {
-		if (kclass.inner().converters.containsKey(c))
-			kclass.inner().converters[c](this)
-		else throw new ClassCastException('Can\'t cast object with class ' +
-				kclass + ' to class ' + c)
 	}
 
 	boolean equals(obj) {
@@ -109,7 +75,7 @@ class WrapperKismetObject<T> implements IKismetObject<T> {
 	}
 
 	boolean asBoolean() {
-		kclass.inner().orig != WrapperKismetObject ? inner as boolean : this.as(boolean)
+		inner as boolean
 	}
 
 	int hashCode() {
@@ -117,13 +83,11 @@ class WrapperKismetObject<T> implements IKismetObject<T> {
 	}
 
 	String toString() {
-		kclass.inner().orig != WrapperKismetObject ? inner.toString() : this.as(String)
+		inner.toString()
 	}
 
 	Iterator iterator() {
 		inner.iterator()
 	}
-
-	Type getType() { kclass.inner() }
 }
 
