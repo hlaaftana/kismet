@@ -13,7 +13,7 @@ import hlaaftana.kismet.vm.IKismetObject
 @CompileStatic
 class Optimizer {
 	Parser parser
-	boolean prelude, closure, pure, template
+	boolean prelude, closure, template
 
 	Optimizer(Parser p) { parser = p }
 
@@ -22,7 +22,7 @@ class Optimizer {
 	}
 
 	void off() {
-		template = pure = closure = prelude = false
+		template = closure = prelude = false
 	}
 
 	Expression optimize(Expression expr) {
@@ -50,7 +50,7 @@ class Optimizer {
 				if (template && inner instanceof Template) {
 					final tmpl = (Template) inner
 					Expression[] arguments
-					if (tmpl.hungry) {
+					if (tmpl.immediate) {
 						arguments = new Expression[expr.arguments.size()]
 						for (int i = 0; i < arguments.length; ++i) {
 							arguments[i] = optimize(expr.arguments[i])
@@ -73,27 +73,12 @@ class Optimizer {
 						default:
 							if (closure && inner instanceof GroovyMacro)
 								currentExpression = new ClosureMacroExpression(expr, inner)
-							if (pure && ((Macro) inner).pure &&
-									expr.arguments.every { it instanceof ConstantExpression })
-								currentExpression = new StaticExpression(
-										currentExpression, parser.context)
 					}
 					return currentExpression
 				} else if (inner instanceof Function) {
 					Expression currentExpression = expr
-					switch (text) {
-						case "identity":
-							currentExpression = new IdentityExpression(expr); break
-						case "do":
-							currentExpression = new NopExpression(expr); break
-						default:
-							if (closure && inner instanceof GroovyFunction)
-								currentExpression = new ClosureCallExpression(expr, inner)
-							if (pure && ((Function) inner).pure &&
-									expr.arguments.every { it instanceof ConstantExpression })
-								currentExpression = new StaticExpression(
-										currentExpression, parser.context)
-					}
+					if (closure && inner instanceof GroovyFunction)
+						currentExpression = new ClosureCallExpression(expr, inner)
 					return currentExpression
 				}
 			}
@@ -141,13 +126,7 @@ class Optimizer {
 		}
 
 		IKismetObject evaluate(Context c) {
-			final v = value.evaluate(c)
-			if (step instanceof PathExpression.SubscriptStep)
-				return v.kismetClass().subscriptSet(v, ((PathExpression.SubscriptStep) step).expression.evaluate(c), toSet.evaluate(c))
-			else if (step instanceof PathExpression.PropertyStep)
-				return v.kismetClass().propertySet(v, ((PathExpression.PropertyStep) step).name, toSet.evaluate(c))
-			else step.get(c, v)
-			Kismet.NULL
+			step.set(c, toSet.evaluate(c), value.evaluate(c))
 		}
 	}
 

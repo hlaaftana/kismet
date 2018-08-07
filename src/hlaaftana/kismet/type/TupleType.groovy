@@ -1,19 +1,25 @@
 package hlaaftana.kismet.type
 
 import groovy.transform.CompileStatic
+import hlaaftana.kismet.call.TypedExpression
 
 @CompileStatic
-class TupleType implements Type {
-	static final TupleType ANY = new TupleType(null)
+class TupleType extends GenericType {
+	static final SingleType ANY = new SingleType('Tuple')
 	Type[] elements
 
 	TupleType(Type[] elements) {
-		this.elements = elements
+		super(ANY, elements)
+	}
+
+	TupleType(TypedExpression[] zro) {
+		super(ANY, new Type[zro.length])
+		for (int i = 0; i < zro.length; ++i) bounds[i] = zro[i].type
 	}
 
 	String toString() { "Tuple[${elements.join(', ')}]" }
 
-	TypeRelation relation(Type other) {
+	/*TypeRelation relation(Type other) {
 		if (other instanceof TupleType && elements.length == other.elements.length) {
 			TypeRelation max = elements[0].relation(other.elements[0])
 			if (max.none) return TypeRelation.none()
@@ -26,6 +32,12 @@ class TupleType implements Type {
 			}
 			max
 		} else TypeRelation.none()
+	}*/
+
+	boolean losesAgainst(Type other) {
+		def t = (TupleType) other
+		for (int i = 0; i < elements.length; ++i) if (elements[i].losesAgainst(t.elements[i])) return true
+		false
 	}
 
 	boolean equals(obj) { obj instanceof TupleType && Arrays.equals(elements, obj.elements) }

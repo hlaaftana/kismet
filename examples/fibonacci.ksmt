@@ -1,17 +1,17 @@
 defn [fibonacci n] {
   f: 0
   s: 1
-  &for n f: [+ s s: f]
+  &for n f: + s s: f
 }
 
 defn [fibonacci_collect n] {
   f: 0; s: 1
-  collect [range 1 n] [fn f: [+ s s: f]]
+  collect [range 1 n] [fn f: + s s: f]
 }
 
 defn [fibonacci_imperative n] {
   let [f: 0, s: 1, result l: new_list n] {
-    for< n l[it]: f: [+ s s: f]
+    for< n l[it]: f: + s s: f
   }
 }
 

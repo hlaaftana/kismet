@@ -9,5 +9,7 @@ class NoType implements Type {
 		TypeRelation.subtype(Integer.MAX_VALUE)
 	}
 
+	boolean losesAgainst(Type other) { true }
+
 	String toString() { 'None' }
 }
