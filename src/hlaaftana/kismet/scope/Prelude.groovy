@@ -35,10 +35,14 @@ class Prelude {
 			INSTRUCTOR_TYPE = new SingleType('Instructor'),
 			META_TYPE = new SingleType('Meta', [Type.ANY] as Type[]),
 			LIST_TYPE = new SingleType('List', [Type.ANY] as Type[]),
-			FUNCTION_TYPE = new SingleType('Function', [TupleType.ANY, Type.ANY] as Type[]),
-			BOOLEAN_TYPE = new SingleType('Boolean')
+			SET_TYPE = new SingleType('Set', [Type.ANY] as Type[]),
+			MAP_TYPE = new SingleType('Map', [Type.ANY, Type.ANY] as Type[]),
+			FUNCTION_TYPE = new SingleType('Function', [TupleType.BASE, Type.ANY] as Type[]),
+			BOOLEAN_TYPE = new SingleType('Boolean'),
+			DATE_TYPE = new SingleType('Date')
 	static TypedContext typed = new TypedContext()
-	static Map<String, IKismetObject> defaultContext = [:]
+	static Context defaultContext = new Context()
+	static Parser parser = new Parser()
 
 	static Type inferType(IKismetObject value) {
 		if (value instanceof KismetNumber) value.type
@@ -49,32 +53,62 @@ class Prelude {
 		else throw new UnsupportedOperationException("Cannot infer type for kismet object $value")
 	}
 
-	static void define(String name, Type type = inferType(object), IKismetObject object) {
+	static void define(String name, Type type, IKismetObject object) {
 		typed(name, type, object)
-		defaultContext.put(name, object)
+		defaultContext.add(name, object)
 	}
 
-	static void typed(String name, Type type = inferType(object), IKismetObject object) {
-		typed.addStaticVariable(name, object, type)
+	static void define(String name, IKismetObject object) {
+		define(name, inferType(object), object)
+	}
+
+	static void typed(String name, Type type, IKismetObject object) {
+		typed.addVariable(name, object, type)
+	}
+
+	static void typed(String name, IKismetObject object) {
+		typed(name, inferType(object), object)
 	}
 
 	static void alias(String old, String... news) {
 		final dyn = defaultContext.get(old)
 		final typ = typed.get(old)
 		for (final n : news) {
-			defaultContext.put(n, dyn)
-			typed.addStaticVariable(n, typ)
+			defaultContext.add(n, dyn)
+			typed.addVariable(n, typ)
 		}
 	}
 
+	static void parse(String kismet) {
+		def p = parser.parse(kismet)
+		p.type(typed).instruction.evaluate(typed)
+	}
+
 	static {
+		define '.property', func(Type.ANY, Type.ANY, STRING_TYPE), new Function() {
+			IKismetObject call(IKismetObject... args) {
+				Kismet.model(args[0].inner().getAt(((CharSequence) args[1]).toString()))
+			}
+		}
 		define 'euler_constant', NumberType.Float, new KFloat(BigDecimal.valueOf(Math.E))
 		define 'pi', NumberType.Float, new KFloat(BigDecimal.valueOf(Math.PI))
-		define 'now_nanos',  func { IKismetObject... args -> System.nanoTime() }
-		define 'now_millis',  func { IKismetObject... args -> System.currentTimeMillis() }
-		define 'now_seconds',  func { IKismetObject... args -> System.currentTimeSeconds() }
-		define 'now_date',  func { IKismetObject... args -> new Date() }
-		define 'new_date',  funcc { ... args -> Date.invokeMethod('newInstance', args) }
+		define 'now_nanos', func(NumberType.Int64), new Function() {
+			IKismetObject call(IKismetObject... args) {
+				new KInt64(System.nanoTime())
+			}
+		}
+		define 'now_millis', func(NumberType.Int64), new Function() {
+			IKismetObject call(IKismetObject... args) {
+				new KInt64(System.currentTimeMillis())
+			}
+		}
+		define 'now_seconds', func(NumberType.Int64), new Function() {
+			IKismetObject call(IKismetObject... args) {
+				new KInt64(System.currentTimeSeconds())
+			}
+		}
+		define 'now_date', func(DATE_TYPE), func { IKismetObject... args -> new Date() }
+		define 'new_date', func(DATE_TYPE), funcc { ... args -> Date.invokeMethod('newInstance', args) }
 		define 'parse_date_from_format',  funcc(true) { ... args -> new SimpleDateFormat(args[1].toString()).parse(args[0].toString()) }
 		define 'format_date',  funcc(true) { ... args ->
 			new SimpleDateFormat(args[1].toString()).format(args[0].toString())
@@ -82,17 +116,9 @@ class Prelude {
 		define 'true', BOOLEAN_TYPE, new WrapperKismetObject(true)
 		define 'false', BOOLEAN_TYPE, new WrapperKismetObject(false)
 		define 'null', Type.NONE, new WrapperKismetObject(null)
-		define 'variable',  new TypeChecker() {
+		define 'variable', TYPE_CHECKER_TYPE, new TypeChecker() {
 			TypedExpression transform(TypedContext tc, Expression... args) {
-				new TypedExpression() {
-					Type getType() {
-						return null
-					}
-
-					Instruction getInstruction() {
-						return null
-					}
-				}
+				new TypedConstantExpression(Type.ANY, new WrapperKismetObject(tc.find(toAtom(args[0]))))
 			}
 
 			IKismetObject call(Context c, Expression... args) {
@@ -112,19 +138,35 @@ class Prelude {
 				} else throw new UnexpectedSyntaxException("weird argument for variable: " + first)
 			}
 		}
-		define 'variables',  new ContextFunction() {
-			IKismetObject call(Context c, IKismetObject... args) {
-				Kismet.model(c.variables)
+		define 'variables', TYPE_CHECKER_TYPE, new TypeChecker() {
+			TypedExpression transform(TypedContext context, Expression... args) {
+				new TypedConstantExpression(Type.ANY, new WrapperKismetObject(context.variables))
+			}
+
+			IKismetObject call(Context c, Expression... args) {
+				new WrapperKismetObject(c.variables)
 			}
 		}
-		define 'current_context',  new ContextFunction() {
-			IKismetObject call(Context c, IKismetObject... args) {
-				Kismet.model(c)
+		define 'current_context', TYPE_CHECKER_TYPE, new TypeChecker() {
+			TypedExpression transform(TypedContext context, Expression... args) {
+				new TypedConstantExpression(Type.ANY, new WrapperKismetObject(context))
+			}
+
+			IKismetObject call(Context c, Expression... args) {
+				new WrapperKismetObject(c)
 			}
 		}
-		define 'java_class_name',  funcc(true) { ... args -> args[0].class.name }
-		define '<=>',  funcc(true) { ... a -> a[0].invokeMethod('compareTo', [a[1]] as Object[]) as int }
-		define 'try',  macr { Context c, Expression... exprs ->
+		define '<=>', func(NumberType.Int32, NumberType.Number, NumberType.Number), new Function() {
+			IKismetObject call(IKismetObject... a) {
+				new KInt32(((KismetNumber) a[0]).compareTo((KismetNumber) a[1]))
+			}
+		}
+		define '<=>', func(NumberType.Int32, STRING_TYPE, STRING_TYPE), new Function() {
+			IKismetObject call(IKismetObject... a) {
+				new KInt32(((KismetString) a[0]).compareTo((KismetString) a[1]))
+			}
+		}
+		/*define 'try',  macr { Context c, Expression... exprs ->
 			try {
 				exprs[0].evaluate(c)
 			} catch (ex) {
@@ -132,50 +174,66 @@ class Prelude {
 				c.set(resolveName(exprs[1], c, 'try'), Kismet.model(ex))
 				exprs[2].evaluate(c)
 			}
+		}*/
+		define 'raise', func(Type.NONE, STRING_TYPE), new Function() {
+			IKismetObject call(IKismetObject... args) {
+				throw new KismetException(((KismetString) args[0]).inner())
+			}
 		}
-		define 'raise',  func { ... args ->
-			if (args.length == 0) throw new KismetException()
-			else if (args[0] instanceof String) throw new KismetException((String) args[0])
-			else if (args[0] instanceof Throwable) throw (Throwable) args[0]
-			else throw new UnexpectedValueException('raise called with non-throwable ' + args[0])
+		define 'raise', func(Type.NONE), new Function() {
+			IKismetObject call(IKismetObject... args) {
+				throw new KismetException()
+			}
 		}
-		define 'do',  Function.NOP
-		define 'don\'t',  new Template() {
-			boolean isImmediate() { true }
-
+		define 'do', new GenericType(FUNCTION_TYPE, TupleType.BASE), Function.NOP
+		define 'don\'t', TEMPLATE_TYPE, new Template() {
 			@CompileStatic
 			Expression transform(Parser parser, Expression... args) {
 				NoExpression.INSTANCE
 			}
 		}
-		define 'assert',  macr { Context c, Expression... exprs ->
-			IKismetObject val
-			for (e in exprs) if (!(val = e.evaluate(c)))
-				throw new KismetAssertionError('Assertion failed for expression ' +
-						e.repr() + '. Value was ' + val)
+		define 'assert', INSTRUCTOR_TYPE, new Instructor() {
+			@Override
+			IKismetObject call(Memory m, Instruction... args) {
+				IKismetObject val = Kismet.NULL
+				for (e in args) if (!(val = e.evaluate(m)))
+					throw new KismetAssertionError('Assertion failed for instruction ' +
+							e + '. Value was ' + val)
+				val
+			}
 		}
-		define 'assert_not',  macr { Context c, Expression... exprs ->
-			IKismetObject val
-			for (e in exprs) if ((val = e.evaluate(c)))
-				throw new KismetAssertionError('Assertion failed for expression ' +
-						e.repr() + '. Value was ' + val)
+		define 'assert_not', INSTRUCTOR_TYPE, new Instructor() {
+			@Override
+			IKismetObject call(Memory m, Instruction... args) {
+				IKismetObject val = Kismet.NULL
+				for (e in args) if ((val = e.evaluate(m)))
+					throw new KismetAssertionError('Assertion failed for instruction ' +
+							e + '. Value was ' + val)
+				val
+			}
 		}
-		define 'assert_is',  macr { Context c, Expression... exprs ->
-			IKismetObject val = exprs[0].evaluate(c)
-			IKismetObject latest
-			for (e in exprs.tail()) if (val != (latest = e.evaluate(c)))
-				throw new KismetAssertionError('Assertion failed for expression ' +
-						e.repr() + '. Value was expected to be ' + val +
-						' but was ' + latest)
+		define 'assert_is', INSTRUCTOR_TYPE, new Instructor() {
+			@Override
+			IKismetObject call(Memory c, Instruction... exprs) {
+				IKismetObject val = exprs[0].evaluate(c), latest
+				for (e in exprs.tail()) if (val != (latest = e.evaluate(c)))
+					throw new KismetAssertionError('Assertion failed for instruction ' +
+							e + '. Value was expected to be ' + val +
+							' but was ' + latest)
+				val
+			}
 		}
-		define 'assert_isn\'t',  macr { Context c, Expression... exprs ->
-			def values = [exprs[0].evaluate(c)]
-			IKismetObject retard
-			IKismetObject latest
-			for (e in exprs.tail()) if ((retard = values.find((latest = e.evaluate(c)).&equals)))
-				throw new KismetAssertionError('Assertion failed for expression ' +
-						e.repr() + '. Value was expected NOT to be ' + retard +
-						' but was ' + latest)
+		define 'assert_isn\'t', INSTRUCTOR_TYPE, new Instructor() {
+			@Override
+			IKismetObject call(Memory c, Instruction... exprs) {
+				def values = [exprs[0].evaluate(c)]
+				IKismetObject retard, latest
+				for (e in exprs.tail()) if ((retard = values.find((latest = e.evaluate(c)).&equals)))
+					throw new KismetAssertionError('Assertion failed for instruction ' +
+							e + '. Value was expected NOT to be ' + retard +
+							' but was ' + latest)
+				new WrapperKismetObject(values)
+			}
 		}
 		define 'hash',  funcc { ... a -> a[0].hashCode() }
 		define 'percent',  funcc(true) { ... a -> a[0].invokeMethod 'div', 100 }
@@ -190,19 +248,31 @@ class Prelude {
 		define 'in?',  funcc { ... a -> a[0] in a[1] }
 		define 'not_in?',  funcc { ... a -> !(a[0] in a[1]) }
 		define 'not',  funcc(true) { ... a -> !(a[0]) }
-		define 'and',  macr(true) { Context c, Expression... exprs ->
-			IKismetObject last = Kismet.model(true)
-			for (it in exprs) if (!(last = it.evaluate(c))) return last; last
+		define 'and', INSTRUCTOR_TYPE, new Instructor() {
+			@Override
+			IKismetObject call(Memory m, Instruction... args) {
+				IKismetObject last = new WrapperKismetObject(true)
+				for (it in args) if (!(last = it.evaluate(m))) return last
+				last
+			}
 		}
-		define 'or',  macr(true) { Context c, Expression... exprs ->
-			IKismetObject last = Kismet.model(false)
-			for (it in exprs) if ((last = it.evaluate(c))) return last; last
+		define 'or', INSTRUCTOR_TYPE, new Instructor() {
+			@Override
+			IKismetObject call(Memory m, Instruction... args) {
+				IKismetObject last = new WrapperKismetObject(true)
+				for (it in args) if ((last = it.evaluate(m))) return last
+				last
+			}
 		}
-		define 'pick',  macr(true) { Context c, Expression... exprs ->
-			IKismetObject x = Kismet.NULL
-			for (it in exprs) if ((x = it.evaluate(c))) return x; x
+		define 'pick', INSTRUCTOR_TYPE, new Instructor() {
+			@Override
+			IKismetObject call(Memory m, Instruction... args) {
+				IKismetObject last = Kismet.NULL
+				for (it in args) if ((last = it.evaluate(m))) return last
+				last
+			}
 		}
-		define '??',  macr { Context c, Expression... exprs ->
+		/*define '??',  macr { Context c, Expression... exprs ->
 			def p = (PathExpression) exprs[0]
 			if (null == p.root) {
 				new CallExpression([new NameExpression('fn'), new CallExpression([
@@ -217,7 +287,7 @@ class Prelude {
 				}
 				result
 			}
-		}
+		}*/
 		define 'xor',  funcc { ... args -> args.inject { a, b -> a.invokeMethod('xor', [b] as Object[]) } }
 		define 'bool',  funcc(true) { ... a -> a[0] as boolean }
 		define 'bit_not',  funcc(true) { ... a -> a[0].invokeMethod 'bitwiseNegate', null }
@@ -304,8 +374,6 @@ class Prelude {
 			else Math.round(((Number) value).doubleValue())
 		}
 		define 'round',  new Template() {
-			boolean isImmediate() { true }
-
 			@Override
 			Expression transform(Parser parser, Expression... args) {
 				def x = new ArrayList<Expression>(4)
@@ -352,7 +420,6 @@ class Prelude {
 		define 'reciprocal',  funcc(true) { ... args -> 1.div(args[0] as Number) }
 		define 'defined?',  new TypeChecker() {
 			TypedExpression transform(TypedContext context, Expression... args) {
-				TypedContext.VariableReference var
 				final type = args.length > 1 ? (Type) args[1].type(context).instruction.evaluate(context) : Type.ANY
 				if (args[0] instanceof SetExpression) {
 					def names = new HashSet<String>(args[0].size())
@@ -361,13 +428,13 @@ class Prelude {
 						if (null == at) throw new UnexpectedSyntaxException('Unknown symbol ' + n)
 						names.add(at)
 					}
-					new BasicTypedExpression(BOOLEAN_TYPE, new IdentityInstruction(
-							new WrapperKismetObject(null != context.find(names, type))))
+					new TypedConstantExpression(BOOLEAN_TYPE,
+							new WrapperKismetObject(null != context.find(names, type)))
 				} else {
 					def at = toAtom(args[0])
 					if (null == at) throw new UnexpectedSyntaxException('Unknown symbol ' + args[0])
-					new BasicTypedExpression(BOOLEAN_TYPE, new IdentityInstruction(
-							new WrapperKismetObject(null != context.find(at, type))))
+					new TypedConstantExpression(BOOLEAN_TYPE,
+							new WrapperKismetObject(null != context.find(at, type)))
 				}
 			}
 
@@ -566,15 +633,15 @@ class Prelude {
 			x
 		}
 		define 'pair',  funcc { ... args -> new Pair(args[0], args[1]) }
-		define 'tuple',  funcc(true) { ... args -> new Tuple(args) },
+		define 'tuple',  funcc(true) { ... args -> new Tuple(args) }
 // assert_is x [+ [bottom_half x] [top_half x]]
-				bottom_half: funcc { ... args ->
-					args[0] instanceof Number ? ((Number) args[0]).intdiv(2) :
-							args[0] instanceof Pair ? ((Pair) args[0]).first :
-									args[0] instanceof Collection ? ((Collection) args[0]).take(((Collection) args[0]).size().intdiv(2) as int) :
-											args[0] instanceof Map ? ((Map) args[0]).values() :
-													args[0]
-				}
+		define 'bottom_half', funcc { ... args ->
+			args[0] instanceof Number ? ((Number) args[0]).intdiv(2) :
+					args[0] instanceof Pair ? ((Pair) args[0]).first :
+							args[0] instanceof Collection ? ((Collection) args[0]).take(((Collection) args[0]).size().intdiv(2) as int) :
+									args[0] instanceof Map ? ((Map) args[0]).values() :
+											args[0]
+		}
 		define 'top_half',  funcc { ... args ->
 			args[0] instanceof Number ? ((Number) args[0]).minus(((Number) args[0]).intdiv(2)) :
 					args[0] instanceof Pair ? ((Pair) args[0]).second :
@@ -600,11 +667,11 @@ class Prelude {
 			}
 			m
 		}
-		define '##',  macr { Context c, Expression... args ->
+		/*define '##',  macr { Context c, Expression... args ->
 			final map = new HashMap()
 			for (e in args) expressiveMap(map, c, e)
 			map
-		}
+		}*/
 		define 'uncons',  funcc { ... args -> new Pair(args[0].invokeMethod('head', null), args[0].invokeMethod('tail', null)) }
 		define 'cons',  funcc { ... args ->
 			def y = args[1]
@@ -760,8 +827,6 @@ class Prelude {
 		define 'denormalize',  funcc { ... args -> args[0].toString().denormalize() }
 		define 'normalize',  funcc { ... args -> args[0].toString().normalize() }
 		define 'hex',  new Template() {
-			boolean isImmediate() { true }
-
 			Expression transform(Parser parser, Expression... args) {
 				if (args[0] instanceof NumberExpression || args[0] instanceof NameExpression) {
 					String t = args[0] instanceof NumberExpression ?
@@ -774,8 +839,6 @@ class Prelude {
 			}
 		}
 		define 'binary',  new Template() {
-			boolean isImmediate() { true }
-
 			Expression transform(Parser parser, Expression... args) {
 				if (args[0] instanceof NumberExpression) {
 					String t = ((NumberExpression) args[0]).value.inner().toString()
@@ -786,8 +849,6 @@ class Prelude {
 			}
 		}
 		define 'octal',  new Template() {
-			boolean isImmediate() { true }
-
 			Expression transform(Parser parser, Expression... args) {
 				if (args[0] instanceof NumberExpression) {
 					String t = ((NumberExpression) args[0]).value.inner().toString()
@@ -804,16 +865,12 @@ class Prelude {
 		define ':=',  new AssignTemplate(AssignmentType.DEFINE)
 		define '=',  new AssignTemplate(AssignmentType.ASSIGN)
 		define '+=',  new Template() {
-			boolean isImmediate() { true }
-
 			Expression transform(Parser parser, Expression... args) {
 				new CallExpression([new NameExpression('='), args[0],
 						new CallExpression([new NameExpression('+'), args[0], args[1]])])
 			}
 		}
 		define 'def',  new Template() {
-			boolean isImmediate() { true }
-
 			Expression transform(Parser parser, Expression... args) {
 				if (args.length == 0) throw new UnexpectedSyntaxException('Cannot def without any arguments')
 				if (args[0] instanceof NameExpression) {
@@ -826,28 +883,10 @@ class Prelude {
 		define 'fn',  new Template() {
 			@Override
 			Expression transform(Parser parser, Expression... args) {
-				Arguments arguments
-				final a = args[0]
-				if (args.length == 1) {
-					arguments = Arguments.EMPTY
-				} else {
-					arguments = new Arguments(a instanceof CallExpression ?
-							((CallExpression) a).members : a instanceof BlockExpression ?
-							((BlockExpression) a).members : [a])
-				}
-				new CallExpression(new StaticExpression(new ContextFunction() {
-					IKismetObject call(Context c, IKismetObject... _) {
-						Kismet.model new KismetFunction(arguments, args.length == 1 ? c.child(a) :
-								c.childBlock(args.tail()))
-					}
-				}))
+				new FunctionExpression(false, args)
 			}
 		}
-		define 'mcr',  macr { Context c, Expression... exprs ->
-			new KismetMacro(c.childBlock(exprs))
-		}
 		define 'defn',  new Template() {
-			boolean isImmediate() { true }
 			boolean isOptimized() { true }
 
 			@CompileStatic
@@ -868,36 +907,20 @@ class Prelude {
 				new FunctionDefineExpression(name, args, exprs.size() == 1 ? exprs[0] : new BlockExpression(exprs))
 			}
 		}
-		define 'tmpl',  macr { Context c, Expression... exprs ->
-			new Template() {
-				@CompileStatic
-				Expression transform(Parser parser, Expression... args) {
-					final co = c.childBlock(exprs)
-					for (int i = 0; i < args.length; ++i) {
-						co.context.set("\$$i", Kismet.model(args[i]))
-					}
-					co().inner() as Expression
-				}
-			}
-		}
 		define 'defmcr',  new Template() {
-			boolean isImmediate() { true }
-
 			@CompileStatic
 			Expression transform(Parser parser, Expression... args) {
-				def a = new ArrayList<Expression>()
+				def a = new ArrayList<Expression>(args.length + 1)
 				a.add(new NameExpression('mcr'))
 				for (int i = 1; i < args.length; ++i)
 					a.add(args[i])
-				new CallExpression([new NameExpression(':='), args[0], new CallExpression(a)])
+				new VariableModifyExpression(AssignmentType.DEFINE, toAtom(args[0]), new CallExpression(a))
 			}
 		}
 		define 'fn*',  new Template() {
-			boolean isImmediate() { true }
-
 			@Override
 			Expression transform(Parser parser, Expression... args) {
-				def kill = new ArrayList<Expression>()
+				def kill = new ArrayList<Expression>(args.length + 1)
 				kill.add(new NameExpression('fn'))
 				kill.addAll(args)
 				new CallExpression(new NameExpression('fn'), new CallExpression(
@@ -906,12 +929,7 @@ class Prelude {
 								(PathExpression.Step) new PathExpression.SubscriptStep(new NumberExpression(0))])))
 			}
 		}
-		define 'undef',  macr { Context c, Expression... exprs ->
-			c.getVariables().remove(c.getVariable(exprs[0].evaluate(c).toString()))
-		}
 		define 'incr',  new Template() {
-			boolean isImmediate() { true }
-
 			Expression transform(Parser parser, Expression... args) {
 				def val = args.length > 1 ? new CallExpression(new NameExpression('+'), args[0], args[1]) :
 						new CallExpression(new NameExpression('next'), args[0])
@@ -923,8 +941,6 @@ class Prelude {
 			}
 		}
 		define 'decr',  new Template() {
-			boolean isImmediate() { true }
-
 			Expression transform(Parser parser, Expression... args) {
 				def val = args.length > 1 ? new CallExpression(new NameExpression('-'), args[0], args[1]) :
 						new CallExpression(new NameExpression('prev'), args[0])
@@ -936,8 +952,6 @@ class Prelude {
 			}
 		}
 		define '|>=',  new Template() {
-			boolean isImmediate() { true }
-
 			@CompileStatic
 			Expression transform(Parser parser, Expression... args) {
 				def val = pipeForwardExpr(args[0], args.tail().toList())
@@ -949,8 +963,6 @@ class Prelude {
 			}
 		}
 		define '<|=',  new Template() {
-			boolean isImmediate() { true }
-
 			@CompileStatic
 			Expression transform(Parser parser, Expression... args) {
 				def val = pipeBackwardExpr(args[0], args.tail().toList())
@@ -975,8 +987,6 @@ class Prelude {
 			}
 		}
 		define 'let',  new Template() {
-			boolean isImmediate() { true }
-
 			@CompileStatic
 			Expression transform(Parser parser, Expression... args) {
 				if (args.length == 0) throw new UnexpectedSyntaxException('Empty let expression not allowed')
@@ -1013,24 +1023,7 @@ class Prelude {
 				args.length == 1 ? r : new DiveExpression(r)
 			}
 		}
-		define 'eval',  new ContextFunction() {
-			@CompileStatic
-			IKismetObject call(Context c, IKismetObject... args) {
-				def x = args[0].inner()
-				if (x instanceof Block) x.evaluate()
-				else if (x instanceof Expression) x.evaluate(args.length > 1 ? args[1].inner() as Context : c)
-				else if (x instanceof String)
-					if (args.length > 1)
-						new Parser(context: args.length > 2 ? args[2].inner() as Context : c)
-								.parse(x)
-								.evaluate(args[1].inner() as Context)
-					else c.childEval(new Parser(context: c).parse(x))
-				else throw new UnexpectedValueException('Expected first argument of eval to be an expression, block, path or string')
-			}
-		}
 		define 'quote',  new Template() {
-			boolean isImmediate() { true }
-
 			@CompileStatic
 			Expression transform(Parser parser, Expression... args) {
 				def slowdown = new ArrayList<Expression>(args.length + 1)
@@ -1041,291 +1034,58 @@ class Prelude {
 								new BlockExpression(args.toList()))
 			}
 		}
-		define 'if_then',  macr { Context c, Expression... exprs ->
-			exprs[0].evaluate(c) ? c.childEval(exprs.tail()) : Kismet.NULL
-		}
-		define 'get_or_set',  macr { Context c, Expression... args ->
-			final a0 = args[0].evaluate(c)
-			final a1 = args[1].evaluate(c)
-			final v = Function.tryCall(c, '.[]', a0, a1)
-			null == v.inner() ? Function.tryCall(c, '.[]', a0, a1, args[2].evaluate(c)) : v
-		}
-		define 'if',  macr { Context c, Expression... exprs ->
-			c = c.child()
-			if (exprs.length == 2)
-				c.eval(exprs[0]) ? c.eval(exprs[1]) : Kismet.NULL
-			else {
-				def cond = c.eval(exprs[0])
-				int b = 1
-				int i = 1
-				for (int s = exprs.length; i < s; ++i) {
-					def x = exprs[i]
-					if (x instanceof NameExpression) {
-						String text = ((NameExpression) x).text
-						if (text == 'else')
-							return cond ?
-									c.eval(Arrays.copyOfRange(exprs, b, i)) :
-									c.eval(Arrays.copyOfRange(exprs, i + 1, exprs.length))
-						else if (text == 'else?') {
-							if (cond) return c.eval(Arrays.copyOfRange(exprs, b, i))
-							cond = exprs[++i].evaluate(c)
-							b = i + 1
-						}
-					}
-				}
-				c.eval(Arrays.copyOfRange(exprs, b, i))
+		define 'get_or_set', INSTRUCTOR_TYPE, new Instructor() {
+			@Override
+			IKismetObject call(Memory c, Instruction... args) {
+				final a0 = args[0].evaluate(c)
+				final a1 = args[1].evaluate(c)
+				final v = Function.tryCall(c, '.[]', a0, a1)
+				null == v.inner() ? Function.tryCall(c, '.[]', a0, a1, args[2].evaluate(c)) : v
 			}
 		}
-		define 'unless_then',  macr { Context c, Expression... exprs ->
-			!exprs[0].evaluate(c) ? c.childEval(exprs.tail()) : Kismet.NULL
-		}
-		define 'unless',  macr { Context c, Expression... exprs ->
-			c = c.child()
-			if (exprs.length == 2)
-				!c.eval(exprs[0]) ? c.eval(exprs[1]) : Kismet.NULL
-			else {
-				def cond = c.eval(exprs[0])
-				int b = 1
-				int i = 1
-				for (int s = exprs.length; i < s; ++i) {
-					def x = exprs[i]
-					if (x instanceof NameExpression) {
-						String text = ((NameExpression) x).text
-						if (text == 'else')
-							return !cond ?
-									c.eval(Arrays.copyOfRange(exprs, b, i)) :
-									c.eval(Arrays.copyOfRange(exprs, i + 1, exprs.length))
-						else if (text == 'else?') {
-							if (!cond) return c.eval(Arrays.copyOfRange(exprs, b, i))
-							cond = exprs[++i].evaluate(c)
-							b = i + 1
-						}
-					}
-				}
-				c.eval(Arrays.copyOfRange(exprs, b, i))
+		define 'if', INSTRUCTOR_TYPE, new Instructor() {
+			@Override
+			IKismetObject call(Memory c, Instruction... x) {
+				x[0].evaluate(c) ? x[1].evaluate(c) : Kismet.NULL
 			}
 		}
-		define 'if_chain',  macr { Context c, Expression... ab ->
-			Iterator<Expression> a = ab.iterator()
-			IKismetObject x = Kismet.NULL
-			while (a.hasNext()) {
-				x = c.childEval(a.next())
-				if (a.hasNext())
-					if (x) return c.childEval(a.next())
-					else a.next()
-				else return x
+		define 'unless', INSTRUCTOR_TYPE, new Instructor() {
+			@Override
+			IKismetObject call(Memory c, Instruction... x) {
+				!x[0].evaluate(c) ? x[1].evaluate(c) : Kismet.NULL
 			}
-			x
 		}
-		define 'unless_chain',  macr { Context c, Expression... ab ->
-			Iterator<Expression> a = ab.iterator()
-			IKismetObject x = Kismet.NULL
-			while (a.hasNext()) {
-				x = c.childEval(a.next())
-				if (a.hasNext())
-					if (!x) return c.childEval(a.next())
-					else a.next()
-				else return x
+		define 'or?', INSTRUCTOR_TYPE, new Instructor() {
+			@Override
+			IKismetObject call(Memory c, Instruction... x) {
+				x[0].evaluate(c) ? x[1].evaluate(c) :
+						x[2].evaluate(c)
 			}
-			x
 		}
-		define 'or?',  macr { Context c, Expression... x -> x[0].evaluate(c) ? c.childEval(x[1]) : c.childEval(x[2]) }
-		define 'not_or?',  macr { Context c, Expression... x ->
-			!x[0].evaluate(c) ? c.childEval(x[1]) :
-					c.childEval(x[2])
+		define 'not_or?', INSTRUCTOR_TYPE, new Instructor() {
+			@Override
+			IKismetObject call(Memory c, Instruction... x) {
+				!x[0].evaluate(c) ? x[1].evaluate(c) :
+						x[2].evaluate(c)
+			}
 		}
-		define 'check',  macr { Context c, Expression... ab ->
-			Iterator<Expression> a = ab.iterator()
-			IKismetObject val = a.next().evaluate(c)
-			while (a.hasNext()) {
-				def b = a.next()
-				if (a.hasNext())
-					if (check(c, val, b)) return a.next().evaluate(c)
-					else a.next()
-				else return b.evaluate(c)
+		define 'while', INSTRUCTOR_TYPE, new Instructor() {
+			IKismetObject call(Memory m, Instruction... args) {
+				def result = Kismet.NULL
+				while (args[0].evaluate(m))
+					for (int i = 1; i < args.length; ++i)
+						result = args[i].evaluate(m)
+				result
 			}
-			val
 		}
-		define 'while',  macr { Context c, Expression... exprs ->
-			final l = exprs.toList()
-			IKismetObject j = Kismet.NULL
-			while (exprs[0].evaluate(c)) j = c.childEval(l)
-			j
-		}
-		define 'until',  macr { Context c, Expression... exprs ->
-			final l = exprs.toList()
-			IKismetObject j = Kismet.NULL
-			while (!exprs[0].evaluate(c)) j = c.childEval(l)
-			j
-		}
-		define 'for:',  macr { Context c, Expression... exprs ->
-			String n = 'it'
-			Block b = c.childBlock(exprs.drop(2))
-			def range = exprs[0] instanceof CallExpression ? exprs[0].members : [exprs[0]]
-			Iterator iter
-			int i = 0
-			String ni
-			c = b.context
-			if (range.size() == 1) {
-				iter = toIterator(range[0].evaluate(c).inner())
-			} else if (range.size() == 2) {
-				n = resolveName(range[0], c, 'for:')
-				iter = toIterator(range[1].evaluate(c).inner())
-			} else {
-				def ic = range[0]
-				if (ic instanceof CallExpression) {
-					ni = resolveName(((CallExpression) ic).callValue, c, 'for:')
-					i = ((CallExpression) ic).arguments[0].evaluate(c).inner() as int
-				} else ni = resolveName(ic, c, 'for:')
-				n = resolveName(range[1], c, 'for:')
-				iter = toIterator(range[2].evaluate(c).inner())
+		define 'until', INSTRUCTOR_TYPE, new Instructor() {
+			IKismetObject call(Memory m, Instruction... args) {
+				def result = Kismet.NULL
+				while (!args[0].evaluate(m))
+					for (int i = 1; i < args.length; ++i)
+						result = args[i].evaluate(m)
+				result
 			}
-			for (; iter.hasNext(); ++i) {
-				def it = iter.next()
-				Block y = b.child()
-				y.context.set(n, Kismet.model(it))
-				if (null != ni) y.context.set(ni, Kismet.model(i))
-				y()
-			}
-			Kismet.NULL
-		}
-		define '&for:',  macr { Context c, Expression... exprs ->
-			String n = 'it'
-			Block b = c.childBlock(exprs.drop(2))
-			def range = exprs[0] instanceof CallExpression ? ((CallExpression) exprs[0]).members : [exprs[0]]
-			Iterator iter
-			int i = 0
-			String ni
-			c = b.context
-			if (range.size() == 1) {
-				iter = toIterator(range[0].evaluate(c).inner())
-			} else if (range.size() == 2) {
-				n = resolveName(range[0], c, '&for:')
-				iter = toIterator(range[1].evaluate(c).inner())
-			} else {
-				def ic = range[0]
-				if (ic instanceof CallExpression) {
-					ni = resolveName(((CallExpression) ic).callValue, c, '&for:')
-					i = ((CallExpression) ic).arguments[0].evaluate(c).inner() as int
-				} else ni = resolveName(ic, c, '&for:')
-				n = resolveName(range[1], c, '&for:')
-				iter = toIterator(range[2].evaluate(c).inner())
-			}
-			def result = new ArrayList()
-			for (; iter.hasNext(); ++i) {
-				def it = iter.next()
-				Block y = b.child()
-				y.context.set(n, Kismet.model(it))
-				if (null != ni) y.context.set(ni, Kismet.model(i))
-				result.add(y())
-			}
-			result
-		}
-		define 'for',  macr { Context c, Expression... exprs ->
-			Block b = c.childBlock(exprs.tail())
-			def range = exprs[0] instanceof CallExpression ? ((CallExpression) exprs[0]).members : [exprs[0]]
-			String n
-			int bottom, top
-			if (range.size() == 1) {
-				n = 'it'
-				bottom = 1
-				top = range[0].evaluate(b.context).inner() as int
-			} else if (range.size() == 2) {
-				n = 'it'
-				bottom = range[0].evaluate(b.context).inner() as int
-				top = range[1].evaluate(b.context).inner() as int
-			} else {
-				n = resolveName(range[0], c, 'for')
-				bottom = range[1].evaluate(b.context).inner() as int
-				top = range[2].evaluate(b.context).inner() as int
-			}
-			int step = null == range[3] ? 1 : range[3].evaluate(b.context).inner() as int
-			for (; bottom <= top; bottom += step) {
-				Block y = b.child()
-				y.context.set(n, Kismet.model(bottom))
-				y()
-			}
-			Kismet.NULL
-		}
-		define '&for',  macr { Context c, Expression... exprs ->
-			Block b = c.childBlock(exprs.tail())
-			def range = exprs[0] instanceof CallExpression ? ((CallExpression) exprs[0]).members : [exprs[0]]
-			String n
-			int bottom, top
-			if (range.size() == 1) {
-				n = 'it'
-				bottom = 1
-				top = range[0].evaluate(b.context).inner() as int
-			} else if (range.size() == 2) {
-				n = 'it'
-				bottom = range[0].evaluate(b.context).inner() as int
-				top = range[1].evaluate(b.context).inner() as int
-			} else {
-				n = resolveName(range[0], c, '&for')
-				bottom = range[1].evaluate(b.context).inner() as int
-				top = range[2].evaluate(b.context).inner() as int
-			}
-			int step = null == range[3] ? 1 : range[3].evaluate(b.context).inner() as int
-			def a = new ArrayList<IKismetObject>()
-			for (; bottom <= top; bottom += step) {
-				Block y = b.child()
-				y.context.set(n, Kismet.model(bottom))
-				a.add(y())
-			}
-			a
-		}
-		define 'for<',  macr { Context c, Expression... exprs ->
-			Block b = c.childBlock(exprs.tail())
-			def range = exprs[0] instanceof CallExpression ? ((CallExpression) exprs[0]).members : [exprs[0]]
-			String n
-			int bottom, top
-			if (range.size() == 1) {
-				n = 'it'
-				bottom = 0
-				top = range[0].evaluate(b.context).inner() as int
-			} else if (range.size() == 2) {
-				n = 'it'
-				bottom = range[0].evaluate(b.context).inner() as int
-				top = range[1].evaluate(b.context).inner() as int
-			} else {
-				n = resolveName(range[0], c, 'for')
-				bottom = range[1].evaluate(b.context).inner() as int
-				top = range[2].evaluate(b.context).inner() as int
-			}
-			int step = null == range[3] ? 1 : range[3].evaluate(b.context).inner() as int
-			for (; bottom < top; bottom += step) {
-				Block y = b.child()
-				y.context.set(n, Kismet.model(bottom))
-				y()
-			}
-			Kismet.NULL
-		}
-		define '&for<',  macr { Context c, Expression... exprs ->
-			Block b = c.childBlock(exprs.tail())
-			def range = exprs[0] instanceof CallExpression ? ((CallExpression) exprs[0]).members : [exprs[0]]
-			String n
-			int bottom, top
-			if (range.size() == 1) {
-				n = 'it'
-				bottom = 0
-				top = range[0].evaluate(b.context).inner() as int
-			} else if (range.size() == 2) {
-				n = 'it'
-				bottom = range[0].evaluate(b.context).inner() as int
-				top = range[1].evaluate(b.context).inner() as int
-			} else {
-				n = resolveName(range[0], c, '&for')
-				bottom = range[1].evaluate(b.context).inner() as int
-				top = range[2].evaluate(b.context).inner() as int
-			}
-			int step = null == range[3] ? 1 : range[3].evaluate(b.context).inner() as int
-			def a = new ArrayList<IKismetObject>()
-			for (; bottom < top; bottom += step) {
-				Block y = b.child()
-				y.context.set(n, Kismet.model(bottom))
-				a.add(y())
-			}
-			a
 		}
 		define 'each',  func { IKismetObject... args -> args[0].inner().each(((Function) args[1]).toClosure()) }
 		define 'each_with_index',  func { IKismetObject... args -> args[0].inner().invokeMethod('eachWithIndex', ((Function) args[1]).toClosure()) }
@@ -1377,8 +1137,7 @@ class Prelude {
 			for (int m = 0; m < c.length; ++i) b[m] = c[m].inner()
 			boolean j = args.length == 1
 			def iter = args[0].iterator()
-			outer:
-			while (iter.hasNext()) {
+			outer: while (iter.hasNext()) {
 				def x = iter.next()
 				if (x instanceof IKismetObject) x = x.inner()
 				if (j) ++i
@@ -1413,16 +1172,6 @@ class Prelude {
 				r = r.invokeMethod('get', a[i])
 			r
 		}
-		define 'walk',  macr { Context c, Expression... args ->
-			def r = args[0].evaluate(c)
-			for (int i = 1; i < args.length; ++i) {
-				Expression x = args[i]
-				if (x instanceof NameExpression)
-					r = r.invokeMethod('getAt', ((NameExpression) x).text)
-				else r = r.invokeMethod('getAt', x.evaluate(c))
-			}
-			r
-		}
 		define 'empty',  funcc { ... args -> args[0].invokeMethod('clear', null) }
 		define 'put',  funcc { ... args -> args[0].invokeMethod('put', [args[1], args[2]]) }
 		define 'put_all',  funcc { ... args -> args[0].invokeMethod('putAll', args[1]) }
@@ -1453,14 +1202,6 @@ class Prelude {
 		}
 		define 'range',  funcc { ... args -> args[0]..args[1] }
 		define 'parse_independent_kismet',  func { IKismetObject... args -> Kismet.parse(args[0].toString()) }
-		define 'parse_kismet',  new ContextFunction() {
-			@CompileStatic
-			IKismetObject call(Context c, IKismetObject... args) {
-				Kismet.model(new Parser(context:
-						args.length > 1 ? (Context) args[1].inner() :
-								c.child()).parse(args[0].toString()))
-			}
-		}
 		define 'context_child',  funcc { ... args ->
 			def b = args[0] as Context
 			args.length > 1 ? b.invokeMethod('child', args.tail()) : b.child()
@@ -1594,7 +1335,7 @@ class Prelude {
 		define 'times_do',  func { IKismetObject... args ->
 			def n = (Number) args[0].inner()
 			def l = new ArrayList(n.intValue())
-			for (def i = n.minus(n); i < n; i += 1) l.add(((Function) args[1]).call(KismetNumber.from(i)))
+			for (def i = n.minus(n); i < n; i += 1) l.add(((Function) args[1]).call(NumberType.from(i).instantiate(i)))
 			l
 		}
 		define 'compose',  func { IKismetObject... args ->
@@ -1661,74 +1402,89 @@ class Prelude {
 			}
 			b.hasNext()
 		}
-		define 'average_time_nanos',  macr { Context c, Expression... args ->
-			int iterations = args[0].evaluate(c).inner() as int
-			long sum = 0, size = 0
-			for (int i = 0; i < iterations; ++i) {
-				long a = System.nanoTime()
-				args[1].evaluate(c)
-				long b = System.nanoTime()
-				sum += b - a
-				--size
+		define 'average_time_nanos', INSTRUCTOR_TYPE, new Instructor() {
+			IKismetObject call(Memory c, Instruction... args) {
+				int iterations = args[0].evaluate(c).inner() as int
+				long sum = 0, size = 0
+				for (int i = 0; i < iterations; ++i) {
+					long a = System.nanoTime()
+					args[1].evaluate(c)
+					long b = System.nanoTime()
+					sum += b - a
+					--size
+				}
+				new KFloat(sum / size)
 			}
-			sum / size
 		}
-		define 'average_time_millis',  macr { Context c, Expression... args ->
-			int iterations = args[0].evaluate(c).inner() as int
-			long sum = 0, size = 0
-			for (int i = 0; i < iterations; ++i) {
-				long a = System.currentTimeMillis()
-				args[1].evaluate(c)
-				long b = System.currentTimeMillis()
-				sum += b - a
-				--size
+		define 'average_time_millis',  new Instructor() {
+			IKismetObject call(Memory c, Instruction... args) {
+				int iterations = args[0].evaluate(c).inner() as int
+				long sum = 0, size = 0
+				for (int i = 0; i < iterations; ++i) {
+					long a = System.currentTimeMillis()
+					args[1].evaluate(c)
+					long b = System.currentTimeMillis()
+					sum += b - a
+					--size
+				}
+				new KFloat(sum / size)
 			}
-			sum / size
 		}
-		define 'average_time_seconds',  macr { Context c, Expression... args ->
-			int iterations = args[0].evaluate(c).inner() as int
-			long sum = 0, size = 0
-			for (int i = 0; i < iterations; ++i) {
-				long a = System.currentTimeSeconds()
-				args[1].evaluate(c)
-				long b = System.currentTimeSeconds()
-				sum += b - a
-				--size
+		define 'average_time_seconds', INSTRUCTOR_TYPE, new Instructor() {
+			IKismetObject call(Memory c, Instruction... args) {
+				int iterations = args[0].evaluate(c).inner() as int
+				long sum = 0, size = 0
+				for (int i = 0; i < iterations; ++i) {
+					long a = System.currentTimeSeconds()
+					args[1].evaluate(c)
+					long b = System.currentTimeSeconds()
+					sum += b - a
+					--size
+				}
+				new KFloat(sum / size)
 			}
-			sum / size
 		}
-		define 'list_time_nanos',  macr { Context c, Expression... args ->
-			int iterations = args[0].evaluate(c).inner() as int
-			def times = new ArrayList<Long>(iterations)
-			for (int i = 0; i < iterations; ++i) {
-				long a = System.nanoTime()
-				args[1].evaluate(c)
-				long b = System.nanoTime()
-				times.add(b - a)
+		define 'list_time_nanos', INSTRUCTOR_TYPE, new Instructor() {
+			@Override
+			IKismetObject call(Memory c, Instruction... args) {
+				int iterations = args[0].evaluate(c).inner() as int
+				def times = new ArrayList<Long>(iterations)
+				for (int i = 0; i < iterations; ++i) {
+					long a = System.nanoTime()
+					args[1].evaluate(c)
+					long b = System.nanoTime()
+					times.add(b - a)
+				}
+				new WrapperKismetObject(times)
 			}
-			times
 		}
-		define 'list_time_millis',  macr { Context c, Expression... args ->
-			int iterations = args[0].evaluate(c).inner() as int
-			def times = new ArrayList<Long>(iterations)
-			for (int i = 0; i < iterations; ++i) {
-				long a = System.currentTimeMillis()
-				args[1].evaluate(c)
-				long b = System.currentTimeMillis()
-				times.add(b - a)
+		define 'list_time_millis', INSTRUCTOR_TYPE, new Instructor() {
+			@Override
+			IKismetObject call(Memory c, Instruction... args) {
+				int iterations = args[0].evaluate(c).inner() as int
+				def times = new ArrayList<Long>(iterations)
+				for (int i = 0; i < iterations; ++i) {
+					long a = System.currentTimeMillis()
+					args[1].evaluate(c)
+					long b = System.currentTimeMillis()
+					times.add(b - a)
+				}
+				new WrapperKismetObject(times)
 			}
-			times
 		}
-		define 'list_time_seconds',  macr { Context c, Expression... args ->
-			int iterations = args[0].evaluate(c).inner() as int
-			def times = new ArrayList<Long>(iterations)
-			for (int i = 0; i < iterations; ++i) {
-				long a = System.currentTimeSeconds()
-				args[1].evaluate(c)
-				long b = System.currentTimeSeconds()
-				times.add(b - a)
+		define 'list_time_seconds', INSTRUCTOR_TYPE, new Instructor() {
+			@Override
+			IKismetObject call(Memory c, Instruction... args) {
+				int iterations = args[0].evaluate(c).inner() as int
+				def times = new ArrayList<Long>(iterations)
+				for (int i = 0; i < iterations; ++i) {
+					long a = System.currentTimeSeconds()
+					args[1].evaluate(c)
+					long b = System.currentTimeSeconds()
+					times.add(b - a)
+				}
+				new WrapperKismetObject(times)
 			}
-			times
 		}
 		define '|>|',  new Template() {
 			Expression transform(Parser parser, Expression... args) {
@@ -1739,39 +1495,36 @@ class Prelude {
 			Random rand = a.length > 1 ? a[1] as Random : new Random()
 			Number x = a[0] as Number
 			rand.nextDouble() < x
-		}]
-		toConvert.'true?' = toConvert.'yes?' = toConvert.'on?' =
-				toConvert.'?' = toConvert.bool
-		toConvert.'no?' = toConvert.'off?' = toConvert.'false?'
-		toConvert.'superset?' = toConvert.'has_all?'
-		toConvert.fold = toConvert.reduce = toConvert.inject
-		toConvert.half = toConvert.bottom_half
-		toConvert.length = toConvert.size
-		toConvert.filter = toConvert.select = toConvert.find_all
-		toConvert.succ = toConvert.next
-		toConvert.'all?' = toConvert.'every?'
-		toConvert.'some?' = toConvert.'find?' = toConvert.'any?'
-		toConvert.'less?' = toConvert.'<'
-		toConvert.'greater?' = toConvert.'>'
-		toConvert.'less_equal?' = toConvert.'<='
-		toConvert.'greater_equal?' = toConvert.'>='
-		toConvert.'+/' = toConvert.sum
-		toConvert.'*/' = toConvert.product
-		toConvert.'&' = toConvert.list
-		toConvert.'#' = toConvert.set
-		toConvert.'$' = toConvert.tuple
-		toConvert.'&/' = toConvert.concat_list
-		toConvert.'#/' = toConvert.concat_set
-		toConvert.'$/' = toConvert.concat_tuple
-		toConvert.assign = toConvert.'='
-		toConvert.define = toConvert.':='
-		toConvert.set_to = toConvert.'::='
-		toConvert.change = toConvert.':::='
-		toConvert.'variable?' = toConvert.'defined?'
-		toConvert.'with_index' = toConvert.'indexed'
-		toConvert.'divs?' = toConvert.'divides?' = toConvert.'divisible_by?'
-		for (e in toConvert) defaultContext.put(e.key, Kismet.model(e.value))
-		defaultContext = defaultContext.asImmutable()
+		}
+		alias 'bool?', 'true?', '?'
+		alias 'false?', 'no?', 'off?'
+		alias 'has_all?', 'superset?'
+		alias 'inject', 'reduce', 'fold'
+		alias 'bottom_half', 'half'
+		alias 'size', 'length'
+		alias 'find_all', 'select', 'filter'
+		alias 'next', 'succ'
+		alias 'every?', 'all?'
+		alias 'any?', 'find?', 'some?'
+		alias '<', 'less?'
+		alias '>', 'greater?'
+		alias '<=', 'less_equal?'
+		alias '>=', 'greater_equal?'
+		alias 'sum', '+/'
+		alias '*/', 'product'
+		alias 'list', '&'
+		alias 'set', '#'
+		alias 'tuple', '$'
+		alias 'concat_list', '&/'
+		alias 'concat_set', '#/'
+		alias 'concat_tuple', '$/'
+		alias '=', 'assign'
+		alias ':=', 'define'
+		alias '::=', 'set_to'
+		alias ':::=', 'change'
+		alias 'defined?', 'variable?'
+		alias 'indexed', 'with_index'
+		alias 'divisible_by?', 'divides?', 'divs?'
 	}
 
 	static GenericType func(Type returnType, Type... args) {
@@ -2037,8 +1790,6 @@ class Prelude {
 		AssignTemplate(AssignmentType type) {
 			this.type = type
 		}
-
-		boolean isImmediate() { true }
 
 		Expression transform(Parser parser, Expression... args) {
 			final size = args.length

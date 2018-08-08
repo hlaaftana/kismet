@@ -4,7 +4,7 @@ import groovy.transform.CompileStatic
 import hlaaftana.kismet.vm.*
 
 @CompileStatic
-enum NumberType implements Type {
+enum NumberType implements WeakableType {
 	Number {
 		KNonPrimitiveNum instantiate(Number num) {
 			new KNonPrimitiveNum(num)
@@ -51,7 +51,25 @@ enum NumberType implements Type {
 		}
 	}
 
+	static NumberType from(Number val) {
+		if (val instanceof BigInteger) Int
+		else if (val instanceof BigDecimal) Float
+		else if (val instanceof Integer) Int32
+		else if (val instanceof Double) Float64
+		else if (val instanceof Float) Float32
+		else if (val instanceof Long) Int64
+		else if (val instanceof Short) Int16
+		else if (val instanceof Byte) Int8
+		else Number
+	}
+
 	TypeRelation relation(Type other) {
+		def rel = weakRelation(other)
+		if (!rel.none) return rel
+		other instanceof WeakableType ? ~other.weakRelation(this) : rel
+	}
+
+	TypeRelation weakRelation(Type other) {
 		if (other instanceof NumberType && !(character ^ other.character)) {
 			final k = ordinal() - other.ordinal()
 			TypeRelation.some(k)
@@ -65,5 +83,5 @@ enum NumberType implements Type {
 
 	boolean isCharacter() { ordinal() > Float.ordinal() }
 	boolean isInteger() { ordinal() < Float32.ordinal() }
-	boolean isFloat() { ordinal() > Int.ordinal() }
+	boolean isFloat() { ordinal() > Int.ordinal() && ordinal() < Char.ordinal() }
 }

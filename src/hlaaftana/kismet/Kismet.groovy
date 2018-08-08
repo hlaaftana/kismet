@@ -11,7 +11,7 @@ import hlaaftana.kismet.vm.KismetModels
 @CompileStatic
 class Kismet {
 	static final IKismetObject NULL = KismetModels.KISMET_NULL
-	static Context DEFAULT_CONTEXT = new Context(null, new HashMap(Prelude.defaultContext))
+	static Context DEFAULT_CONTEXT = Prelude.defaultContext
 
 	static Block parse(String code, Context ctxt = new Context(DEFAULT_CONTEXT)) {
 		new Block(new Parser(context: ctxt).parse(code), ctxt)

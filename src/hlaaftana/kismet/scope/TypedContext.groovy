@@ -27,14 +27,14 @@ class TypedContext extends Memory {
 		variables.get(i)
 	}
 
-	StaticVariable getStatic(int i) {
+	Variable getStatic(int i) {
 		def var = getVariable(i)
-		if (var instanceof StaticVariable) var
+		if (null != var.value) var
 		else {
 			def name = var.name
 			def errmsg = new StringBuilder("Variable ")
 			if (null != name) errmsg.append(name).append((char) ' ')
-			errmsg.append("with index ").append(i).append(" was not static variable")
+			errmsg.append("with index ").append(i).append(" was not defined statically")
 			throw new ForbiddenAccessException(errmsg.toString())
 		}
 	}
@@ -51,8 +51,9 @@ class TypedContext extends Memory {
 		var
 	}
 
-	StaticVariable addStaticVariable(String name = null, IKismetObject value, Type type = Type.ANY) {
-		final var = new StaticVariable(name, variables.size(), value, type)
+	Variable addVariable(String name = null, IKismetObject value, Type type = Type.ANY) {
+		final var = new Variable(name, variables.size(), type)
+		var.value = value
 		variables.add(var)
 		var
 	}
@@ -141,7 +142,7 @@ class TypedContext extends Memory {
 	List<VariableReference> getAllStatic(int h, String name) {
 		def result = new ArrayList<VariableReference>()
 		for (var in variables)
-			if (var instanceof StaticVariable && var.hash == h && var.name == name)
+			if (null != var.value && var.hash == h && var.name == name)
 				result.add(var.ref())
 		for (int i = 0; i < heritage.size(); ++i) {
 			final v = heritage.get(i).getAllStatic(h, name)
@@ -168,25 +169,25 @@ class TypedContext extends Memory {
 	}
 
 	IKismetObject get(int id) {
-		final v = getVariable(id)
-		if (v instanceof StaticVariable) ((StaticVariable) v).value
-		else null
+		getVariable(id).value
 	}
 
 	void set(int id, IKismetObject value) {
 		final v = getVariable(id)
-		if (v instanceof StaticVariable) ((StaticVariable) v).value = value
+		if (null != v) v.value = value
 		else {
-			def n = new StaticVariable(null, id, value)
+			def n = new Variable(null, id)
+			n.value = value
 			if (id >= variables.size()) variables.add(n)
 			else variables.set(id, n)
 		}
 	}
 
-	static class Variable {
+	static class Variable implements Address {
 		Type type
 		String name
 		int hash, id
+		IKismetObject value
 
 		Variable(String name, int id, Type type = Type.ANY) {
 			this.name = name
@@ -197,15 +198,6 @@ class TypedContext extends Memory {
 
 		VariableReference ref() {
 			new VariableReference(this, new ArrayDeque<>())
-		}
-	}
-
-	static class StaticVariable extends Variable implements Address {
-		IKismetObject value
-
-		StaticVariable(String name, int id, IKismetObject value, Type type = Type.ANY) {
-			super(name, id, type)
-			this.value = value
 		}
 	}
 

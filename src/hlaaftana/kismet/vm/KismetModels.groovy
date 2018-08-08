@@ -3,9 +3,7 @@ package hlaaftana.kismet.vm
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.call.GroovyFunction
 import hlaaftana.kismet.scope.IteratorIterable
-import hlaaftana.kismet.scope.Prelude
-import hlaaftana.kismet.type.NoType
-import hlaaftana.kismet.type.Type
+import hlaaftana.kismet.type.NumberType
 
 @CompileStatic
 class KismetModels {
@@ -22,7 +20,7 @@ class KismetModels {
 	}
 
 	static <T extends Number> KismetNumber<T> model(T num) {
-		(KismetNumber<T>) KismetNumber.from(num)
+		(KismetNumber<T>) NumberType.from(num).instantiate(num)
 	}
 
 	static KChar model(char c) { new KChar(c) }

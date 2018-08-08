@@ -4,8 +4,8 @@ import groovy.transform.CompileStatic
 
 @CompileStatic
 @Singleton(property = 'INSTANCE')
-class AnyType implements Type {
-	TypeRelation relation(Type other) {
+class AnyType extends AbstractType {
+	TypeRelation weakRelation(Type other) {
 		TypeRelation.supertype(Integer.MAX_VALUE)
 	}
 
