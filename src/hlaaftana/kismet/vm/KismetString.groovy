@@ -2,7 +2,6 @@ package hlaaftana.kismet.vm
 
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.scope.Prelude
-import hlaaftana.kismet.type.StringType
 import hlaaftana.kismet.type.Type
 
 

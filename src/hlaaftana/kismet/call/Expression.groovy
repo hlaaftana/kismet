@@ -448,10 +448,10 @@ class CallExpression extends Expression {
 	TypedExpression type(TypedContext tc, Type preferred) {
 		TypedContext.VariableReference m
 		if (callValue instanceof NameExpression && null != (m = tc.findStatic(callValue.text, Prelude.TEMPLATE_TYPE))) {
-			return ((Template) ((TypedContext.StaticVariable) m.variable).value)
+			return ((Template) m.variable.value)
 					.transform(null, arguments.toArray(new Expression[0])).type(tc, preferred)
 		} else if (callValue instanceof NameExpression && null != (m = tc.findStatic(callValue.text, Prelude.TYPE_CHECKER_TYPE))) {
-			return ((TypeChecker) ((TypedContext.StaticVariable) m.variable).value)
+			return ((TypeChecker) m.variable.value)
 					.transform(tc, arguments.toArray(new Expression[0]))
 		}
 		def args = new TypedExpression[arguments.size()]
@@ -490,9 +490,10 @@ class ListExpression extends Expression {
 	}
 
 	TypedExpression type(TypedContext tc, Type preferred) {
-		if (!preferred.relation(Prelude.LIST_TYPE).assignableTo)
+		def rel = preferred.relation(Prelude.LIST_TYPE)
+		if (rel.none)
 			throw new UnexpectedTypeException('Tried to infer list expression as non-list type '.concat(preferred.toString()))
-		def bound = preferred instanceof GenericType ? ((GenericType) preferred)[0] : Type.ANY
+		def bound = rel.sub && preferred instanceof GenericType ? ((GenericType) preferred)[0] : Type.ANY
 		def arr = new TypedExpression[members.size()]
 		for (int i = 0; i < arr.length; ++i) arr[i] = members.get(i).type(tc, bound)
 		new Typed(arr)
@@ -560,11 +561,12 @@ class TupleExpression extends Expression {
 	}
 
 	TypedExpression type(TypedContext tc, Type preferred) {
-		if (!preferred.relation(TupleType.ANY).assignableTo)
+		def rel = preferred.relation(TupleType.BASE)
+		if (rel.none)
 			throw new UnexpectedTypeException('Tried to infer tuple expression as non-tuple type '.concat(preferred.toString()))
-		final bounds = preferred instanceof TupleType ? preferred.bounds : (Type[]) null
-		if (null != bounds && members.size() != bounds.length)
-			throw new UnexpectedTypeException("Tuple expression length ${members.size()} did not match expected tuple type length $len")
+		final bounds = rel.sub && preferred instanceof TupleType ? preferred.bounds : (Type[]) null
+		if (rel.sub && members.size() != bounds.length)
+			throw new UnexpectedTypeException("Tuple expression length ${members.size()} did not match expected tuple type length $bounds.length")
 		def arr = new TypedExpression[members.size()]
 		for (int i = 0; i < arr.length; ++i) arr[i] = members.get(i).type(tc, null == bounds ? Type.ANY : bounds[i])
 		new Typed(arr)
@@ -627,6 +629,16 @@ class SetExpression extends Expression {
 		Kismet.model(arr)
 	}
 
+	TypedExpression type(TypedContext tc, Type preferred) {
+		def rel = preferred.relation(Prelude.SET_TYPE)
+		if (rel.none)
+			throw new UnexpectedTypeException('Tried to infer set expression as non-set type '.concat(preferred.toString()))
+		def bound = rel.sub && preferred instanceof GenericType ? ((GenericType) preferred)[0] : Type.ANY
+		def arr = new TypedExpression[members.size()]
+		for (int i = 0; i < arr.length; ++i) arr[i] = members.get(i).type(tc, bound)
+		new Typed(arr)
+	}
+
 	static class Typed extends TypedExpression {
 		TypedExpression[] members
 
@@ -635,9 +647,13 @@ class SetExpression extends Expression {
 		}
 
 		Type getType() {
-			def arr = new Type[members.length]
-			for (int i = 0; i < arr.length; ++i) arr[i] = members[i].type
-			new TupleType(arr)
+			def bound = Type.ANY
+			for (final m : members) {
+				def rel = bound.relation(m.type)
+				if (rel.sub) bound = m.type
+				else if (rel.none) throw new UnexpectedTypeException('Type ' + m.type + ' is incompatible with set with bound ' + bound)
+			}
+			new GenericType(Prelude.SET_TYPE, bound)
 		}
 
 		Instruction getInstruction() { new Instr(members) }
@@ -684,42 +700,68 @@ class MapExpression extends Expression {
 		Kismet.model(arr)
 	}
 
-	static class Typed extends TypedExpression {
-		TypedExpression[] members
+	TypedExpression type(TypedContext tc, Type preferred) {
+		def rel = preferred.relation(Prelude.MAP_TYPE)
+		if (rel.none)
+			throw new UnexpectedTypeException('Tried to infer map expression as non-map type '.concat(preferred.toString()))
+		def kbound = rel.sub && preferred instanceof GenericType ? ((GenericType) preferred)[0] : Type.ANY,
+			vbound = rel.sub && preferred instanceof GenericType ? ((GenericType) preferred)[1] : Type.ANY
+		def key = new TypedExpression[members.size()], val = new TypedExpression[members.size()]
+		for (int i = 0; i < key.length; ++i) {
+			def col = members.get(i)
+			key[i] = col.left.type(tc, kbound)
+			val[i] = col.right.type(tc, vbound)
+		}
+		new Typed(key, val)
+	}
 
-		Typed(TypedExpression[] members) {
-			this.members = members
+	static class Typed extends TypedExpression {
+		TypedExpression[] keys, values
+
+		Typed(TypedExpression[] keys, TypedExpression[] values) {
+			this.keys = keys
+			this.values = values
 		}
 
 		Type getType() {
-			def arr = new Type[members.length]
-			for (int i = 0; i < arr.length; ++i) arr[i] = members[i].type
-			new TupleType(arr)
+			def key = Type.ANY, value = Type.ANY
+			for (int i = 0; i < keys.length; ++i) {
+				def krel = key.relation(keys[i].type)
+				if (krel.sub) key = keys[i].type
+				else if (krel.none) throw new UnexpectedTypeException('Type ' + keys[i].type + ' is incompatible with map with key bound ' + key)
+				def vrel = value.relation(values[i].type)
+				if (vrel.sub) value = values[i].type
+				else if (vrel.none) throw new UnexpectedTypeException('Type ' + values[i].type + ' is incompatible with map with value bound ' + value)
+			}
+			new GenericType(Prelude.MAP_TYPE, key, value)
 		}
 
-		Instruction getInstruction() { new Instr(members) }
+		Instruction getInstruction() { new Instr(keys, values) }
 
 		static class Instr extends Instruction {
-			Instruction[] members
+			Instruction[] keys, values
 
-			Instr(Instruction[] members) {
-				this.members = members
+			Instr(Instruction[] keys, Instruction[] values) {
+				this.keys = keys
+				this.values = values
 			}
 
-			Instr(TypedExpression[] zro) {
-				members = new Instruction[zro.length]
-				for (int i = 0; i < zro.length; ++i) members[i] = zro[i].instruction
+			Instr(TypedExpression[] key, TypedExpression[] val) {
+				keys = new Instruction[key.length]
+				for (int i = 0; i < key.length; ++i) keys[i] = key[i].instruction
+				values = new Instruction[val.length]
+				for (int i = 0; i < val.length; ++i) values[i] = val[i].instruction
 			}
 
 			IKismetObject evaluate(Memory context) {
-				def arr = new HashSet<IKismetObject>(members.size())
-				for (final m : members) arr.add(m.evaluate(context))
+				def arr = new HashMap<Object, IKismetObject>(keys.length)
+				for (int i = 0; i < keys.length; ++i) arr.put(keys[i].evaluate(context).inner(), values[i].evaluate(context))
 				Kismet.model(arr)
 			}
 		}
 
 		boolean isRuntimeOnly() {
-			for (final m : members) if (m.runtimeOnly) return true
+			for (int i = 0; i < keys.length; ++i) if (keys[i].runtimeOnly || values[i].runtimeOnly) return true
 			false
 		}
 	}
@@ -771,14 +813,14 @@ class ColonExpression extends Expression {
 				throw new UnexpectedTypeException("Variable number $b had type $var.type, not preferred type $preferred")
 			new VariableSetExpression(var.ref(), val)
 		} else {
-			final lhi = left.type(tc).instruction
+			final lh = left.type(tc), lhi = lh.instruction
 			final rhi = val.instruction
 			new BasicTypedExpression(preferred, new Instruction() {
 				@Override
 				IKismetObject evaluate(Memory context) {
 					((TypedContext.VariableReference) lhi.evaluate(context).inner()).set(context, rhi.evaluate(context))
 				}
-			})
+			}, lh.runtimeOnly || val.runtimeOnly)
 		}
 	}
 
@@ -906,7 +948,7 @@ class NumberExpression extends ConstantExpression<Number> {
 			int index
 
 			Typed(Type type, int index) {
-				super(type, new Inst(index))
+				super(type, new Inst(index), false)
 				this.index = index
 			}
 
@@ -978,7 +1020,7 @@ class StaticExpression<T extends Expression> extends ConstantExpression<Object> 
 	}
 
 	TypedExpression type(TypedContext tc, Type preferred) {
-		new BasicTypedExpression(preferred, new IdentityInstruction(value))
+		new TypedConstantExpression(preferred, value)
 	}
 }
 

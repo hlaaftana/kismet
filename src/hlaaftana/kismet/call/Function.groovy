@@ -243,7 +243,7 @@ class FunctionDefineExpression extends Expression {
 			IKismetObject evaluate(Memory context) {
 				new TypedFunction([context] as Memory[], inner, stackSize, name)
 			}
-		}))
+		}, false))
 	}
 }
 
@@ -292,7 +292,7 @@ class FunctionExpression extends Expression {
 			IKismetObject evaluate(Memory context) {
 				new TypedFunction([context] as Memory[], inner, stackSize, name)
 			}
-		})
+		}, false)
 	}
 }
 

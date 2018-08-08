@@ -6,8 +6,6 @@ import hlaaftana.kismet.call.*
 import hlaaftana.kismet.exceptions.UndefinedVariableException
 import hlaaftana.kismet.scope.Prelude
 import hlaaftana.kismet.scope.Context
-import hlaaftana.kismet.scope.TypedContext
-import hlaaftana.kismet.type.Type
 import hlaaftana.kismet.vm.IKismetObject
 
 @CompileStatic
@@ -94,26 +92,6 @@ class Optimizer {
 		String repr() { "fake" + super }
 	}
 
-	static class IdentityExpression extends FakeCallExpression {
-		Expression expression
-
-		IdentityExpression(CallExpression original) {
-			super(original)
-			expression = original.arguments[0]
-			while (expression instanceof CallExpression &&
-					((CallExpression) expression).callValue instanceof NameExpression &&
-					((NameExpression) ((CallExpression) expression).callValue).text == 'identity') {
-				expression = ((CallExpression) expression).arguments[0]
-			}
-		}
-
-		IKismetObject evaluate(Context c) {
-			expression.evaluate(c)
-		}
-
-		String repr() { "identity(${arguments.join(', ')})" }
-	}
-
 	static class PathStepSetExpression extends Expression {
 		Expression value
 		PathExpression.Step step
@@ -177,27 +155,6 @@ class Optimizer {
 				} else return a.evaluate(c)
 			}
 			Kismet.NULL
-		}
-	}
-
-	static class NopExpression extends FakeCallExpression {
-		NopExpression(CallExpression original) {
-			super(original)
-		}
-
-		IKismetObject evaluate(Context c) {
-			for (arg in arguments) c.eval(arg)
-			Kismet.NULL
-		}
-
-		String repr() { "nop(${arguments.join(', ')})" }
-
-		TypedExpression type(TypedContext tc, Type preferred) {
-			def arr = new TypedExpression[arguments.size() + 1]
-			int i = 0
-			for (; i < arguments.size(); ++i) arr[i] = arguments.get(i).type(tc)
-			arr[i] = TypedNoExpression.INSTANCE
-			new SequentialExpression(arr)
 		}
 	}
 

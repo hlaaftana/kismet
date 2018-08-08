@@ -8,7 +8,7 @@ import hlaaftana.kismet.vm.IKismetObject
 @CompileStatic
 abstract class Template implements KismetCallable, IKismetObject {
 	// doesn't transform arguments if true
-	boolean isImmediate() { false }
+	boolean isImmediate() { true }
 	// doesn't transform result if true
 	boolean isOptimized() { false }
 

@@ -5,15 +5,15 @@ import hlaaftana.kismet.call.TypedExpression
 
 @CompileStatic
 class TupleType extends GenericType {
-	static final SingleType ANY = new SingleType('Tuple')
+	static final SingleType BASE = new SingleType('Tuple')
 	Type[] elements
 
 	TupleType(Type[] elements) {
-		super(ANY, elements)
+		super(BASE, elements)
 	}
 
 	TupleType(TypedExpression[] zro) {
-		super(ANY, new Type[zro.length])
+		super(BASE, new Type[zro.length])
 		for (int i = 0; i < zro.length; ++i) bounds[i] = zro[i].type
 	}
 

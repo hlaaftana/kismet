@@ -2,8 +2,6 @@ package hlaaftana.kismet.call
 
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.Kismet
-import hlaaftana.kismet.exceptions.UnexpectedValueException
-import hlaaftana.kismet.scope.Address
 import hlaaftana.kismet.scope.Prelude
 import hlaaftana.kismet.scope.TypedContext
 import hlaaftana.kismet.type.Type
@@ -28,12 +26,14 @@ abstract class TypedExpression {
 
 @CompileStatic
 class BasicTypedExpression extends TypedExpression {
+	boolean runtimeOnly
 	Type type
 	Instruction instruction
 
-	BasicTypedExpression(Type type, Instruction instruction) {
+	BasicTypedExpression(Type type, Instruction instruction, boolean runtimeOnly = true) {
 		this.type = type
 		this.instruction = instruction
+		this.runtimeOnly = runtimeOnly
 	}
 }
 
@@ -94,7 +94,7 @@ class VariableExpression extends TypedExpression {
 	}
 
 	Type getType() { reference.variable.type }
-	boolean isRuntimeOnly() { !(reference.variable instanceof Address) }
+	boolean isRuntimeOnly() { null == reference.variable.value }
 }
 
 @CompileStatic
@@ -142,8 +142,8 @@ class VariableSetExpression extends TypedExpression {
 		$instruction
 	}
 
-	Type getType() { reference.variable.type }
-	boolean isRuntimeOnly() { !(reference.variable instanceof Address) }
+	Type getType() { value.type }
+	boolean isRuntimeOnly() { null == reference.variable.value || value.runtimeOnly }
 }
 
 @CompileStatic
@@ -235,14 +235,29 @@ class SequentialExpression extends TypedExpression {
 }
 
 @CompileStatic
-class IdentityInstruction<T extends IKismetObject> extends Instruction {
+class ConstantInstruction<T extends IKismetObject> extends Instruction {
 	T value
-	
-	IdentityInstruction(T value) {
+
+	ConstantInstruction(T value) {
 		this.value = value
 	}
 	
 	T evaluate(Memory context) { value }
+}
+
+@CompileStatic
+class TypedConstantExpression<T extends IKismetObject> extends TypedExpression {
+	Type type
+	T value
+
+	TypedConstantExpression(Type type, T value) {
+		this.type = type
+		this.value = value
+	}
+
+	boolean isRuntimeOnly() { false }
+
+	ConstantInstruction<T> getInstruction() { new ConstantInstruction<T>(value) }
 }
 
 import hlaaftana.kismet.type.NumberType
@@ -259,24 +274,8 @@ class TypedNumberExpression extends TypedExpression {
 
 	void setNumber(Number num) {
 		this.@number = num
-		if (num instanceof Integer) {
-			type = NumberType.Int32
-		} else if (num instanceof BigInteger) {
-			type = NumberType.Int
-		} else if (num instanceof BigDecimal) {
-			type = NumberType.Float
-		} else if (num instanceof Byte) {
-			type = NumberType.Int8
-		} else if (num instanceof Double) {
-			type = NumberType.Float64
-		} else if (num instanceof Long) {
-			type = NumberType.Int64
-		} else if (num instanceof Float) {
-			type = NumberType.Float32
-		} else if (num instanceof Short) {
-			type = NumberType.Int16
-		} else throw new UnexpectedValueException("Unknown number $num with class ${num.class} for typed expression")
-		instruction = new IdentityInstruction<>(type.instantiate(num))
+		type = NumberType.from(num)
+		instruction = new ConstantInstruction<>(type.instantiate(num))
 	}
 
 	boolean isRuntimeOnly() { false }
@@ -293,7 +292,7 @@ class TypedStringExpression extends TypedExpression {
 
 	void setString(String str) {
 		this.@string = str
-		instruction = new IdentityInstruction<>(new KismetString(string))
+		instruction = new ConstantInstruction<>(new KismetString(string))
 	}
 
 	Type getType() { Prelude.STRING_TYPE }
@@ -351,15 +350,18 @@ class CallInstruction extends Instruction {
 }
 
 @CompileStatic
-class TypedCallExpression extends BasicTypedExpression {
+class TypedCallExpression extends TypedExpression {
+	Type type
 	TypedExpression value
 	TypedExpression[] arguments
 
 	TypedCallExpression(TypedExpression value, TypedExpression[] arguments, Type type) {
-		super(type, new CallInstruction(value, arguments))
+		this.type = type
 		this.value = value
 		this.arguments = arguments
 	}
+
+	Instruction getInstruction() { new CallInstruction(value, arguments) }
 
 	boolean isRuntimeOnly() {
 		if (value.runtimeOnly) return true

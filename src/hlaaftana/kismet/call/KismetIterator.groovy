@@ -30,10 +30,7 @@ class KismetIterator {
 		}
 
 		Expression transform(Parser parser, Expression... args) {
-			def exprs = new ArrayList<Expression>(args.length + 1)
-			exprs.add(toCall)
-			exprs.addAll(args)
-			new CallExpression(exprs)
+			new ColonExpression(toCall, args[0])
 		}
 	}
 }

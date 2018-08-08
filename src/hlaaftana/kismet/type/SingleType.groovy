@@ -3,7 +3,7 @@ package hlaaftana.kismet.type
 import groovy.transform.CompileStatic
 
 @CompileStatic
-class SingleType implements Type {
+class SingleType extends AbstractType {
 	String name
 	Type[] bounds
 
@@ -18,7 +18,7 @@ class SingleType implements Type {
 		else new GenericType(this, genericArgs)
 	}
 
-	TypeRelation relation(Type other) {
+	TypeRelation weakRelation(Type other) {
 		TypeRelation.some(other == this)
 	}
 

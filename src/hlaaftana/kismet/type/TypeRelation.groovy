@@ -48,6 +48,10 @@ class TypeRelation {
 		o instanceof TypeRelation && o.kind == kind && o.value == value
 	}
 
+	TypeRelation bitwiseNegate() {
+		sub ? supertype(value) : isSuper() ? subtype(value) : this
+	}
+
 	boolean isSub() { kind == SUB }
 	boolean isSuper() { kind == SUPER }
 	boolean isEqual() { kind == EQUAL }
