@@ -7,7 +7,6 @@ import hlaaftana.kismet.exceptions.UnexpectedSyntaxException
 import hlaaftana.kismet.scope.Context
 import hlaaftana.kismet.scope.Prelude
 import hlaaftana.kismet.scope.TypedContext
-import hlaaftana.kismet.type.GenericType
 import hlaaftana.kismet.type.TupleType
 import hlaaftana.kismet.type.Type
 import hlaaftana.kismet.vm.IKismetObject
@@ -233,8 +232,9 @@ class FunctionDefineExpression extends Expression {
 
 	TypedExpression type(TypedContext tc, Type preferred) {
 		def fnb = tc.child()
+		def args = arguments.fill(fnb)
 		def block = expression.type(fnb, preferred)
-		final typ = Prelude.func(block.type, arguments.fill(fnb))
+		final typ = Prelude.func(block.type, args)
 		final var = tc.addVariable(name, typ)
 		new VariableSetExpression(var.ref(), new BasicTypedExpression(typ, new Instruction() {
 			final Instruction inner = block.instruction
@@ -283,8 +283,9 @@ class FunctionExpression extends Expression {
 
 	TypedExpression type(TypedContext tc, Type preferred) {
 		def fnb = tc.child()
+		def args = arguments.fill(fnb)
 		def block = expression.type(fnb, preferred)
-		final typ = Prelude.func(block.type, arguments.fill(fnb))
+		final typ = Prelude.func(block.type, args)
 		new BasicTypedExpression(typ, new Instruction() {
 			final Instruction inner = block.instruction
 			final int stackSize = fnb.size()
@@ -372,6 +373,7 @@ class Arguments {
 		Expression typeExpression
 
 		Type getType(TypedContext tc) {
+			if (null == typeExpression) return Type.ANY
 			def expr = typeExpression.type(tc)
 			if (!expr.type.relation(Prelude.META_TYPE).assignableTo) expr.type
 			else (Type) expr.instruction.evaluate(tc).inner()

@@ -2,6 +2,7 @@ package hlaaftana.kismet.call
 
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.Kismet
+import hlaaftana.kismet.exceptions.UnexpectedValueException
 import hlaaftana.kismet.scope.Prelude
 import hlaaftana.kismet.scope.TypedContext
 import hlaaftana.kismet.type.Type
@@ -269,12 +270,13 @@ class TypedNumberExpression extends TypedExpression {
 	Number number
 
 	TypedNumberExpression(Number num) {
-		this.number = num
+		setNumber(num)
 	}
 
 	void setNumber(Number num) {
 		this.@number = num
 		type = NumberType.from(num)
+		if (null == type) throw new UnexpectedValueException("Dont know what type number $num with class ${num.class} is")
 		instruction = new ConstantInstruction<>(type.instantiate(num))
 	}
 

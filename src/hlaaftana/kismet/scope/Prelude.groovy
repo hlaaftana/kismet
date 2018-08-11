@@ -109,7 +109,7 @@ class Prelude {
 		}
 		define 'expr_to_name', func(STRING_TYPE, EXPRESSION_TYPE), new Function() {
 			IKismetObject call(IKismetObject... args) {
-				def i = args[0] instanceof Expression ? toAtom((Expression) args[0]) : null
+				def i = args[0] instanceof Expression ? toAtom((Expression) args[0]) : (String) null
 				null == i ? Kismet.NULL : new KismetString(i)
 			}
 		}
@@ -567,7 +567,7 @@ class Prelude {
 		define 'to_percent',  funcc(true) { ... a -> a[0].invokeMethod 'multiply', 100 }
 		define 'strip_trailing_zeros',  funcc(true) { ... a -> ((BigDecimal) a[0]).stripTrailingZeros() }
 		define 'as',  func { IKismetObject... a -> a[0].invokeMethod('as', [a[1].inner()] as Object[]) }
-		define 'is?',  funcc { ... args -> args.inject { a, b -> a == b } }
+		define 'is?', func(BOOLEAN_TYPE, Type.ANY, Type.ANY), funcc { ... args -> args.inject { a, b -> a == b } }
 		define 'isn\'t?',  funcc { ... args -> args.inject { a, b -> a != b } }
 		define 'same?',  funcc { ... a -> a[0].is(a[1]) }
 		define 'not_same?',  funcc { ... a -> !a[0].is(a[1]) }
@@ -624,7 +624,7 @@ class Prelude {
 		define 'left_shift',  funcc(true) { ... args -> args.inject { a, b -> a.invokeMethod('leftShift', [b] as Object[]) } }
 		define 'right_shift',  funcc(true) { ... args -> args.inject { a, b -> a.invokeMethod('rightShift', [b] as Object[]) } }
 		define 'unsigned_right_shift',  funcc(true) { ... args -> args.inject { a, b -> a.invokeMethod('rightShiftUnsigned', [b] as Object[]) } }
-		define '<',  funcc(true) { ... args ->
+		define '<', func(BOOLEAN_TYPE, Type.ANY, Type.ANY), funcc(true) { ... args ->
 			for (int i = 1; i < args.length; ++i) {
 				if (((int) args[i - 1].invokeMethod('compareTo', [args[i]] as Object[])) >= 0)
 					return false
@@ -1086,7 +1086,7 @@ class Prelude {
 		}
 		define 'to_json',  funcc { ... args -> ((Object) JsonOutput).invokeMethod('toJson', [args[0]] as Object[]) }
 		define 'pretty_print_json',  funcc { ... args -> JsonOutput.prettyPrint(args[0].toString()) }
-		define 'size',  funcc { ... a -> a[0].invokeMethod('size', null) }
+		define 'size', func(NumberType.Int32, Type.ANY), funcc { ... a -> a[0].invokeMethod('size', null) }
 		define 'keys',  funcc { ... a -> a[0].invokeMethod('keySet', null).invokeMethod('toList', null) }
 		define 'values',  funcc { ... a -> a[0].invokeMethod('values', null) }
 		define 'reverse',  funcc { ... a -> a[0].invokeMethod('reverse', a[0] instanceof CharSequence ? null : false) }
@@ -1141,7 +1141,7 @@ class Prelude {
 		define 'lines',  funcc { ... args -> args[0].invokeMethod('readLines', null) }
 		define 'denormalize',  funcc { ... args -> args[0].toString().denormalize() }
 		define 'normalize',  funcc { ... args -> args[0].toString().normalize() }
-		define 'hex',  new Template() {
+		define 'hex', TEMPLATE_TYPE, new Template() {
 			Expression transform(Parser parser, Expression... args) {
 				if (args[0] instanceof NumberExpression || args[0] instanceof NameExpression) {
 					String t = args[0] instanceof NumberExpression ?
@@ -1153,7 +1153,7 @@ class Prelude {
 						+ ' and to convert integers to hex strings do [to_base i 16].')
 			}
 		}
-		define 'binary',  new Template() {
+		define 'binary', TEMPLATE_TYPE, new Template() {
 			Expression transform(Parser parser, Expression... args) {
 				if (args[0] instanceof NumberExpression) {
 					String t = ((NumberExpression) args[0]).value.inner().toString()
@@ -1163,7 +1163,7 @@ class Prelude {
 						+ ' and to convert integers to binary strings do [to_base i 2].')
 			}
 		}
-		define 'octal',  new Template() {
+		define 'octal', TEMPLATE_TYPE, new Template() {
 			Expression transform(Parser parser, Expression... args) {
 				if (args[0] instanceof NumberExpression) {
 					String t = ((NumberExpression) args[0]).value.inner().toString()
@@ -1603,7 +1603,7 @@ class Prelude {
 		alias '<=', 'less_equal?'
 		alias '>=', 'greater_equal?'
 		alias 'sum', '+/'
-		alias '*/', 'product'
+		alias 'product', '*/'
 		alias 'list', '&'
 		alias 'set', '#'
 		alias 'tuple', '$'
@@ -1817,7 +1817,7 @@ class Prelude {
 			def exprs = new ArrayList<>()
 			def valu = exp.callValue
 			if (valu instanceof NameExpression) {
-				def t = valu.text
+				def t = ((NameExpression) valu).text
 				exprs.add(new NameExpression(isAlpha(t) ? t + '?' : t))
 			} else exprs.add(valu)
 			c.set('it', val)

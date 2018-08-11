@@ -13,6 +13,7 @@ class GenericType extends AbstractType {
 	}
 
 	String toString() {
+		def b = base.toString()
 		def res = new StringBuilder(base.toString()).append((char) '[')
 		for (int i = 0; i < bounds.length; ++i) {
 			if (i != 0) res.append(', ')
@@ -32,7 +33,7 @@ class GenericType extends AbstractType {
 				for (int i = 1; i < bounds.length; ++i) {
 					def rel = bounds[i].relation(other.bounds[i])
 					if (rel.none) return TypeRelation.none()
-					if ((rel.super ^ max.super) || (rel.sub ^ max.sub))
+					if (!max.equal && ((rel.super ^ max.super) || (rel.sub ^ max.sub)))
 						return TypeRelation.none()
 					if (rel.value > max.value) max = rel
 				}

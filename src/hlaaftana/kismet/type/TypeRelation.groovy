@@ -62,5 +62,12 @@ class TypeRelation {
 	boolean isNone() { kind == NONE }
 	boolean isAssignableFrom() { isSuper() || equal }
 	boolean isAssignableTo() { sub || equal }
+
+	String toString() {
+		if (none) 'None'
+		else if (equal) 'Equal'
+		else if (sub) 'Sub(' + value + ')'
+		else 'Super(' + value + ')'
+	}
 }
 
