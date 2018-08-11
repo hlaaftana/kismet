@@ -4,6 +4,7 @@ import groovy.transform.CompileStatic
 import groovy.transform.InheritConstructors
 import hlaaftana.kismet.Kismet
 import hlaaftana.kismet.exceptions.KismetEvaluationException
+import hlaaftana.kismet.exceptions.UndefinedSymbolException
 import hlaaftana.kismet.exceptions.UndefinedVariableException
 import hlaaftana.kismet.exceptions.UnexpectedSyntaxException
 import hlaaftana.kismet.exceptions.UnexpectedTypeException
@@ -479,7 +480,7 @@ class CallExpression extends Expression {
 		// template
 		try {
 			cv = callValue.type(tc, Prelude.TEMPLATE_TYPE)
-		} catch (UnexpectedTypeException ignored) {}
+		} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {}
 		if (null != cv)
 			return ((Template) cv.instruction.evaluate(tc))
 					.transform(null, arguments.toArray(new Expression[0])).type(tc, preferred)
@@ -487,7 +488,7 @@ class CallExpression extends Expression {
 		// type checker
 		try {
 			cv = callValue.type(tc, Prelude.TYPE_CHECKER_TYPE)
-		} catch (UnexpectedTypeException ignored) {}
+		} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {}
 		if (null != cv)
 			return ((TypeChecker) cv.instruction.evaluate(tc))
 					.transform(tc, arguments.toArray(new Expression[0]))
@@ -501,14 +502,14 @@ class CallExpression extends Expression {
 		final inr = Prelude.instr(preferred, argtypes)
 		try {
 			cv = callValue.type(tc, inr)
-		} catch (UnexpectedTypeException ignored) {}
+		} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {}
 		if (null != cv) return new InstructorCallExpression(cv, args, ((GenericType) cv.type)[1])
 
 		// function
 		final fn = Prelude.func(preferred, argtypes)
 		try {
 			cv = callValue.type(tc, fn)
-		} catch (UnexpectedTypeException ignored) {}
+		} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {}
 		if (null != cv) return new TypedCallExpression(cv, args, ((GenericType) cv.type)[1])
 
 		def nargs = new TypedExpression[args.length + 1]
@@ -516,7 +517,8 @@ class CallExpression extends Expression {
 		typs[0] = (nargs[0] = callValue.type(tc)).type
 		System.arraycopy(args, 0, nargs, 1, args.length)
 		System.arraycopy(argtypes, 0, typs, 1, argtypes.length)
-		def cc = tc.findThrow('call', Prelude.func(preferred, new TupleType(typs)))
+		def cc = tc.find('call', Prelude.func(preferred, new TupleType(typs)))
+		if (null == cc) throw new UndefinedSymbolException('Could not find overload for ' + repr())
 		new TypedCallExpression(new VariableExpression(cc), nargs, ((GenericType) cc.variable.type)[1])
 	}
 }

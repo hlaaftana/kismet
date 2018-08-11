@@ -6,10 +6,9 @@ import hlaaftana.kismet.call.TypedExpression
 @CompileStatic
 class TupleType extends GenericType {
 	static final SingleType BASE = new SingleType('Tuple')
-	Type[] elements
 
-	TupleType(Type[] elements) {
-		super(BASE, elements)
+	TupleType(Type[] bounds) {
+		super(BASE, bounds)
 	}
 
 	TupleType(TypedExpression[] zro) {
@@ -17,7 +16,7 @@ class TupleType extends GenericType {
 		for (int i = 0; i < zro.length; ++i) bounds[i] = zro[i].type
 	}
 
-	String toString() { "Tuple[${elements.join(', ')}]" }
+	String toString() { "Tuple[${bounds.join(', ')}]" }
 
 	/*TypeRelation relation(Type other) {
 		if (other instanceof TupleType && elements.length == other.elements.length) {
@@ -36,9 +35,9 @@ class TupleType extends GenericType {
 
 	boolean losesAgainst(Type other) {
 		def t = (TupleType) other
-		for (int i = 0; i < elements.length; ++i) if (elements[i].losesAgainst(t.elements[i])) return true
+		for (int i = 0; i < bounds.length; ++i) if (bounds[i].losesAgainst(t.bounds[i])) return true
 		false
 	}
 
-	boolean equals(obj) { obj instanceof TupleType && Arrays.equals(elements, obj.elements) }
+	boolean equals(obj) { obj instanceof TupleType && Arrays.equals(bounds, obj.bounds) }
 }

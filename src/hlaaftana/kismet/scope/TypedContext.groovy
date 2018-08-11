@@ -168,6 +168,14 @@ class TypedContext extends Memory {
 		winner
 	}
 
+	IKismetObject get(String name) {
+		getVariable(name).value
+	}
+
+	void set(String name, IKismetObject value) {
+		getVariable(name).value = value
+	}
+
 	IKismetObject get(int id) {
 		getVariable(id).value
 	}

@@ -18,7 +18,7 @@ class KismetIterator {
 	}
 
 	TypedExpression generate(TypedContext tc, Expression toCall, Type preferred) {
-		tc.addStaticVariable('yield', new YieldTemplate(toCall), Prelude.TEMPLATE_TYPE)
+		tc.addVariable('yield', new YieldTemplate(toCall), Prelude.TEMPLATE_TYPE)
 		inner.type(tc, preferred)
 	}
 

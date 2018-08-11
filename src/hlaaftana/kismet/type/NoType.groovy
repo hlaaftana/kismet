@@ -6,7 +6,7 @@ import groovy.transform.CompileStatic
 @Singleton(property = 'INSTANCE')
 class NoType extends AbstractType {
 	TypeRelation weakRelation(Type other) {
-		TypeRelation.subtype(Integer.MAX_VALUE)
+		other == this ? TypeRelation.equal() : TypeRelation.subtype(Integer.MAX_VALUE)
 	}
 
 	boolean losesAgainst(Type other) { true }

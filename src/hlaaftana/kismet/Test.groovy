@@ -5,6 +5,8 @@ import hlaaftana.kismet.parser.Parser
 import hlaaftana.kismet.scope.Prelude
 import hlaaftana.kismet.scope.Context
 import hlaaftana.kismet.vm.IKismetObject
+import hlaaftana.kismet.vm.Memory
+import hlaaftana.kismet.vm.RuntimeMemory
 
 @CompileStatic
 class Test {
@@ -20,7 +22,8 @@ class Test {
 			final file = new File("Kismet/examples/${f}.ksmt")
 			def p = parser.parse(file.text)
 			println p
-			p.evaluate(parser.context.child())
+			def tc = Prelude.typed.child()
+			p.type(tc).instruction.evaluate(new RuntimeMemory([Prelude.typed] as Memory[], tc.size()))
 		}
 	}
 }
