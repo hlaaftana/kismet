@@ -325,9 +325,9 @@ class CallInstruction extends Instruction {
 
 	@Override
 	IKismetObject evaluate(Memory context) {
+		def val = value.evaluate(context)
 		def arr = new IKismetObject[arguments.length]
 		for (int i = 0; i < arguments.length; ++i) arr[i] = arguments[i].evaluate(context)
-		def val = value.evaluate(context)
 		((Function) val).call(arr)
 	}
 
@@ -368,4 +368,139 @@ class TypedCallExpression extends TypedExpression {
 		for (final arg : arguments) if (arg.runtimeOnly) return true
 		false
 	}
+}
+
+@CompileStatic
+class InstructorCallInstruction extends Instruction {
+	Instruction value
+	Instruction[] arguments
+
+	InstructorCallInstruction(Instruction value, Instruction[] arguments) {
+		this.value = value
+		this.arguments = arguments
+	}
+
+	InstructorCallInstruction(Instruction value, TypedExpression[] zro) {
+		this.value = value
+		this.arguments = new Instruction[zro.length]
+		for (int i = 0; i < zro.length; ++i) arguments[i] = zro[i].instruction
+	}
+
+	InstructorCallInstruction(TypedContext.VariableReference var, TypedExpression[] zro) {
+		this(new VariableInstruction(var.variable.id, var.pathArray), zro)
+	}
+
+	InstructorCallInstruction(TypedExpression value, TypedExpression[] zro) {
+		this(value.instruction, zro)
+	}
+
+	@Override
+	IKismetObject evaluate(Memory context) {
+		def val = value.evaluate(context)
+		((Instructor) val).call(context, arguments)
+	}
+
+	byte[] getBytes() {
+		final argb = new byte[0][arguments.length]
+		int argsum = 0
+		for (int i = 0; i < argb.length; ++i) {
+			argsum += (argb[i] = arguments[i].bytes).length
+		}
+		final argbt = new byte[argsum]
+		int pos = 0
+		for (final arg : argb) {
+			System.arraycopy(arg, 0, argbt, pos, arg.length)
+			pos += arg.length
+		}
+		final vb = value.bytes
+		ByteBuffer.allocate(5 + vb.length + argsum).put((byte) 6)
+				.put(vb).putInt(arguments.length).put(argbt).array()
+	}
+}
+
+@CompileStatic
+class InstructorCallExpression extends TypedExpression {
+	Type type
+	TypedExpression value
+	TypedExpression[] arguments
+
+	InstructorCallExpression(TypedExpression value, TypedExpression[] arguments, Type type) {
+		this.type = type
+		this.value = value
+		this.arguments = arguments
+	}
+
+	Instruction getInstruction() { new InstructorCallInstruction(value, arguments) }
+
+	boolean isRuntimeOnly() {
+		if (value.runtimeOnly) return true
+		for (final arg : arguments) if (arg.runtimeOnly) return true
+		false
+	}
+}
+
+@CompileStatic
+class IfElseInstruction extends Instruction {
+	Instruction condition, branch, elseBranch
+
+	IfElseInstruction(Instruction condition, Instruction branch, Instruction elseBranch) {
+		this.condition = condition
+		this.branch = branch
+		this.elseBranch = elseBranch
+	}
+
+	IKismetObject evaluate(Memory context) {
+		if (((KismetBoolean) condition.evaluate(context)).inner) branch.evaluate(context)
+		else elseBranch.evaluate(context)
+	}
+}
+
+@CompileStatic
+class IfElseExpression extends TypedExpression {
+	TypedExpression condition, branch, elseBranch
+
+	IfElseExpression(TypedExpression condition, TypedExpression branch, TypedExpression elseBranch) {
+		this.condition = condition
+		this.branch = branch
+		this.elseBranch = elseBranch
+	}
+
+	Type getType() {
+		final b = branch.type, e = elseBranch.type
+		def rel = b.relation(e)
+		if (rel.none) Type.ANY
+		else if (rel.sub) e
+		else b
+	}
+
+	Instruction getInstruction() { new IfElseInstruction(condition.instruction, branch.instruction, elseBranch.instruction) }
+}
+
+@CompileStatic
+class WhileInstruction extends Instruction {
+	Instruction condition, branch
+
+	WhileInstruction(Instruction condition, Instruction branch) {
+		this.condition = condition
+		this.branch = branch
+	}
+
+	IKismetObject evaluate(Memory context) {
+		while (((KismetBoolean) condition.evaluate(context)).inner) branch.evaluate(context)
+		Kismet.NULL
+	}
+}
+
+@CompileStatic
+class WhileExpression extends TypedExpression {
+	TypedExpression condition, branch
+
+	WhileExpression(TypedExpression condition, TypedExpression branch) {
+		this.condition = condition
+		this.branch = branch
+	}
+
+	Type getType() { Type.NONE }
+
+	Instruction getInstruction() { new WhileInstruction(condition.instruction, branch.instruction) }
 }
