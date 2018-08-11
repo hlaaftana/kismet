@@ -23,7 +23,7 @@ import hlaaftana.kismet.vm.Memory
 import hlaaftana.kismet.vm.WrapperKismetObject
 
 @CompileStatic
-abstract class Expression {
+abstract class Expression implements IKismetObject<Expression> {
 	int ln, cl
 	abstract IKismetObject evaluate(Context c)
 
@@ -46,6 +46,8 @@ abstract class Expression {
 	Expression percentize(Parser p) {
 		new StaticExpression(this, p.context)
 	}
+
+	Expression inner() { this }
 
 	String repr() { "expr(${this.class})" }
 
@@ -446,7 +448,7 @@ class CallExpression extends Expression {
 	}
 	
 	TypedExpression type(TypedContext tc, Type preferred) {
-		TypedContext.VariableReference m
+		/*TypedContext.VariableReference m
 		if (callValue instanceof NameExpression && null != (m = tc.findStatic(callValue.text, Prelude.TEMPLATE_TYPE))) {
 			return ((Template) m.variable.value)
 					.transform(null, arguments.toArray(new Expression[0])).type(tc, preferred)
@@ -471,7 +473,51 @@ class CallExpression extends Expression {
 				def cc = tc.findThrow('call', Prelude.func(preferred, new TupleType(typs)))
 				new TypedCallExpression(new VariableExpression(cc), args, ((GenericType) cc.variable.type)[1])
 			}
-		}
+		}*/
+		TypedExpression cv
+
+		// template
+		try {
+			cv = callValue.type(tc, Prelude.TEMPLATE_TYPE)
+		} catch (UnexpectedTypeException ignored) {}
+		if (null != cv)
+			return ((Template) cv.instruction.evaluate(tc))
+					.transform(null, arguments.toArray(new Expression[0])).type(tc, preferred)
+
+		// type checker
+		try {
+			cv = callValue.type(tc, Prelude.TYPE_CHECKER_TYPE)
+		} catch (UnexpectedTypeException ignored) {}
+		if (null != cv)
+			return ((TypeChecker) cv.instruction.evaluate(tc))
+					.transform(tc, arguments.toArray(new Expression[0]))
+
+		// runtime args
+		def args = new TypedExpression[arguments.size()]
+		def argtypes = new Type[args.length]
+		for (int i = 0; i < args.length; ++i) argtypes[i] = (args[i] = arguments.get(i).type(tc)).type
+
+		// instructor
+		final inr = Prelude.instr(preferred, argtypes)
+		try {
+			cv = callValue.type(tc, inr)
+		} catch (UnexpectedTypeException ignored) {}
+		if (null != cv) return new InstructorCallExpression(cv, args, ((GenericType) cv.type)[1])
+
+		// function
+		final fn = Prelude.func(preferred, argtypes)
+		try {
+			cv = callValue.type(tc, fn)
+		} catch (UnexpectedTypeException ignored) {}
+		if (null != cv) return new TypedCallExpression(cv, args, ((GenericType) cv.type)[1])
+
+		def nargs = new TypedExpression[args.length + 1]
+		def typs = new Type[args.length + 1]
+		typs[0] = (nargs[0] = callValue.type(tc)).type
+		System.arraycopy(args, 0, nargs, 1, args.length)
+		System.arraycopy(argtypes, 0, typs, 1, argtypes.length)
+		def cc = tc.findThrow('call', Prelude.func(preferred, new TupleType(typs)))
+		new TypedCallExpression(new VariableExpression(cc), nargs, ((GenericType) cc.variable.type)[1])
 	}
 }
 
@@ -796,10 +842,8 @@ class ColonExpression extends Expression {
 		def val = right.type(tc, preferred) // no need to check if it satisfies because it will check itself
 		def atom = Prelude.toAtom(left)
 		if (null != atom) {
-			def var = tc.find(atom)
+			def var = tc.find(atom, preferred)
 			if (null == var) var = tc.addVariable(atom, preferred).ref()
-			else if (!var.variable.type.relation(preferred).assignableTo)
-				throw new UnexpectedTypeException("Variable with name $atom had type $var.variable.type, not preferred type $preferred")
 			new VariableSetExpression(var, val)
 		} else if (left instanceof PathExpression) {
 			final p = (PathExpression) left
@@ -855,6 +899,8 @@ class ConstantExpression<T> extends Expression {
 @CompileStatic
 class NumberExpression extends ConstantExpression<Number> {
 	String repr() { value.toString() }
+
+	NumberExpression() {}
 
 	NumberExpression(boolean type, StringBuilder[] arr) {
 		StringBuilder x = arr[0]
@@ -1002,6 +1048,7 @@ class StringExpression extends ConstantExpression<String> {
 @CompileStatic
 class StaticExpression<T extends Expression> extends ConstantExpression<Object> {
 	T expression
+	Type type
 
 	String repr() { expression ? "static[$expression]($value)" : "static($value)" }
 
@@ -1020,6 +1067,8 @@ class StaticExpression<T extends Expression> extends ConstantExpression<Object> 
 	}
 
 	TypedExpression type(TypedContext tc, Type preferred) {
+		if (!type.relation(preferred).assignableTo)
+			throw new UnexpectedSyntaxException("Cannot coerce static expression with type $type to $expression")
 		new TypedConstantExpression(preferred, value)
 	}
 }

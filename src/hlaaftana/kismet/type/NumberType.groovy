@@ -63,6 +63,8 @@ enum NumberType implements WeakableType {
 		else Number
 	}
 
+	Type inner() { this }
+
 	TypeRelation relation(Type other) {
 		def rel = weakRelation(other)
 		if (!rel.none) return rel

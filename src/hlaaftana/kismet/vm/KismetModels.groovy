@@ -25,6 +25,8 @@ class KismetModels {
 
 	static KChar model(char c) { new KChar(c) }
 
+	static KismetBoolean model(boolean b) { new KismetBoolean(b) }
+
 	static KismetString model(CharSequence seq) {
 		new KismetString(seq)
 	}

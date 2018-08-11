@@ -52,6 +52,10 @@ class TypeRelation {
 		sub ? supertype(value) : isSuper() ? subtype(value) : this
 	}
 
+	int toSome() {
+		isSuper() ? -value : value
+	}
+
 	boolean isSub() { kind == SUB }
 	boolean isSuper() { kind == SUPER }
 	boolean isEqual() { kind == EQUAL }
