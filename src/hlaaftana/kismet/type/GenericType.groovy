@@ -26,12 +26,12 @@ class GenericType extends AbstractType {
 		if (other instanceof GenericType && base == other.base) {
 			if (null == bounds) {
 				if (null == other.bounds) TypeRelation.none()
-				else TypeRelation.supertype(other.bounds.length)
-			} else if (bounds.length == other.bounds.length) {
-				TypeRelation max = bounds[0].relation(other.bounds[0])
+				else TypeRelation.supertype(other.size())
+			} else if (indefinite || size() == other.size()) {
+				TypeRelation max = this[0].relation(((GenericType) other)[0])
 				if (max.none) return TypeRelation.none()
-				for (int i = 1; i < bounds.length; ++i) {
-					def rel = bounds[i].relation(other.bounds[i])
+				for (int i = 1; i < size(); ++i) {
+					def rel = this[i].relation(((GenericType) other)[i])
 					if (rel.none) return TypeRelation.none()
 					if (!max.equal && ((rel.super ^ max.super) || (rel.sub ^ max.sub)))
 						return TypeRelation.none()
@@ -51,10 +51,14 @@ class GenericType extends AbstractType {
 		def t = (GenericType) other
 		if (base.losesAgainst(t.base)) return true
 		//if (bounds.length < t.bounds.length) return true
-		for (int i = 0; i < bounds.length; ++i)
-			if (bounds[i].losesAgainst(t.bounds[i])) return true
+		for (int i = 0; i < size(); ++i)
+			if (this[i].losesAgainst(t[i])) return true
 		false
 	}
+
+	int size() { bounds.length }
+
+	boolean isIndefinite() { false }
 
 	Type getAt(int i) {
 		i >= 0 && i < bounds.length ? bounds[i] : null

@@ -280,7 +280,7 @@ class OnceExpression extends Expression {
 	}
 
 	TypedExpression type(TypedContext tc, Type preferred) {
-		return super.type(tc, preferred)
+		new TypedOnceExpression(inner.type(tc, preferred))
 	}
 
 	List<Expression> getMembers() { [inner] }
@@ -518,7 +518,7 @@ class CallExpression extends Expression {
 		System.arraycopy(args, 0, nargs, 1, args.length)
 		System.arraycopy(argtypes, 0, typs, 1, argtypes.length)
 		def cc = tc.find('call', Prelude.func(preferred, new TupleType(typs)))
-		if (null == cc) throw new UndefinedSymbolException('Could not find overload for ' + repr())
+		if (null == cc) throw new UndefinedSymbolException('Could not find overload for ' + repr() + 'with types ' + argtypes)
 		new TypedCallExpression(new VariableExpression(cc), nargs, ((GenericType) cc.variable.type)[1])
 	}
 }

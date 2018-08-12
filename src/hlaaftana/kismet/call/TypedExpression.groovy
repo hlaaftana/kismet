@@ -506,3 +506,31 @@ class WhileExpression extends TypedExpression {
 
 	Instruction getInstruction() { new WhileInstruction(condition.instruction, branch.instruction) }
 }
+
+@CompileStatic
+class OnceInstruction extends Instruction {
+	Instruction inner
+	IKismetObject stored
+
+	OnceInstruction(Instruction inner) {
+		this.inner = inner
+	}
+
+	IKismetObject evaluate(Memory context) {
+		if (null == stored) stored = inner.evaluate(context)
+		stored
+	}
+}
+
+@CompileStatic
+class TypedOnceExpression extends TypedExpression {
+	TypedExpression inner
+
+	TypedOnceExpression(TypedExpression inner) {
+		this.inner = inner
+	}
+
+	Type getType() { inner.type }
+
+	Instruction getInstruction() { new OnceInstruction(inner.instruction) }
+}

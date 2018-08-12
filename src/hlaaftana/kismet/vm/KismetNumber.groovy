@@ -42,6 +42,10 @@ abstract class KismetNumber<T extends Number> extends Number implements IKismetO
 	
 	abstract NumberType getType()
 
+	boolean divisibleBy(KismetNumber obj) {
+		mod(obj).compareTo(KInt32.ZERO) == 0
+	}
+
 	int hashCode() { inner().hashCode() }
 
 	boolean equals(obj) { inner().equals(obj) }
@@ -312,6 +316,8 @@ final class KFloat64 extends KismetNumber<Double> {
 
 	Double inner() { inner }
 
+	double doubleValue() { inner }
+
 	void set(Number value) { inner = value.doubleValue() }
 
 	KFloat64 plus(KismetNumber obj) {
@@ -380,6 +386,8 @@ final class KFloat32 extends KismetNumber<Float> {
 
 	Float inner() { inner }
 
+	float floatValue() { inner }
+
 	void set(Number value) { inner = value.floatValue() }
 
 	KFloat32 plus(KismetNumber obj) {
@@ -446,6 +454,8 @@ final class KInt64 extends KismetNumber<Long> {
 
 	NumberType getType() { NumberType.Int64 }
 
+	long longValue() { inner }
+
 	Long inner() { inner }
 
 	void set(Number value) { inner = value.longValue() }
@@ -508,6 +518,7 @@ final class KInt64 extends KismetNumber<Long> {
 
 @CompileStatic
 final class KInt32 extends KismetNumber<Integer> {
+	static final KInt32 ZERO = new KInt32(0), ONE = new KInt32(1), TWO = new KInt32(2)
 	int inner
 
 	KInt32(int inner) { this.inner = inner }
@@ -515,6 +526,8 @@ final class KInt32 extends KismetNumber<Integer> {
 	NumberType getType() { NumberType.Int32 }
 
 	Integer inner() { inner }
+
+	int intValue() { inner }
 
 	void set(Number value) { inner = value.intValue() }
 
@@ -652,6 +665,8 @@ final class KInt16 extends KismetNumber<Short> {
 
 	Short inner() { inner }
 
+	short shortValue() { inner }
+
 	void set(Number value) { inner = value.shortValue() }
 
 	KInt16 plus(KismetNumber obj) {
@@ -787,6 +802,8 @@ final class KInt8 extends KismetNumber<Byte> {
 	NumberType getType() { NumberType.Int8 }
 
 	Byte inner() { inner }
+
+	byte byteValue() { inner }
 
 	void set(Number value) { inner = value.byteValue() }
 
