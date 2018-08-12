@@ -6,6 +6,7 @@ import hlaaftana.kismet.call.TypedExpression
 @CompileStatic
 class TupleType extends GenericType {
 	static final SingleType BASE = new SingleType('Tuple')
+	Type varargs
 
 	TupleType(Type[] bounds) {
 		super(BASE, bounds)
@@ -16,22 +17,7 @@ class TupleType extends GenericType {
 		for (int i = 0; i < zro.length; ++i) bounds[i] = zro[i].type
 	}
 
-	String toString() { "Tuple[${bounds.join(', ')}]" }
-
-	/*TypeRelation relation(Type other) {
-		if (other instanceof TupleType && elements.length == other.elements.length) {
-			TypeRelation max = elements[0].relation(other.elements[0])
-			if (max.none) return TypeRelation.none()
-			for (int i = 1; i < elements.length; ++i) {
-				def rel = elements[i].relation(other.elements[i])
-				if (rel.none) return TypeRelation.none()
-				if ((rel.super ^ max.super) || (rel.sub ^ max.sub))
-					return TypeRelation.none()
-				if (rel.value > max.value) max = rel
-			}
-			max
-		} else TypeRelation.none()
-	}*/
+	String toString() { "Tuple[${bounds.join(', ')}" + (null == varargs ? "]" : ", $varargs...]") }
 
 	boolean losesAgainst(Type other) {
 		def t = (TupleType) other
@@ -39,5 +25,16 @@ class TupleType extends GenericType {
 		false
 	}
 
-	boolean equals(obj) { obj instanceof TupleType && Arrays.equals(bounds, obj.bounds) }
+	boolean isIndefinite() { null != varargs }
+
+	TupleType withVarargs(Type varargs) {
+		this.varargs = varargs
+		this
+	}
+
+	Type getAt(int i) {
+		i >= bounds.length ? varargs : bounds[i]
+	}
+
+	boolean equals(obj) { obj instanceof TupleType && Arrays.equals(bounds, obj.bounds) && varargs == obj.varargs }
 }

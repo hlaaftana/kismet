@@ -1,6 +1,6 @@
-defn [binary_search a k] {
+defn binary_search(a, k) {
   c: b: size a
-  i: 0
+  i: 0i32
   while [< i b] {
     mid: half [+ i b]
     or?(< a[mid] k, i: next mid, b: mid)
