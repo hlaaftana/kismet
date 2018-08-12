@@ -14,7 +14,7 @@ class GenericType extends AbstractType {
 
 	String toString() {
 		def b = base.toString()
-		def res = new StringBuilder(base.toString()).append((char) '[')
+		def res = new StringBuilder(b).append((char) '[')
 		for (int i = 0; i < bounds.length; ++i) {
 			if (i != 0) res.append(', ')
 			res.append(bounds[i].toString())
