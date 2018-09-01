@@ -518,7 +518,7 @@ class CallExpression extends Expression {
 		System.arraycopy(args, 0, nargs, 1, args.length)
 		System.arraycopy(argtypes, 0, typs, 1, argtypes.length)
 		def cc = tc.find('call', Prelude.func(preferred, new TupleType(typs)))
-		if (null == cc) throw new UndefinedSymbolException('Could not find overload for ' + repr() + 'with types ' + argtypes)
+		if (null == cc) throw new UndefinedSymbolException('Could not find overload for ' + repr() + ' with types ' + argtypes)
 		new TypedCallExpression(new VariableExpression(cc), nargs, ((GenericType) cc.variable.type)[1])
 	}
 }
@@ -541,7 +541,7 @@ class ListExpression extends Expression {
 		def rel = preferred.relation(Prelude.LIST_TYPE)
 		if (rel.none)
 			throw new UnexpectedTypeException('Tried to infer list expression as non-list type '.concat(preferred.toString()))
-		def bound = rel.sub && preferred instanceof GenericType ? ((GenericType) preferred)[0] : Type.ANY
+		def bound = rel.sub && preferred instanceof GenericType ? ((GenericType) preferred)[0] : Type.NONE
 		def arr = new TypedExpression[members.size()]
 		for (int i = 0; i < arr.length; ++i) arr[i] = members.get(i).type(tc, bound)
 		new Typed(arr)
@@ -555,7 +555,7 @@ class ListExpression extends Expression {
 		}
 
 		Type getType() {
-			def bound = Type.ANY
+			def bound = Type.NONE
 			for (final m : members) {
 				def rel = bound.relation(m.type)
 				if (rel.sub) bound = m.type
@@ -695,7 +695,7 @@ class SetExpression extends Expression {
 		}
 
 		Type getType() {
-			def bound = Type.ANY
+			def bound = Type.NONE
 			for (final m : members) {
 				def rel = bound.relation(m.type)
 				if (rel.sub) bound = m.type
@@ -772,7 +772,7 @@ class MapExpression extends Expression {
 		}
 
 		Type getType() {
-			def key = Type.ANY, value = Type.ANY
+			def key = Type.NONE, value = Type.NONE
 			for (int i = 0; i < keys.length; ++i) {
 				def krel = key.relation(keys[i].type)
 				if (krel.sub) key = keys[i].type
