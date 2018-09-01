@@ -107,7 +107,17 @@ class Prelude {
 		syntax: {
 			define '.property', func(Type.ANY, Type.ANY, STRING_TYPE), new Function() {
 				IKismetObject call(IKismetObject... args) {
-					Kismet.model(args[0].inner().getAt(((CharSequence) args[1]).toString()))
+					Kismet.model(args[0].getAt(((CharSequence) args[1]).toString()))
+				}
+			}
+			define '.[]', func(Type.ANY, Type.ANY, STRING_TYPE), new Function() {
+				IKismetObject call(IKismetObject... args) {
+					Kismet.model(args[0].invokeMethod('getAt', [args[1].inner()] as Object[]))
+				}
+			}
+			define '.[]=', func(Type.ANY, Type.ANY, STRING_TYPE), new Function() {
+				IKismetObject call(IKismetObject... args) {
+					Kismet.model(args[0].invokeMethod('putAt', [args[1].inner(), args[2].inner()] as Object[]))
 				}
 			}
 			define ':::=', TEMPLATE_TYPE, new AssignTemplate(AssignmentType.CHANGE)
@@ -407,6 +417,13 @@ class Prelude {
 				TypedExpression transform(TypedContext context, Expression... args) {
 					new IfElseExpression(args[0].type(context, BOOLEAN_TYPE), args[1].type(context), TypedNoExpression.INSTANCE)
 				}
+
+				@Override
+				IKismetObject call(Context c, Expression... args) {
+					if (args[0].evaluate(c)) {
+						args[1].evaluate(c)
+					} else Kismet.NULL
+				}
 			}
 			define 'unless', TEMPLATE_TYPE, new Template() {
 				@Override
@@ -419,6 +436,11 @@ class Prelude {
 				TypedExpression transform(TypedContext context, Expression... args) {
 					new IfElseExpression(args[0].type(context, BOOLEAN_TYPE), args[1].type(context), args[2].type(context))
 				}
+
+				@Override
+				IKismetObject call(Context c, Expression... args) {
+					args[0].evaluate(c) ? args[1].evaluate(c) : args[2].evaluate(c)
+				}
 			}
 			define 'not_or?', TEMPLATE_TYPE, new Template() {
 				@Override
@@ -430,6 +452,14 @@ class Prelude {
 				@Override
 				TypedExpression transform(TypedContext context, Expression... args) {
 					new WhileExpression(args[0].type(context, BOOLEAN_TYPE), args[1].type(context))
+				}
+
+				@Override
+				IKismetObject call(Context c, Expression... args) {
+					while (args[0].evaluate(c)) {
+						args[1].evaluate(c)
+					}
+					Kismet.NULL
 				}
 			}
 			define 'until', TEMPLATE_TYPE, new Template() {
@@ -1330,6 +1360,7 @@ class Prelude {
 				new WrapperKismetObject(values)
 			}
 		}
+		define 'List', new GenericType(META_TYPE, LIST_TYPE), LIST_TYPE
 		define 'hash',  funcc { ... a -> a[0].hashCode() }
 		define 'percent',  funcc(true) { ... a -> a[0].invokeMethod 'div', 100 }
 		define 'to_percent',  funcc(true) { ... a -> a[0].invokeMethod 'multiply', 100 }

@@ -1,8 +1,9 @@
-defn binary_search(a, k) {
+defn binary_search(a: List, k: Int32) {
   c: b: size a
   i: 0i32
   while [< i b] {
     mid: half [+ i b]
+    echo mid
     or?(< a[mid] k, i: next mid, b: mid)
   }
   unless [and [< i c] [is? a[i] k]] i: 1n
