@@ -5,13 +5,8 @@ import hlaaftana.kismet.Kismet
 import hlaaftana.kismet.exceptions.CheckFailedException
 import hlaaftana.kismet.exceptions.UnexpectedSyntaxException
 import hlaaftana.kismet.scope.Context
-import hlaaftana.kismet.scope.Prelude
-import hlaaftana.kismet.scope.TypedContext
-import hlaaftana.kismet.type.TupleType
-import hlaaftana.kismet.type.Type
 import hlaaftana.kismet.vm.IKismetObject
 import hlaaftana.kismet.vm.Memory
-import hlaaftana.kismet.vm.RuntimeMemory
 
 @CompileStatic
 abstract class Function implements KismetCallable, IKismetObject<Function> {
@@ -230,21 +225,6 @@ class FunctionDefineExpression extends Expression {
 		result
 	}
 
-	TypedExpression type(TypedContext tc, Type preferred) {
-		def fnb = tc.child()
-		def args = arguments.fill(fnb)
-		def block = expression.type(fnb, preferred)
-		final typ = Prelude.func(block.type, args)
-		final var = tc.addVariable(name, typ)
-		new VariableSetExpression(var.ref(), new BasicTypedExpression(typ, new Instruction() {
-			final Instruction inner = block.instruction
-			final int stackSize = fnb.size()
-
-			IKismetObject evaluate(Memory context) {
-				new TypedFunction([context] as Memory[], inner, stackSize, name)
-			}
-		}, false))
-	}
 }
 
 @CompileStatic
@@ -281,20 +261,6 @@ class FunctionExpression extends Expression {
 		result
 	}
 
-	TypedExpression type(TypedContext tc, Type preferred) {
-		def fnb = tc.child()
-		def args = arguments.fill(fnb)
-		def block = expression.type(fnb, preferred)
-		final typ = Prelude.func(block.type, args)
-		new BasicTypedExpression(typ, new Instruction() {
-			final Instruction inner = block.instruction
-			final int stackSize = fnb.size()
-
-			IKismetObject evaluate(Memory context) {
-				new TypedFunction([context] as Memory[], inner, stackSize, name)
-			}
-		}, false)
-	}
 }
 
 @CompileStatic
@@ -335,12 +301,7 @@ class Arguments {
 			if (e instanceof NameExpression) p.name = e.text
 			else if (e instanceof StringExpression) p.name = e.value.inner()
 			else if (e instanceof BlockExpression) block = e
-			else if (e instanceof ColonExpression) {
-				p.name = Prelude.toAtom(e.left)
-				if (null == p.name) throw new UnexpectedSyntaxException("Weird left hand side of colon expression " +
-					"for method parameter " + e.left)
-				p.typeExpression = e.right
-			} else throw new UnexpectedSyntaxException('Weird argument expression ' + e)
+			else throw new UnexpectedSyntaxException('Weird argument expression ' + e)
 		}
 		if (null == block) parameters.add(p)
 		else for (c in block.members) parseCall(p.clone(), ((CallExpression) c).members)
@@ -358,53 +319,11 @@ class Arguments {
 		}
 	}
 
-	Type[] fill(TypedContext tc) {
-		def pt = new Type[parameters.size()]
-		for (int i = 0; i < parameters.size(); ++i) {
-			final p = parameters.get(i)
-			tc.addVariable(p.name, pt[i] = p.getType(tc))
-		}
-		tc.addVariable('_all', new TupleType(pt))
-		pt
-	}
-
 	static class Parameter {
 		String name
-		Expression typeExpression
 
-		Type getType(TypedContext tc) {
-			if (null == typeExpression) return Type.ANY
-			def expr = typeExpression.type(tc)
-			if (!expr.type.relation(Prelude.META_TYPE).assignableTo) expr.type
-			else (Type) expr.instruction.evaluate(tc).inner()
-		}
-
-		Parameter clone() { new Parameter(name: name, typeExpression: typeExpression) }
+		Parameter clone() { new Parameter(name: name) }
 	}
-}
-
-@CompileStatic
-class TypedFunction extends Function implements Nameable {
-	Memory[] context
-	Instruction instruction
-	int stackSize
-	String name
-
-	TypedFunction(Memory[] context, Instruction instruction, int stackSize, String name) {
-		this.context = context
-		this.instruction = instruction
-		this.stackSize = stackSize
-		this.name = name
-	}
-
-	IKismetObject call(IKismetObject... args) {
-		def mem = new RuntimeMemory(context, stackSize)
-		System.arraycopy(args, 0, mem.memory, 0, args.length)
-		mem.memory[args.length] = Kismet.model(new Tuple(args))
-		instruction.evaluate(mem)
-	}
-
-	String toString() { "typed function $name" }
 }
 
 /*class Arguments {

@@ -6,7 +6,6 @@ import hlaaftana.kismet.call.*
 import hlaaftana.kismet.call.PathExpression.Step
 import hlaaftana.kismet.exceptions.ParseException
 import hlaaftana.kismet.scope.Context
-import hlaaftana.kismet.scope.TypedContext
 
 @CompileStatic
 class Parser {
@@ -14,10 +13,6 @@ class Parser {
 	Context context
 	int ln = 1, cl = 0
 	String commentStart = ';;'
-
-	TypedExpression parseTyped(String code) {
-		parse(code).type(new TypedContext())
-	}
 
 	BlockExpression parse(String code) {
 		toBlock(optimizer.optimize(parseAST(code)))

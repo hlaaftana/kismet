@@ -2,7 +2,6 @@ package hlaaftana.kismet.vm
 
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.exceptions.CannotOperateException
-import hlaaftana.kismet.type.NumberType
 
 @CompileStatic
 abstract class KismetNumber<T extends Number> extends Number implements IKismetObject<T>, Comparable<KismetNumber<T>> {
@@ -39,8 +38,6 @@ abstract class KismetNumber<T extends Number> extends Number implements IKismetO
 	abstract KismetNumber or(KismetNumber obj)
 
 	abstract KismetNumber xor(KismetNumber obj)
-	
-	abstract NumberType getType()
 
 	boolean divisibleBy(KismetNumber obj) {
 		mod(obj).compareTo(KInt32.ZERO) == 0
@@ -87,8 +84,6 @@ final class KNonPrimitiveNum extends KismetNumber {
 	KNonPrimitiveNum(Number inner) {
 		this.inner = inner
 	}
-
-	NumberType getType() { NumberType.Number }
 
 	Number inner() { inner }
 
@@ -166,8 +161,6 @@ final class KInt extends KismetNumber<BigInteger> {
 		else BigInteger.valueOf(num.longValue())
 	}
 
-	NumberType getType() { NumberType.Int }
-
 	BigInteger inner() { inner }
 
 	void set(Number value) { inner = toBigInt(value) }
@@ -244,8 +237,6 @@ final class KFloat extends KismetNumber<BigDecimal> {
 		else BigDecimal.valueOf(num.doubleValue())
 	}
 
-	NumberType getType() { NumberType.Float }
-
 	BigDecimal inner() { inner }
 
 	void set(Number value) { inner = toBigDec(value) }
@@ -311,8 +302,6 @@ final class KFloat64 extends KismetNumber<Double> {
 	double inner
 
 	KFloat64(double inner) { this.inner = inner }
-
-	NumberType getType() { NumberType.Float64 }
 
 	Double inner() { inner }
 
@@ -382,8 +371,6 @@ final class KFloat32 extends KismetNumber<Float> {
 
 	KFloat32(float inner) { this.inner = inner }
 
-	NumberType getType() { NumberType.Float32 }
-
 	Float inner() { inner }
 
 	float floatValue() { inner }
@@ -451,8 +438,6 @@ final class KInt64 extends KismetNumber<Long> {
 	long inner
 
 	KInt64(long inner) { this.inner = inner }
-
-	NumberType getType() { NumberType.Int64 }
 
 	long longValue() { inner }
 
@@ -523,8 +508,6 @@ final class KInt32 extends KismetNumber<Integer> {
 
 	KInt32(int inner) { this.inner = inner }
 
-	NumberType getType() { NumberType.Int32 }
-
 	Integer inner() { inner }
 
 	int intValue() { inner }
@@ -593,8 +576,6 @@ final class KRune extends KismetNumber<Integer> {
 
 	KRune(int inner) { this.inner = inner }
 
-	NumberType getType() { NumberType.Rune }
-
 	Integer inner() { inner }
 
 	void set(Number value) { inner = value.intValue() }
@@ -660,8 +641,6 @@ final class KInt16 extends KismetNumber<Short> {
 	short inner
 
 	KInt16(short inner) { this.inner = inner }
-
-	NumberType getType() { NumberType.Int16 }
 
 	Short inner() { inner }
 
@@ -731,8 +710,6 @@ final class KChar extends KismetNumber<Integer> {
 
 	KChar(char inner) { this.inner = inner }
 
-	NumberType getType() { NumberType.Char }
-
 	Integer inner() { Integer.valueOf((int) inner) }
 
 	void set(Number value) { inner = (char) value.intValue() }
@@ -798,8 +775,6 @@ final class KInt8 extends KismetNumber<Byte> {
 	byte inner
 
 	KInt8(byte inner) { this.inner = inner }
-
-	NumberType getType() { NumberType.Int8 }
 
 	Byte inner() { inner }
 

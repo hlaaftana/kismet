@@ -1,8 +1,6 @@
 package hlaaftana.kismet.vm
 
 import groovy.transform.CompileStatic
-import hlaaftana.kismet.scope.Prelude
-import hlaaftana.kismet.type.Type
 
 
 @CompileStatic
@@ -19,8 +17,6 @@ class KismetString implements IKismetObject<String>, CharSequence {
 	KismetString(CharSequence string) { inner = new StringBuilder(string) }
 
 	KismetString(StringBuilder string) { inner = string }
-
-	Type getType() { Prelude.STRING_TYPE }
 
 	String inner() { toString() }
 

@@ -5,9 +5,11 @@ import hlaaftana.kismet.Kismet
 import hlaaftana.kismet.scope.Context
 import hlaaftana.kismet.vm.IKismetObject
 
-abstract class Macro implements KismetCallable {
+abstract class Macro implements KismetCallable, IKismetObject<Macro> {
 	boolean pure
 	int precedence
+
+	Macro inner() { this }
 }
 
 @CompileStatic
