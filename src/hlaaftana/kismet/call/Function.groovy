@@ -3,6 +3,7 @@ package hlaaftana.kismet.call
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.Kismet
 import hlaaftana.kismet.exceptions.CheckFailedException
+import hlaaftana.kismet.exceptions.UndefinedVariableException
 import hlaaftana.kismet.exceptions.UnexpectedSyntaxException
 import hlaaftana.kismet.scope.Context
 import hlaaftana.kismet.vm.IKismetObject
@@ -25,7 +26,12 @@ abstract class Function implements KismetCallable, IKismetObject<Function> {
 	}
 
 	static IKismetObject callOrNull(Memory c, String name, IKismetObject[] args) {
-		final v = c.get(name)
+		IKismetObject v
+		try {
+			v = c.get(name)
+		} catch (UndefinedVariableException ex) {
+			return null
+		}
 		if (v instanceof Function) v.call(args)
 		else null
 	}
@@ -235,14 +241,17 @@ class FunctionExpression extends Expression {
 
 	FunctionExpression(boolean named, Expression[] args) {
 		final first = args[0]
-		final f = first.members ?: [first]
-		if (named) {
-			name = ((NameExpression) f[0]).text
-			arguments = new Arguments(f.tail())
-		} else {
-			arguments = new Arguments(f)
+		if (args.length == 1) arguments = Arguments.EMPTY
+		else {
+			final f = first.members ?: [first]
+			if (named) {
+				name = ((NameExpression) f[0]).text
+				arguments = new Arguments(f.tail())
+			} else {
+				arguments = new Arguments(f)
+			}
 		}
-		expression = args.length == 1 ? null : new BlockExpression(args.tail().toList())
+		expression = args.length == 1 ? first : new BlockExpression(args.tail().toList())
 	}
 
 	FunctionExpression(String name = null, Arguments arguments, Expression expr) {

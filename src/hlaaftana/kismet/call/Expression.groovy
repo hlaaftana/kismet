@@ -424,9 +424,9 @@ class SetExpression extends Expression {
 
 @CompileStatic
 class MapExpression extends Expression {
-	List<ColonExpression> members
+	List<EqualsAssignExpression> members
 
-	MapExpression(List<ColonExpression> members) {
+	MapExpression(List<EqualsAssignExpression> members) {
 		this.members = members
 	}
 
@@ -440,10 +440,10 @@ class MapExpression extends Expression {
 }
 
 @CompileStatic
-class ColonExpression extends Expression {
+class EqualsAssignExpression extends Expression {
 	Expression left, right
 
-	ColonExpression(Expression left, Expression right) {
+	EqualsAssignExpression(Expression left, Expression right) {
 		this.left = left
 		this.right = right
 	}
@@ -468,13 +468,13 @@ class ColonExpression extends Expression {
 	List<Expression> getMembers() { [left, right] }
 
 	Expression join(List<Expression> exprs) {
-		new ColonExpression(exprs[0], exprs[1])
+		new EqualsAssignExpression(exprs[0], exprs[1])
 	}
 
 	Expression getAt(int i) { i == 0 ? left : i == 1 ? right : null }
 
 	int size() { 2 }
-	String toString() { "$left: $right" }
+	String toString() { "$left = $right" }
 }
 
 @CompileStatic

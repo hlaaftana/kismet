@@ -1,14 +1,14 @@
-mean: / sum size
+mean = / sum size
 
 defn [median l] {
-  s: size l
-  d: div s 2
+  s = size l
+  d = div s 2
   or? [odd? s] l[d] [div [+ l[d] l[prev d]] 2]
 }
 
 defn [standard_deviation l] {
-  m: mean l
-  s: 0
+  m = mean l
+  s = 0
   `for:` [a l] {
     incr s [squared [- a m]]
   }

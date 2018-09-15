@@ -18,4 +18,6 @@ class KismetBoolean implements IKismetObject<Boolean> {
 	boolean equals(obj) { obj instanceof KismetBoolean && inner == obj.inner }
 
 	String toString() { inner ? 'true' : 'false' }
+
+	boolean asBoolean() { inner }
 }

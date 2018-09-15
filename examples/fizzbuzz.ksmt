@@ -1,9 +1,9 @@
 defn [fizzbuzz_imperative n] {
-    x: ""
+    x = ""
     for n {
         ;; if_then doesn't evaluate the condition in a child block, and has no elses
-        if_then(d3: divs? it 3, add x "Fizz")
-        if_then(d5: divs? it 5, add x "Buzz")
+        if_then(d3 = divs? it 3, add x "Fizz")
+        if_then(d5 = divs? it 5, add x "Buzz")
         unless_then(or d3 d5, add x (string it))
         if [isn't? it n] [add x "\n"]
     }

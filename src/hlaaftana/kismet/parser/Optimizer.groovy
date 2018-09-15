@@ -41,8 +41,7 @@ class Optimizer {
 			IKismetObject func
 			try {
 				func = parser.context?.get(text)
-			} catch (UndefinedVariableException ignored) {
-			}
+			} catch (UndefinedVariableException ignored) {}
 			if (null != func) {
 				def inner = func.inner()
 				if (template && inner instanceof Template) {

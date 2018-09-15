@@ -22,7 +22,7 @@ class KismetIterator {
 		}
 
 		Expression transform(Parser parser, Expression... args) {
-			new ColonExpression(toCall, args[0])
+			new EqualsAssignExpression(toCall, args[0])
 		}
 	}
 }

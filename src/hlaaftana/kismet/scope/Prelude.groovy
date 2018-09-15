@@ -280,12 +280,12 @@ class Prelude {
 					Expression resultVar = null
 					def result = new ArrayList<Expression>(mems.size())
 					for (set in mems) {
-						if (set instanceof ColonExpression) {
+						if (set instanceof EqualsAssignExpression) {
 							result.add((Expression) set)
 						} else if (set instanceof CallExpression) {
-							if (set.size() == 2 && 'result' == toAtom(set[0]) && set[1] instanceof ColonExpression) {
+							if (set.size() == 2 && 'result' == toAtom(set[0]) && set[1] instanceof EqualsAssignExpression) {
 								result.add(set[1])
-								resultVar = ((ColonExpression) set[1]).left
+								resultVar = ((EqualsAssignExpression) set[1]).left
 								continue
 							}
 							def lem = set.members
@@ -327,7 +327,7 @@ class Prelude {
 					new CallExpression(new NameExpression('or?'),
 							new CallExpression(new NameExpression('null?'), onc),
 							onc,
-							new ColonExpression(args[0], args[1]))
+							new EqualsAssignExpression(args[0], args[1]))
 				}
 			}
 			define 'if', new Macro() {
@@ -359,7 +359,7 @@ class Prelude {
 			define 'while', new Macro() {
 				@Override
 				IKismetObject call(Context c, Expression... args) {
-					while (args[0].evaluate(c)) {
+					while (((KismetBoolean) args[0].evaluate(c)).inner) {
 						args[1].evaluate(c)
 					}
 					Kismet.NULL

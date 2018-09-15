@@ -264,11 +264,11 @@ class Parser {
 			}
 			def es = expressions.size()
 			if (map) {
-				def result = new ArrayList<ColonExpression>(expressions.size())
+				def result = new ArrayList<EqualsAssignExpression>(expressions.size())
 				for (e in expressions) {
-					if (e instanceof ColonExpression) result.add((ColonExpression) e)
-					else if (e instanceof NameExpression) result.add(new ColonExpression(new StringExpression(e.toString()), e))
-					else result.add(new ColonExpression(e, e))
+					if (e instanceof EqualsAssignExpression) result.add((EqualsAssignExpression) e)
+					else if (e instanceof NameExpression) result.add(new EqualsAssignExpression(new StringExpression(e.toString()), e))
+					else result.add(new EqualsAssignExpression(e, e))
 				}
 				new MapExpression(result)
 			} else if (es == 0) new SetExpression(Collections.<Expression>emptyList())
@@ -350,7 +350,7 @@ class Parser {
 				else if (cp > 47 && cp < 58) (last = new NumberBuilder(parser)).push(cp)
 				else if (cp == ((char) '"') || cp == ((char) '\'')) last = new StringExprBuilder(parser, cp)
 				else if (cp == ((char) '`')) last = new QuoteAtomBuilder(parser)
-				else if (cp == ((char) '.')) {
+				else if (cp == ((char) '.') || cp == ((char) '=')) {
 					(last = new PathBuilder(parser, whitespaced.pop())).push(cp)
 				} else if (!NameBuilder.isNotIdentifier(cp)) (last = new NameBuilder(parser)).push(cp)
 				if (lastPercent && null != last) {
@@ -360,7 +360,7 @@ class Parser {
 			} else {
 				Expression x = last.push(cp)
 				if (null != x) {
-					if (cp == ((char) '[') || cp == ((char) '(') || cp == ((char) ':')) {
+					if (cp == ((char) '[') || cp == ((char) '(')) {
 						(last = new PathBuilder(parser, x)).push(cp)
 					} else {
 						add x
@@ -474,8 +474,7 @@ class Parser {
 		static boolean isNotIdentifier(int cp) {
 			Character.isWhitespace(cp) || cp == ((char) '.') || cp == ((char) '[') ||
 					cp == ((char) '(') || cp == ((char) '{') || cp == ((char) ']') ||
-					cp == ((char) ')') || cp == ((char) '}') || cp == ((char) ',') ||
-					cp == ((char) ':')
+					cp == ((char) ')') || cp == ((char) '}') || cp == ((char) ',')
 		}
 
 		@Override
@@ -552,8 +551,8 @@ class Parser {
 				} else if (cp == ((char) '(')) {
 					kind = Kind.CALL
 					last = new ParenBuilder(parser)
-				} else if (cp == ((char) ':')) {
-					kind = Kind.COLON
+				} else if (cp == ((char) '=')) {
+					kind = Kind.ASSIGN
 					(last = new LineBuilder(parser, true)).eagerEnd = true
 				} else {
 					goBack = true
@@ -580,10 +579,10 @@ class Parser {
 					root = new CallExpression(list)
 				}
 				steps.clear()
-			} else if (kind == Kind.COLON) {
+			} else if (kind == Kind.ASSIGN) {
 				final ss = steps.size()
 				def lhs = ss == 0 ? root : new PathExpression(root, new ArrayList<>(steps))
-				root = new ColonExpression(lhs, e)
+				root = new EqualsAssignExpression(lhs, e)
 				steps.clear()
 			} else steps.add(kind.toStep(e))
 		}
@@ -612,7 +611,7 @@ class Parser {
 				Step toStep(Expression expr) {
 					new PathExpression.EnterStep(expr)
 				}
-			}, COLON
+			}, ASSIGN
 
 			Step toStep(Expression expr) { throw new UnsupportedOperationException('Cannot convert to step path step kind ' + this) }
 		}
