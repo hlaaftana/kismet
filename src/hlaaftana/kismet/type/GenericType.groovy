@@ -33,7 +33,7 @@ class GenericType extends AbstractType {
 				for (int i = 1; i < size(); ++i) {
 					def rel = this[i].relation(((GenericType) other)[i])
 					if (rel.none) return TypeRelation.none()
-					if (!max.equal && ((rel.super ^ max.super) || (rel.sub ^ max.sub)))
+					if (!max.equal && !rel.equal && ((rel.super ^ max.super) || (rel.sub ^ max.sub)))
 						return TypeRelation.none()
 					if (rel.value > max.value) max = rel
 				}

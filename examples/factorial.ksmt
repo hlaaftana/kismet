@@ -1,31 +1,42 @@
 functional: dive {
-  defn [factorial n] [permutation n n]
-  defn [permutation n r] [product [range [next [- n r]] n]]
-  defn [combination n r] [div [permutation n r] [factorial r]]
+  defn [permutation (n: Int32) (r: Int32)] [downcast Int32 [int32 [product [range [next [- n r]] n]]]]
+  defn [factorial (n: Int32)] [permutation n n]
+  defn [combination (n: Int32) (r: Int32)] [div [permutation n r] [factorial r]]
 
   {#factorial, permutation, combination}
 }
 
 imperative: dive {
-  defn [factorial n] {
-    x: 1
-    for n x: * x it
-    x
-  }
-
-  defn [permutation n r] {
-    x: 1
-    for [i [next [- n r]] n] {
-      |>= x [* i]
+  defn [factorial (n: Int32)] {
+    x: i: 1i32
+    ;; for n x: * x it
+    while [<= i n] {
+      x: * x i
+      incr i
     }
     x
   }
 
-  defn [combination n r] [let [result x: 1] [for< [i 0 r] x: / [* x [- n i]] [- r i]]]
+  defn [permutation (n: Int32) (r: Int32)] {
+    x: 1i32
+    i: next [minus n r]
+    while [<= i n] {
+      |>= x [* i]
+      incr i
+    }
+    x
+  }
+
+  defn [combination (n: Int32) (r: Int32)] [
+    let [result x: 1i32, i: 0i32] [
+      while [< i r] {
+        x: / [* x [- n i]] [- r i]
+        incr i
+      }]]
 
   {#factorial, permutation, combination}
 }
 
-assert_is [functional.factorial 5] [imperative.factorial 5] 120
-assert_is [functional.permutation 4 2] [imperative.permutation 4 2] 12
-assert_is [functional.combination 6 3] [imperative.combination 6 3] 20
+assert_is [functional.factorial 5i32] [imperative.factorial 5i32] 120i32
+assert_is [functional.permutation 4i32 2i32] [imperative.permutation 4i32 2i32] 12i32
+assert_is [functional.combination 6i32 3i32] [imperative.combination 6i32 3i32] 20i32

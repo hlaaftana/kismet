@@ -3,10 +3,10 @@ defn binary_search(a: List, k: Int32) {
   i: 0i32
   while [< i b] {
     mid: half [+ i b]
-    echo mid
-    or?(< a[mid] k, i: next mid, b: mid)
+    or?(< [downcast Int32 a[mid]] k, i: next mid, b: mid)
   }
-  unless [and [< i c] [is? a[i] k]] i: 1n
+  echo [string "i: " i ", c: " c ", a[i]: " a[i] ", k: " k]
+  unless [and [< i c] [is? [downcast Int32 a[i]] k]] i: 1n
   i
 }
 

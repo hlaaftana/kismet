@@ -30,6 +30,9 @@ class SingleType extends AbstractType {
 		int len, len2
 		if ((null == b1 || (len = b1.length) == 0) && (null == b2 || (len2 = b2.length) == 0)) return true
 		if (len != len2) return false
+		println b1[0]
+		println b2[0]
+		println b1[0].relation(b2[0])
 		TypeRelation max = b1[0].relation(b2[0])
 		if (max.none) return false
 		for (int i = 1; i < len; ++i) {
