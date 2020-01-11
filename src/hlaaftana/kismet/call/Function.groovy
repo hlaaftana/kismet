@@ -10,6 +10,7 @@ import hlaaftana.kismet.scope.TypedContext
 import hlaaftana.kismet.type.TupleType
 import hlaaftana.kismet.type.Type
 import hlaaftana.kismet.vm.IKismetObject
+import hlaaftana.kismet.vm.KismetTuple
 import hlaaftana.kismet.vm.Memory
 import hlaaftana.kismet.vm.RuntimeMemory
 
@@ -22,9 +23,9 @@ abstract class Function implements KismetCallable, IKismetObject<Function> {
 		final v = c.get(name)
 		if (v instanceof Function) v.call(args)
 		else {
-			def a = new IKismetObject[args.length + 1]
+			def a = new IKismetObject[2]
 			a[0] = v
-			for (int i = 0; i < a.length; ++i) a[i + 1] = args[i]
+			a[1] = new KismetTuple(args)
 			((Function) c.get('call')).call(a)
 		}
 	}
@@ -243,6 +244,8 @@ class FunctionDefineExpression extends Expression {
 			IKismetObject evaluate(Memory context) {
 				new TypedFunction([context] as Memory[], inner, stackSize, name)
 			}
+
+			String toString() { "func $stackSize:\n  $inner" }
 		}, false))
 	}
 }
@@ -256,13 +259,18 @@ class FunctionExpression extends Expression {
 	FunctionExpression(boolean named, Expression[] args) {
 		final first = args[0]
 		final f = first.members ?: [first]
+		def len = args.length
 		if (named) {
 			name = ((NameExpression) f[0]).text
 			arguments = new Arguments(f.tail())
-		} else {
+			len -= 2
+		} else if (args.length > 1) {
 			arguments = new Arguments(f)
+			--len
+		} else {
+			arguments = new Arguments(null)
 		}
-		expression = args.length == 1 ? null : new BlockExpression(args.tail().toList())
+		expression = len > 1 ? new BlockExpression(args.tail().toList()) : args[args.length - 1]
 	}
 
 	FunctionExpression(String name = null, Arguments arguments, Expression expr) {
@@ -285,13 +293,14 @@ class FunctionExpression extends Expression {
 		def fnb = tc.child()
 		def args = arguments.fill(fnb)
 		def block = expression.type(fnb, preferred)
-		final typ = Prelude.func(block.type, args)
+		final typ = args == null ? Prelude.FUNCTION_TYPE : Prelude.func(block.type, args)
 		new BasicTypedExpression(typ, new Instruction() {
 			final Instruction inner = block.instruction
 			final int stackSize = fnb.size()
+			final boolean noArgs = args == null
 
 			IKismetObject evaluate(Memory context) {
-				new TypedFunction([context] as Memory[], inner, stackSize, name)
+				new TypedFunction([context] as Memory[], inner, stackSize, name, noArgs)
 			}
 		}, false)
 	}
@@ -359,13 +368,18 @@ class Arguments {
 	}
 
 	Type[] fill(TypedContext tc) {
-		def pt = new Type[parameters.size()]
-		for (int i = 0; i < parameters.size(); ++i) {
-			final p = parameters.get(i)
-			tc.addVariable(p.name, pt[i] = p.getType(tc))
+		if (enforceLength) {
+			def pt = new Type[parameters.size()]
+			for (int i = 0; i < parameters.size(); ++i) {
+				final p = parameters.get(i)
+				tc.addVariable(p.name, pt[i] = p.getType(tc))
+			}
+			tc.addVariable('_all', new TupleType(pt))
+			pt
+		} else {
+			tc.addVariable('_all', Prelude.LIST_TYPE)
+			null
 		}
-		tc.addVariable('_all', new TupleType(pt))
-		pt
 	}
 
 	static class Parameter {
@@ -387,20 +401,23 @@ class Arguments {
 class TypedFunction extends Function implements Nameable {
 	Memory[] context
 	Instruction instruction
+	boolean noArgs
 	int stackSize
 	String name
 
-	TypedFunction(Memory[] context, Instruction instruction, int stackSize, String name) {
+	TypedFunction(Memory[] context, Instruction instruction, int stackSize, String name, boolean noArgs = false) {
 		this.context = context
 		this.instruction = instruction
 		this.stackSize = stackSize
 		this.name = name
+		this.noArgs = noArgs
 	}
 
 	IKismetObject call(IKismetObject... args) {
 		def mem = new RuntimeMemory(context, stackSize)
+		println args
 		System.arraycopy(args, 0, mem.memory, 0, args.length)
-		mem.memory[args.length] = Kismet.model(new Tuple(args))
+		mem.memory[noArgs ? 0 : args.length] = Kismet.model(new Tuple(args))
 		instruction.evaluate(mem)
 	}
 

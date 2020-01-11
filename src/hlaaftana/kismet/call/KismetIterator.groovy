@@ -8,6 +8,44 @@ import hlaaftana.kismet.scope.TypedContext
 import hlaaftana.kismet.type.Type
 import hlaaftana.kismet.vm.IKismetObject
 
+/*
+defiter [range a b] {
+  i: a
+  while [<= i b] {
+    yield i
+    incr i
+  }
+}
+
+for it [range 1 5] {
+  echo it
+}
+
+let [a: 1, b: 1] {
+  i: a
+  while [<= i b] {
+    let [it: i] {
+      echo it
+    }
+    incr i
+  }
+}
+
+dive {
+  a: 1
+  b: 5
+
+  i: a
+  while [<= i b] {
+    dive {
+      it: i
+      echo it
+    }
+    incr i
+  }
+}
+ */
+
 @CompileStatic
 class KismetIterator {
 	Expression inner

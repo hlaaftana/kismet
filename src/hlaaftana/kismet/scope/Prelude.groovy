@@ -41,7 +41,8 @@ class Prelude {
 			MAP_TYPE = new SingleType('Map', [Type.ANY, Type.ANY] as Type[]),
 			FUNCTION_TYPE = new SingleType('Function', [TupleType.BASE, Type.ANY] as Type[]),
 			BOOLEAN_TYPE = new SingleType('Boolean'),
-			EXPRESSION_TYPE = new SingleType('Expression')
+			EXPRESSION_TYPE = new SingleType('Expression'),
+			CLOSURE_ITERATOR_TYPE = new SingleType('ClosureIterator')
 	static TypedContext typed = new TypedContext()
 	static Context defaultContext = new Context()
 	static Parser parser = new Parser()
@@ -68,16 +69,14 @@ class Prelude {
 		typed.addVariable(name, object, type)
 	}
 
-	static void typed(String name, IKismetObject object) {
-		typed(name, inferType(object), object)
-	}
-
 	static void alias(String old, String... news) {
 		final dyn = defaultContext.get(old)
-		final typ = typed.get(old)
+		final typ = typed.getAll(old)
 		for (final n : news) {
 			defaultContext.add(n, dyn)
-			typed.addVariable(n, typ)
+			for (final t : typ) {
+				typed.addVariable(n, t.variable.value, t.variable.type)
+			}
 		}
 	}
 
@@ -108,6 +107,11 @@ class Prelude {
 			define '.property', func(Type.ANY, Type.ANY, STRING_TYPE), new Function() {
 				IKismetObject call(IKismetObject... args) {
 					Kismet.model(args[0].getAt(((CharSequence) args[1]).toString()))
+				}
+			}
+			define '.property', func(Type.ANY, MAP_TYPE, STRING_TYPE), new Function() {
+				IKismetObject call(IKismetObject... args) {
+					Kismet.model(((Map) args[0].inner()).get(((CharSequence) args[1]).toString()))
 				}
 			}
 			define '.[]', func(Type.ANY, Type.ANY, STRING_TYPE), new Function() {
@@ -218,6 +222,17 @@ class Prelude {
 					})
 				}
 			}
+			define 'downcast', TYPE_CHECKER_TYPE, new TypeChecker() {
+				@CompileStatic
+				TypedExpression transform(TypedContext context, Expression... args) {
+					final typ = ((GenericType) args[0].type(context, new GenericType(META_TYPE, Type.NONE)).type).bounds[0]
+					final expr = args[1].type(context)
+					new TypedExpression() {
+						Type getType() { typ }
+						Instruction getInstruction() { expr.instruction }
+					}
+				}
+			}
 			define '+=', TEMPLATE_TYPE, new Template() {
 				Expression transform(Parser parser, Expression... args) {
 					new CallExpression([new NameExpression('='), args[0],
@@ -290,54 +305,40 @@ class Prelude {
 					def kill = new ArrayList<Expression>(args.length + 1)
 					kill.add(new NameExpression('fn'))
 					kill.addAll(args)
-					new CallExpression(new NameExpression('fn'), new CallExpression(
+					def res = new CallExpression(new NameExpression('fn'), new CallExpression(
 							new NameExpression('call'), new CallExpression(kill),
 							new PathExpression(new NameExpression('_all'), [
 									(PathExpression.Step) new PathExpression.SubscriptStep(new NumberExpression(0))])))
+					println res
+					res
 				}
 			}
-			define 'incr', new Template() {
+			define 'incr', TEMPLATE_TYPE, new Template() {
 				Expression transform(Parser parser, Expression... args) {
 					def val = args.length > 1 ? new CallExpression(new NameExpression('+'), args[0], args[1]) :
 							new CallExpression(new NameExpression('next'), args[0])
-					def atom = toAtom(args[0])
-					if (null != atom) new VariableModifyExpression(AssignmentType.ASSIGN, atom, val)
-					else if (args[0] instanceof PathExpression)
-						new Optimizer.PathStepSetExpression((PathExpression) args[0], val)
-					else throw new UnexpectedSyntaxException("Cant incr LHS ${args[0]}")
+					new ColonExpression(args[0], val)
 				}
 			}
-			define 'decr', new Template() {
+			define 'decr', TEMPLATE_TYPE, new Template() {
 				Expression transform(Parser parser, Expression... args) {
 					def val = args.length > 1 ? new CallExpression(new NameExpression('-'), args[0], args[1]) :
 							new CallExpression(new NameExpression('prev'), args[0])
-					def atom = toAtom(args[0])
-					if (null != atom) new VariableModifyExpression(AssignmentType.ASSIGN, atom, val)
-					else if (args[0] instanceof PathExpression)
-						new Optimizer.PathStepSetExpression((PathExpression) args[0], val)
-					else throw new UnexpectedSyntaxException("Cant decr LHS ${args[0]}")
+					new ColonExpression(args[0], val)
 				}
 			}
-			define '|>=', new Template() {
+			define '|>=', TEMPLATE_TYPE, new Template() {
 				@CompileStatic
 				Expression transform(Parser parser, Expression... args) {
 					def val = pipeForwardExpr(args[0], args.tail().toList())
-					def atom = toAtom(args[0])
-					if (null != atom) new VariableModifyExpression(AssignmentType.ASSIGN, atom, val)
-					else if (args[0] instanceof PathExpression)
-						new Optimizer.PathStepSetExpression((PathExpression) args[0], val)
-					else throw new UnexpectedSyntaxException("Cant pipe forward assign LHS ${args[0]}")
+					new ColonExpression(args[0], val)
 				}
 			}
 			define '<|=', TEMPLATE_TYPE, new Template() {
 				@CompileStatic
 				Expression transform(Parser parser, Expression... args) {
 					def val = pipeBackwardExpr(args[0], args.tail().toList())
-					def atom = toAtom(args[0])
-					if (null != atom) new VariableModifyExpression(AssignmentType.ASSIGN, atom, val)
-					else if (args[0] instanceof PathExpression)
-						new Optimizer.PathStepSetExpression((PathExpression) args[0], val)
-					else throw new UnexpectedSyntaxException("Cant pipe backward assign LHS ${args[0]}")
+					new ColonExpression(args[0], val)
 				}
 			}
 			define 'dive', TEMPLATE_TYPE, new Template() {
@@ -358,32 +359,89 @@ class Prelude {
 				@CompileStatic
 				Expression transform(Parser parser, Expression... args) {
 					if (args.length == 0) throw new UnexpectedSyntaxException('Empty let expression not allowed')
-					final mems = args[0] instanceof CallExpression ? [args[0]] : args[0].members
+					final mems = args[0] instanceof CallExpression || args[0] instanceof ColonExpression ?
+							Collections.singletonList(args[0]) : args[0].members
 					Expression resultVar = null
 					def result = new ArrayList<Expression>(mems.size())
+					def eaches = new ArrayList<Tuple2<Expression, Expression>>()
 					for (set in mems) {
 						if (set instanceof ColonExpression) {
 							result.add((Expression) set)
 						} else if (set instanceof CallExpression) {
-							if (set.size() == 2 && 'result' == toAtom(set[0]) && set[1] instanceof ColonExpression) {
-								result.add(set[1])
-								resultVar = ((ColonExpression) set[1]).left
-								continue
+							if (set.size() == 2 && set[1] instanceof ColonExpression) {
+								def n = toAtom(set[0])
+								final c = (ColonExpression) set[1]
+								if ('result' == n) {
+									result.add(set[1])
+									resultVar = c.left
+									continue
+								} else if ('each' == n) {
+									eaches.add(new Tuple2(c.left, c.right))
+									continue
+								}
 							}
 							def lem = set.members
 							def val = lem.pop()
 							for (em in lem) {
 								def atom = toAtom(em)
+								String atom0 = null
 								if (null != atom)
 									result.add(new VariableModifyExpression(AssignmentType.SET, atom, val))
 								else if (em instanceof CallExpression && em.size() == 2 &&
-										'result' == toAtom(em[0])) {
+										'result' == (atom0 = toAtom(em[0]))) {
 									def name = toAtom(em[1])
+									if (null == name)
+										throw new UnexpectedSyntaxException("Non-name let results aren't supported")
 									result.add(new VariableModifyExpression(AssignmentType.SET, name, val))
 									resultVar = new NameExpression(name)
+								} else if ('each' == atom0) {
+									eaches.add(new Tuple2(em[1], val))
 								}
 							}
 						} else throw new UnexpectedSyntaxException("Unsupported let parameter $set. If you think it makes sense that iw as supported tell me")
+					}
+					if (!eaches.empty) {
+						int lastAdded = 0
+						for (int i = eaches.size() - 1; i >= 0; i--) {
+							final vari = eaches[i].first
+							final val = eaches[i].second
+							final popped = lastAdded == 0 ? Arrays.asList(args).tail() : result[-lastAdded..-1]
+							for (int la = result.size() - 1; la >= result.size() - lastAdded; --la) {
+								result.remove(la)
+							}
+							String atom1 = null
+							if (val instanceof CallExpression && 'range' == (atom1 = toAtom(val[0]))) {
+								result.add(new ColonExpression(vari, val[1]))
+								def b = new ArrayList<Expression>(lastAdded + 1)
+								b.addAll(popped)
+								b.add(new CallExpression(new NameExpression('incr'), vari))
+								result.add(new CallExpression(new NameExpression('while'),
+									new CallExpression(new NameExpression('<='), vari, val[1]),
+									new BlockExpression(b)))
+								lastAdded = 2
+							} else if ('range<' == atom1) {
+								result.add(new ColonExpression(vari, val[1]))
+								def b = new ArrayList<Expression>(lastAdded + 1)
+								b.addAll(popped)
+								b.add(new CallExpression(new NameExpression('incr'), vari))
+								result.add(new CallExpression(new NameExpression('while'),
+										new CallExpression(new NameExpression('<'), vari, val[1]),
+										new BlockExpression(b)))
+								lastAdded = 2
+							} else {
+								final iterName = new NameExpression('_iter'.concat((eaches.size() - i).toString()))
+								result.add(new ColonExpression(iterName,
+									new CallExpression(new NameExpression('to_iterator'), val)))
+								def b = new ArrayList<Expression>(lastAdded + 1)
+								b.add(new ColonExpression(vari, new CallExpression(
+										new NameExpression('next'), iterName)))
+								b.addAll(popped)
+								result.add(new CallExpression(new NameExpression('while'),
+										new CallExpression(new NameExpression('has_next?'), iterName),
+										new BlockExpression(b)))
+								lastAdded = 2
+							}
+						}
 					}
 					result.addAll(args.tail())
 					if (null != resultVar) result.add(resultVar)
@@ -466,6 +524,27 @@ class Prelude {
 				@Override
 				Expression transform(Parser parser, Expression... args) {
 					new CallExpression(new NameExpression('while'), new CallExpression(new NameExpression('not'), args[0]), args[1])
+				}
+			}
+			define 'do_until', TYPE_CHECKER_TYPE, new TypeChecker() {
+				@Override
+				TypedExpression transform(TypedContext context, Expression... args) {
+					new DoUntilExpression(args[0].type(context, BOOLEAN_TYPE), args[1].type(context))
+				}
+
+				@Override
+				IKismetObject call(Context c, Expression... args) {
+					while (true) {
+						args[1].evaluate(c)
+						if (args[0].evaluate(c)) break
+					}
+					Kismet.NULL
+				}
+			}
+			define 'do_while', TEMPLATE_TYPE, new Template() {
+				@Override
+				Expression transform(Parser parser, Expression... args) {
+					new CallExpression(new NameExpression('do_until'), new CallExpression(new NameExpression('not'), args[0]), args[1])
 				}
 			}
 			define 'do', new GenericType(FUNCTION_TYPE, TupleType.BASE), Function.NOP
@@ -551,7 +630,7 @@ class Prelude {
 				@Override
 				IKismetObject call(Memory m, Instruction... args) {
 					KismetBoolean last = KismetBoolean.TRUE
-					for (it in args) if (!(last = (KismetBoolean) it.evaluate(m)).inner) return last
+					for (it in args) if (!(last = (KismetBoolean) it.evaluate(m)).inner) return KismetBoolean.FALSE
 					last
 				}
 			}
@@ -559,7 +638,7 @@ class Prelude {
 				@Override
 				IKismetObject call(Memory m, Instruction... args) {
 					KismetBoolean last = KismetBoolean.FALSE
-					for (it in args) if ((last = (KismetBoolean) it.evaluate(m)).inner) return last
+					for (it in args) if ((last = (KismetBoolean) it.evaluate(m)).inner) return KismetBoolean.TRUE
 					last
 				}
 			}
@@ -577,7 +656,7 @@ class Prelude {
 			negated 'bool', 'false?', 'no?', 'off?'
 			define 'not', func(BOOLEAN_TYPE, BOOLEAN_TYPE), new Function() {
 				IKismetObject call(IKismetObject... args) {
-					new KismetBoolean(((KismetBoolean) args[0]).inner)
+					new KismetBoolean(!((KismetBoolean) args[0]).inner)
 				}
 			}
 		}
@@ -1043,6 +1122,9 @@ class Prelude {
 			}
 			define 'minus', func(NumberType.Number, NumberType.Number, NumberType.Number), new Function() {
 				IKismetObject call(IKismetObject... args) {
+					println args
+					println args*.inner()
+					println args*.inner()*.getClass()
 					((KismetNumber) args[0]).minus((KismetNumber) args[1])
 				}
 			}
@@ -1361,6 +1443,11 @@ class Prelude {
 			}
 		}
 		define 'List', new GenericType(META_TYPE, LIST_TYPE), LIST_TYPE
+		define '.[]', func(Type.ANY, LIST_TYPE, NumberType.Int32), new Function() {
+			IKismetObject call(IKismetObject... args) {
+				Kismet.model(args[0].inner().invokeMethod('getAt', [args[1].inner()] as Object[]))
+			}
+		}
 		define 'hash',  funcc { ... a -> a[0].hashCode() }
 		define 'percent',  funcc(true) { ... a -> a[0].invokeMethod 'div', 100 }
 		define 'to_percent',  funcc(true) { ... a -> a[0].invokeMethod 'multiply', 100 }
@@ -1564,17 +1651,20 @@ class Prelude {
 						new StaticExpression(((StringExpression) args[0]).raw) : args[0])
 			}
 		}
-		define 'set_at',  new Template() {
+		/*define 'set_at', TEMPLATE_TYPE, new Template() {
 			Expression transform(Parser parser, Expression... args) {
-				new Optimizer.PathStepSetExpression(new PathExpression(args[0],
-						[(PathExpression.Step) new PathExpression.SubscriptStep(args[1])]), args[2])
+				def path = args[0] instanceof PathExpression ?
+					new PathExpression(((PathExpression) args[0]).root, ((PathExpression) args[0]).steps +
+						[new PathExpression.SubscriptStep(args[1])]) :
+					new PathExpression(args[0], [new PathExpression.SubscriptStep(args[1])])
+				new ColonExpression(path, args[2])
 			}
 		}
-		define 'at',  new Template() {
+		define 'at', TEMPLATE_TYPE, new Template() {
 			Expression transform(Parser parser, Expression... args) {
 				new PathExpression(args[0], [(PathExpression.Step) new PathExpression.SubscriptStep(args[1])])
 			}
-		}
+		}*/
 		define 'string',  func(true) { IKismetObject... a ->
 			if (a.length == 1) return a[0].toString()
 			StringBuilder x = new StringBuilder()
@@ -1889,10 +1979,14 @@ class Prelude {
 		define 'disjoint?',  funcc { ... args -> args[0].invokeMethod('disjoint', args[1]) }
 		define 'intersect?',  funcc { ... args -> !args[0].invokeMethod('disjoint', args[1]) }
 		define 'call',  func { IKismetObject... args ->
+			println "om"
+			println args
 			def x = args[1].inner() as Object[]
 			def ar = new IKismetObject[x.length]
 			for (int i = 0; i < ar.length; ++i) {
+				println x[i].getClass()
 				ar[i] = Kismet.model(x[i])
+				println ar[i].getClass()
 			}
 			((Function) args[0]).call(ar)
 		}
@@ -2435,12 +2529,6 @@ class Prelude {
 
 	static Number lcm(Number a, Number b) {
 		a.multiply(b).abs().intdiv(gcd(a, b))
-	}
-
-	static GroovyMacro macr(boolean pure = false, Closure c) {
-		def result = new GroovyMacro(c)
-		result.pure = pure
-		result
 	}
 
 	static GroovyFunction func(boolean pure = false, Closure c) {

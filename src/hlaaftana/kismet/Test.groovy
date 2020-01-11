@@ -1,9 +1,11 @@
 package hlaaftana.kismet
 
 import groovy.transform.CompileStatic
+import hlaaftana.kismet.call.Function
 import hlaaftana.kismet.parser.Parser
 import hlaaftana.kismet.scope.Prelude
 import hlaaftana.kismet.scope.Context
+import hlaaftana.kismet.type.Type
 import hlaaftana.kismet.vm.IKismetObject
 import hlaaftana.kismet.vm.Memory
 import hlaaftana.kismet.vm.RuntimeMemory
@@ -22,9 +24,23 @@ class Test {
 			final file = new File("Kismet/examples/${f}.ksmt")
 			def p = parser.parse(file.text)
 			println p
-			//def tc = Prelude.typed.child()
-			//p.type(tc).instruction.evaluate(new RuntimeMemory([Prelude.typed] as Memory[], tc.size()))
-			p.evaluate(parser.context.child())
+			def tc = Prelude.typed.child()
+			def echofunc = new Function() {
+				@Override
+				IKismetObject call(IKismetObject... arg) {
+					println arg[0]
+					return Kismet.NULL
+				}
+			}
+			tc.addVariable('echo', Prelude.func(Type.NONE, Type.ANY))
+			def t = p.type(tc)
+			println t
+			def i = t.instruction
+			println i
+			def mem = new RuntimeMemory([Prelude.typed] as Memory[], tc.size())
+			mem.memory[0] = echofunc
+			i.evaluate(mem)
+			//p.evaluate(parser.context.child())
 		}
 	}
 }

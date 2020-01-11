@@ -36,6 +36,8 @@ class BasicTypedExpression extends TypedExpression {
 		this.instruction = instruction
 		this.runtimeOnly = runtimeOnly
 	}
+
+	String toString() { "lol($type):\n  $instruction" }
 }
 
 @CompileStatic
@@ -75,6 +77,8 @@ class VariableInstruction extends Instruction {
 		for (int i = 0; i < path.length; ++i) res.putInt(path[i])
 		res.array()
 	}
+
+	String toString() { "${path ? path.join(':') + ' ' : ''}\$$id" }
 }
 
 @CompileStatic
@@ -96,6 +100,8 @@ class VariableExpression extends TypedExpression {
 
 	Type getType() { reference.variable.type }
 	boolean isRuntimeOnly() { null == reference.variable.value }
+
+	String toString() { "$reference.variable.name" }
 }
 
 @CompileStatic
@@ -113,6 +119,7 @@ class VariableSetInstruction extends Instruction {
 	IKismetObject evaluate(Memory context) {
 		final val = value.evaluate(context)
 		context.set(id, path, val)
+		println "setting $path $id to $val"
 		val
 	}
 
@@ -122,6 +129,8 @@ class VariableSetInstruction extends Instruction {
 		for (final p : path) res = res.putInt(p)
 		res.put(valueBytes).array()
 	}
+
+	String toString() { "${path ? path.join(':') + ' ' : ''}\$$id = $value" }
 }
 
 @CompileStatic
@@ -145,6 +154,8 @@ class VariableSetExpression extends TypedExpression {
 
 	Type getType() { value.type }
 	boolean isRuntimeOnly() { null == reference.variable.value || value.runtimeOnly }
+
+	String toString() { "$reference.variable.name = $value" }
 }
 
 @CompileStatic
@@ -158,13 +169,17 @@ class DiveInstruction extends Instruction {
 	}
 
 	IKismetObject evaluate(Memory context) {
-		other.evaluate(new RuntimeMemory([context] as Memory[], stackSize))
+		def res = other.evaluate(new RuntimeMemory([context] as Memory[], stackSize))
+		println "dive $res"
+		res
 	}
 
 	byte[] getBytes() {
 		final o = other.bytes
 		ByteBuffer.allocate(5 + o.length).put((byte) 5).putInt(stackSize).put(o).array()
 	}
+
+	String toString() { "dive $stackSize $other" }
 }
 
 @CompileStatic
@@ -188,6 +203,8 @@ class TypedDiveExpression extends TypedExpression {
 		$instruction
 	}
 	boolean isRuntimeOnly() { inner.runtimeOnly }
+
+	String toString() { "dive $inner" }
 }
 
 @CompileStatic
@@ -217,6 +234,8 @@ class SequentialInstruction extends Instruction {
 		for (instr in instructions) b.write(instr.bytes)
 		b.toByteArray()
 	}
+
+	String toString() { "sequence:\n{\n${instructions.join('\n')}\n}" }
 }
 
 @CompileStatic
@@ -233,6 +252,8 @@ class SequentialExpression extends TypedExpression {
 		for (final m : members) if (m.runtimeOnly) return true
 		false
 	}
+
+	String toString() { "sequence:\n{\n${members.join('\n')}\n}" }
 }
 
 @CompileStatic
@@ -244,6 +265,8 @@ class ConstantInstruction<T extends IKismetObject> extends Instruction {
 	}
 	
 	T evaluate(Memory context) { value }
+
+	String toString() { "constant $value" }
 }
 
 @CompileStatic
@@ -259,6 +282,8 @@ class TypedConstantExpression<T extends IKismetObject> extends TypedExpression {
 	boolean isRuntimeOnly() { false }
 
 	ConstantInstruction<T> getInstruction() { new ConstantInstruction<T>(value) }
+
+	String toString() { "constant $type $value" }
 }
 
 import hlaaftana.kismet.type.NumberType
@@ -281,6 +306,8 @@ class TypedNumberExpression extends TypedExpression {
 	}
 
 	boolean isRuntimeOnly() { false }
+
+	String toString() { "number $type $number" }
 }
 
 @CompileStatic
@@ -289,7 +316,7 @@ class TypedStringExpression extends TypedExpression {
 	Instruction instruction
 
 	TypedStringExpression(String str) {
-		string = str
+		setString(str)
 	}
 
 	void setString(String str) {
@@ -299,6 +326,8 @@ class TypedStringExpression extends TypedExpression {
 
 	Type getType() { Prelude.STRING_TYPE }
 	boolean isRuntimeOnly() { false }
+
+	String toString() { "string $string" }
 }
 
 @CompileStatic
@@ -330,7 +359,11 @@ class CallInstruction extends Instruction {
 		def val = value.evaluate(context)
 		def arr = new IKismetObject[arguments.length]
 		for (int i = 0; i < arguments.length; ++i) arr[i] = arguments[i].evaluate(context)
-		((Function) val).call(arr)
+		if (arr.length == 2 && arr[1] instanceof Tuple) println arguments
+		println "calling $value"
+		def res = ((Function) val).call(arr)
+		println "result: $res"
+		res
 	}
 
 	byte[] getBytes() {
@@ -349,6 +382,8 @@ class CallInstruction extends Instruction {
 		ByteBuffer.allocate(5 + vb.length + argsum).put((byte) 4)
 			.put(vb).putInt(arguments.length).put(argbt).array()
 	}
+
+	String toString() { "call $value (${arguments.join(', ')})" }
 }
 
 @CompileStatic
@@ -370,6 +405,8 @@ class TypedCallExpression extends TypedExpression {
 		for (final arg : arguments) if (arg.runtimeOnly) return true
 		false
 	}
+
+	String toString() { "call($type) $value(${arguments.join(', ')})" }
 }
 
 @CompileStatic
@@ -399,7 +436,10 @@ class InstructorCallInstruction extends Instruction {
 	@Override
 	IKismetObject evaluate(Memory context) {
 		def val = value.evaluate(context)
-		((Instructor) val).call(context, arguments)
+		println "instructor calling $value"
+		def res = ((Instructor) val).call(context, arguments)
+		println "instructor result: $res"
+		res
 	}
 
 	byte[] getBytes() {
@@ -418,6 +458,8 @@ class InstructorCallInstruction extends Instruction {
 		ByteBuffer.allocate(5 + vb.length + argsum).put((byte) 6)
 				.put(vb).putInt(arguments.length).put(argbt).array()
 	}
+
+	String toString() { "instructor call $value(${arguments.join(', ')})" }
 }
 
 @CompileStatic
@@ -439,6 +481,8 @@ class InstructorCallExpression extends TypedExpression {
 		for (final arg : arguments) if (arg.runtimeOnly) return true
 		false
 	}
+
+	String toString() { "instructor call($type) $value(${arguments.join(', ')})" }
 }
 
 @CompileStatic
@@ -455,6 +499,8 @@ class IfElseInstruction extends Instruction {
 		if (((KismetBoolean) condition.evaluate(context)).inner) branch.evaluate(context)
 		else elseBranch.evaluate(context)
 	}
+
+	String toString() { "if $condition:\n  ${branch.toString().readLines().join('\n  ')}\nelse:\n  ${elseBranch.toString().readLines().join('\n  ')}" }
 }
 
 @CompileStatic
@@ -470,12 +516,14 @@ class IfElseExpression extends TypedExpression {
 	Type getType() {
 		final b = branch.type, e = elseBranch.type
 		def rel = b.relation(e)
-		if (rel.none) Type.ANY
+		if (rel.none) Type.NONE
 		else if (rel.sub) e
 		else b
 	}
 
 	Instruction getInstruction() { new IfElseInstruction(condition.instruction, branch.instruction, elseBranch.instruction) }
+
+	String toString() { "if $condition:\n  ${branch.toString().readLines().join('\\n  ')}\nelse:\n  ${elseBranch.toString().readLines().join('\n  ')}" }
 }
 
 @CompileStatic
@@ -491,6 +539,8 @@ class WhileInstruction extends Instruction {
 		while (((KismetBoolean) condition.evaluate(context)).inner) branch.evaluate(context)
 		Kismet.NULL
 	}
+
+	String toString() { "while $condition:\n  ${branch.toString().readLines().join('\n  ')}" }
 }
 
 @CompileStatic
@@ -505,6 +555,44 @@ class WhileExpression extends TypedExpression {
 	Type getType() { Type.NONE }
 
 	Instruction getInstruction() { new WhileInstruction(condition.instruction, branch.instruction) }
+
+	String toString() { "while $condition:\n  ${branch.toString().readLines().join('\\n  ')}" }
+}
+
+@CompileStatic
+class DoUntilInstruction extends Instruction {
+	Instruction condition, branch
+
+	DoUntilInstruction(Instruction condition, Instruction branch) {
+		this.condition = condition
+		this.branch = branch
+	}
+
+	IKismetObject evaluate(Memory context) {
+		while (true) {
+			branch.evaluate(context)
+			if (((KismetBoolean) condition.evaluate(context)).inner) break
+		}
+		Kismet.NULL
+	}
+
+	String toString() { "do_until $condition:\n  ${branch.toString().readLines().join('\n  ')}" }
+}
+
+@CompileStatic
+class DoUntilExpression extends TypedExpression {
+	TypedExpression condition, branch
+
+	DoUntilExpression(TypedExpression condition, TypedExpression branch) {
+		this.condition = condition
+		this.branch = branch
+	}
+
+	Type getType() { Type.NONE }
+
+	Instruction getInstruction() { new DoUntilInstruction(condition.instruction, branch.instruction) }
+
+	String toString() { "do_until $condition:\n  ${branch.toString().readLines().join('\\n  ')}" }
 }
 
 @CompileStatic
@@ -520,6 +608,8 @@ class OnceInstruction extends Instruction {
 		if (null == stored) stored = inner.evaluate(context)
 		stored
 	}
+
+	String toString() { "once($stored) $inner" }
 }
 
 @CompileStatic
@@ -533,4 +623,6 @@ class TypedOnceExpression extends TypedExpression {
 	Type getType() { inner.type }
 
 	Instruction getInstruction() { new OnceInstruction(inner.instruction) }
+
+	String toString() { "once $inner" }
 }

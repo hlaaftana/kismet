@@ -45,13 +45,13 @@ class TypedContext extends Memory {
 		variables.add(variable)
 	}
 
-	Variable addVariable(String name = null, Type type = Type.ANY) {
+	Variable addVariable(String name = null, Type type = Type.NONE) {
 		final var = new Variable(name, variables.size(), type)
 		variables.add(var)
 		var
 	}
 
-	Variable addVariable(String name = null, IKismetObject value, Type type = Type.ANY) {
+	Variable addVariable(String name = null, IKismetObject value, Type type = Type.NONE) {
 		final var = new Variable(name, variables.size(), type)
 		var.value = value
 		variables.add(var)
@@ -95,7 +95,7 @@ class TypedContext extends Memory {
 		def match = new ArrayList<VariableReference>()
 		for (d in getAll(name)) {
 			def typ = d.variable.type
-			if (typ.relation(expected).assignableTo) match.add(d)
+			if (typ.relation(expected).assignableFrom) match.add(d)
 		}
 		if (match.empty) return null
 		def winner = match.get(0)
@@ -122,7 +122,7 @@ class TypedContext extends Memory {
 		def match = new ArrayList<VariableReference>()
 		for (d in getAll(names)) {
 			def typ = d.variable.type
-			if (typ.relation(expected).assignableTo) match.add(d)
+			if (typ.relation(expected).assignableFrom) match.add(d)
 		}
 		if (match.empty) return null
 		def winner = match.get(0)
@@ -141,9 +141,10 @@ class TypedContext extends Memory {
 
 	List<VariableReference> getAllStatic(int h, String name) {
 		def result = new ArrayList<VariableReference>()
-		for (var in variables)
+		for (var in variables) {
 			if (null != var.value && var.hash == h && var.name == name)
 				result.add(var.ref())
+		}
 		for (int i = 0; i < heritage.size(); ++i) {
 			final v = heritage.get(i).getAllStatic(h, name)
 			for (r in v) result.add(r.relative(i))
@@ -157,7 +158,7 @@ class TypedContext extends Memory {
 		def match = new ArrayList<VariableReference>()
 		for (d in getAllStatic(name)) {
 			def typ = d.variable.type
-			if (typ.relation(expected).assignableTo) match.add(d)
+			if (typ.relation(expected).assignableFrom) match.add(d)
 		}
 		if (match.empty) return null
 		def winner = match.get(0)
@@ -197,7 +198,7 @@ class TypedContext extends Memory {
 		int hash, id
 		IKismetObject value
 
-		Variable(String name, int id, Type type = Type.ANY) {
+		Variable(String name, int id, Type type = Type.NONE) {
 			this.name = name
 			hash = name.hashCode()
 			this.id = id

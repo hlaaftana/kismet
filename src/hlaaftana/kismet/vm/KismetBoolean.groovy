@@ -13,6 +13,8 @@ class KismetBoolean implements IKismetObject<Boolean> {
 
 	Boolean inner() { Boolean.valueOf(inner) }
 
+	boolean asBoolean() { inner }
+
 	int hashCode() { inner ? 1 : 0 }
 
 	boolean equals(obj) { obj instanceof KismetBoolean && inner == obj.inner }
