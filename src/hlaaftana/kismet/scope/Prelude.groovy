@@ -33,6 +33,7 @@ class Prelude {
 			TEMPLATE_TYPE = new SingleType('Template'),
 			TYPE_CHECKER_TYPE = new SingleType('TypeChecker'),
 			INSTRUCTOR_TYPE = new SingleType('Instructor', [TupleType.BASE, Type.ANY] as Type[]),
+			TYPED_TEMPLATE_TYPE = new SingleType('TypedTemplate', [TupleType.BASE, Type.ANY] as Type[]),
 			INSTRUCTION_TYPE = new SingleType('Instruction'),
 			MEMORY_TYPE = new SingleType('Memory'),
 			META_TYPE = new SingleType('Meta', [Type.ANY] as Type[]),
@@ -53,6 +54,7 @@ class Prelude {
 		else if (value instanceof Template) TEMPLATE_TYPE
 		else if (value instanceof TypeChecker) TYPE_CHECKER_TYPE
 		else if (value instanceof Instructor) INSTRUCTOR_TYPE
+		else if (value instanceof TypedTemplate) TYPED_TEMPLATE_TYPE
 		else throw new UnsupportedOperationException("Cannot infer type for kismet object $value")
 	}
 
@@ -1448,6 +1450,15 @@ class Prelude {
 				Kismet.model(args[0].inner().invokeMethod('getAt', [args[1].inner()] as Object[]))
 			}
 		}
+		define '.[]', typedTmpl(META_TYPE, META_TYPE, META_TYPE), new TypedTemplate() {
+			@Override
+			TypedExpression transform(TypedContext context, TypedExpression... args) {
+				final base = (SingleType) args[0].instruction.evaluate(context)
+				final arg = (Type) args[1].instruction.evaluate(context)
+				final typ = new GenericType(base, arg)
+				new TypedConstantExpression<Type>(META_TYPE.generic(typ), typ)
+			}
+		}
 		define 'hash',  funcc { ... a -> a[0].hashCode() }
 		define 'percent',  funcc(true) { ... a -> a[0].invokeMethod 'div', 100 }
 		define 'to_percent',  funcc(true) { ... a -> a[0].invokeMethod 'multiply', 100 }
@@ -2303,6 +2314,10 @@ class Prelude {
 
 	static GenericType instr(Type returnType, Type... args) {
 		new GenericType(INSTRUCTOR_TYPE, new TupleType(args), returnType)
+	}
+
+	static GenericType typedTmpl(Type returnType, Type... args) {
+		new GenericType(TYPED_TEMPLATE_TYPE, new TupleType(args), returnType)
 	}
 
 	static String resolveName(Expression n, Context c, String op) {

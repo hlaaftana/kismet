@@ -504,6 +504,13 @@ class CallExpression extends Expression {
 		def argtypes = new Type[args.length]
 		for (int i = 0; i < args.length; ++i) argtypes[i] = (args[i] = arguments.get(i).type(tc)).type
 
+		// typed template
+		final typedTmpl = Prelude.typedTmpl(preferred, argtypes)
+		try {
+			cv = callValue.type(tc, typedTmpl)
+		} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {}
+		if (null != cv) return ((TypedTemplate) cv.instruction.evaluate(tc)).transform(tc, args)
+
 		// instructor
 		final inr = Prelude.instr(preferred, argtypes)
 		try {

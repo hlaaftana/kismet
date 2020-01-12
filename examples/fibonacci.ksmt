@@ -1,13 +1,15 @@
-defn [fibonacci n] [
+defn [intlist n: Int32] [downcast List[Int32] [new_list n]]
+
+defn [fibonacci n: Int32] [
   let [f: 0, s: 1, each i: range< 0 n, result res: new_list n]
     res[i]: f: + s s: f]
 
-defn [fibonacci_collect n] {
+defn [fibonacci_collect n: Int32] {
   f: 0; s: 1
   collect [range 1 n] [fn f: + s s: f]
 }
 
-defn [fibonacci_imperative n] (
+defn [fibonacci_imperative n: Int32] (
   f: 0; s: 1; i: 0
   res: new_list n
   while [< i n] {
