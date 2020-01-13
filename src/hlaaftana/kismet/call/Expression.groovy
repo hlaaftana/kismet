@@ -3,27 +3,12 @@ package hlaaftana.kismet.call
 import groovy.transform.CompileStatic
 import groovy.transform.InheritConstructors
 import hlaaftana.kismet.Kismet
-import hlaaftana.kismet.exceptions.KismetEvaluationException
-import hlaaftana.kismet.exceptions.UndefinedSymbolException
-import hlaaftana.kismet.exceptions.UndefinedVariableException
-import hlaaftana.kismet.exceptions.UnexpectedSyntaxException
-import hlaaftana.kismet.exceptions.UnexpectedTypeException
-import hlaaftana.kismet.parser.Parser
-import hlaaftana.kismet.parser.StringEscaper
-import hlaaftana.kismet.scope.AssignmentType
-import hlaaftana.kismet.scope.Context
-import hlaaftana.kismet.scope.Prelude
-import hlaaftana.kismet.scope.TypedContext
-import hlaaftana.kismet.type.GenericType
-import hlaaftana.kismet.type.NumberType
-import hlaaftana.kismet.type.SingleType
-import hlaaftana.kismet.type.TupleType
-import hlaaftana.kismet.type.Type
-import hlaaftana.kismet.vm.IKismetObject
-import hlaaftana.kismet.vm.KismetString
-import hlaaftana.kismet.vm.KismetTuple
-import hlaaftana.kismet.vm.Memory
-import hlaaftana.kismet.vm.WrapperKismetObject
+import hlaaftana.kismet.exceptions.*
+import hlaaftana.kismet.parser.*
+import hlaaftana.kismet.scope.*
+import hlaaftana.kismet.type.*
+import hlaaftana.kismet.vm.*
+import static hlaaftana.kismet.call.ExprBuilder.*
 
 @CompileStatic
 abstract class Expression implements IKismetObject<Expression> {
@@ -163,21 +148,17 @@ class PathExpression extends Expression {
 		PropertyStep borrow(Expression expr) { new PropertyStep(expr.toString()) }
 
 		TypedExpression type(TypedContext ctx, TypedExpression before) {
-			def m = ctx.find(getterName(name), Prelude.func(Type.NONE, before.type))
-			if (null != m) return new TypedCallExpression(new VariableExpression(m), [before] as TypedExpression[],
-					((GenericType) m.variable.type)[1])
-			m = ctx.findThrow('.property', Prelude.func(Type.NONE, before.type, Prelude.STRING_TYPE))
-			new TypedCallExpression(new VariableExpression(m), [before, new TypedStringExpression(name)] as TypedExpression[],
-					((GenericType) m.variable.type)[1])
+			try {
+				return call(name(getterName(name)), new TypedWrapperExpression(before)).type(ctx)
+			} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {}
+			call(name('.property'), new TypedWrapperExpression(before), string(name)).type(ctx)
 		}
 
 		TypedExpression typeSet(TypedContext ctx, TypedExpression before, TypedExpression value) {
-			def m = ctx.find(setterName(name), Prelude.func(Type.NONE, before.type, value.type))
-			if (null != m) return new TypedCallExpression(new VariableExpression(m), [before, value] as TypedExpression[],
-					((GenericType) m.variable.type)[1])
-			m = ctx.findThrow('.property=', Prelude.func(Type.NONE, before.type, Prelude.STRING_TYPE, value.type))
-			new TypedCallExpression(new VariableExpression(m), [before, new TypedStringExpression(name), value] as TypedExpression[],
-					((GenericType) m.variable.type)[1])
+			try {
+				return call(name(setterName(name)), new TypedWrapperExpression(before), new TypedWrapperExpression(value)).type(ctx)
+			} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {}
+			call(name('.property='), new TypedWrapperExpression(before), string(name), new TypedWrapperExpression(value)).type(ctx)
 		}
 	}
 
@@ -202,16 +183,13 @@ class PathExpression extends Expression {
 
 		TypedExpression type(TypedContext ctx, TypedExpression before) {
 			def key = expression.type(ctx)
-			def m = ctx.findThrow('.[]', Prelude.func(Type.NONE, before.type, key.type))
-			new TypedCallExpression(new VariableExpression(m), [before, key] as TypedExpression[],
-					((GenericType) m.variable.type)[1])
+			call(name('.[]'), new TypedWrapperExpression(before), new TypedWrapperExpression(key)).type(ctx)
 		}
 
 		TypedExpression typeSet(TypedContext ctx, TypedExpression before, TypedExpression value) {
 			def key = expression.type(ctx)
-			def m = ctx.findThrow('.[]=', Prelude.func(Type.NONE, before.type, key.type, value.type))
-			new TypedCallExpression(new VariableExpression(m), [before, key, value] as TypedExpression[],
-					((GenericType) m.variable.type)[1])
+			call(name('.[]='), new TypedWrapperExpression(before), new TypedWrapperExpression(key),
+					new TypedWrapperExpression(value)).type(ctx)
 		}
 	}
 
@@ -263,9 +241,29 @@ class PathExpression extends Expression {
 	TypedExpression type(TypedContext tc, Type preferred) {
 		TypedExpression result = root.type(tc)
 		for (s in steps) result = s.type(tc, result)
+		println this
+		println result
+		println result?.type
 		if (preferred != Type.NONE && !result.type.relation(preferred).assignableTo)
 			throw new UnexpectedTypeException("path expression $this is not $preferred")
 		result
+	}
+}
+
+@CompileStatic
+class TypedWrapperExpression extends Expression {
+	TypedExpression inner
+
+	TypedWrapperExpression(TypedExpression inner) {
+		this.inner = inner
+	}
+
+	IKismetObject evaluate(Context c) {
+		inner.instruction.evaluate(c)
+	}
+
+	TypedExpression type(TypedContext tc, Type preferred) {
+		inner
 	}
 }
 

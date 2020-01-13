@@ -3,6 +3,7 @@ package hlaaftana.kismet.call
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.Kismet
 import hlaaftana.kismet.exceptions.UnexpectedValueException
+import hlaaftana.kismet.scope.Context
 import hlaaftana.kismet.scope.Prelude
 import hlaaftana.kismet.scope.TypedContext
 import hlaaftana.kismet.type.Type
