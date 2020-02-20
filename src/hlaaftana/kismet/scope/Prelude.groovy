@@ -9,11 +9,8 @@ import hlaaftana.kismet.exceptions.*
 import hlaaftana.kismet.parser.Optimizer
 import hlaaftana.kismet.parser.Parser
 import hlaaftana.kismet.parser.StringEscaper
-import hlaaftana.kismet.type.GenericType
-import hlaaftana.kismet.type.NumberType
-import hlaaftana.kismet.type.SingleType
-import hlaaftana.kismet.type.TupleType
-import hlaaftana.kismet.type.Type
+import hlaaftana.kismet.type.*
+import static hlaaftana.kismet.type.TypeBound.*
 import hlaaftana.kismet.vm.*
 
 import java.math.RoundingMode
@@ -32,15 +29,15 @@ class Prelude {
 	static final SingleType STRING_TYPE = new SingleType('String'),
 			TEMPLATE_TYPE = new SingleType('Template'),
 			TYPE_CHECKER_TYPE = new SingleType('TypeChecker'),
-			INSTRUCTOR_TYPE = new SingleType('Instructor', [TupleType.BASE, Type.ANY] as Type[]),
-			TYPED_TEMPLATE_TYPE = new SingleType('TypedTemplate', [TupleType.BASE, Type.ANY] as Type[]),
+			INSTRUCTOR_TYPE = new SingleType('Instructor', [+TupleType.BASE, -Type.NONE] as TypeBound[]),
+			TYPED_TEMPLATE_TYPE = new SingleType('TypedTemplate', [+TupleType.BASE, -Type.NONE] as TypeBound[]),
 			INSTRUCTION_TYPE = new SingleType('Instruction'),
 			MEMORY_TYPE = new SingleType('Memory'),
-			META_TYPE = new SingleType('Meta', [Type.ANY] as Type[]),
-			LIST_TYPE = new SingleType('List', [Type.ANY] as Type[]),
-			SET_TYPE = new SingleType('Set', [Type.ANY] as Type[]),
-			MAP_TYPE = new SingleType('Map', [Type.ANY, Type.ANY] as Type[]),
-			FUNCTION_TYPE = new SingleType('Function', [TupleType.BASE, Type.ANY] as Type[]),
+			META_TYPE = new SingleType('Meta', [+Type.ANY] as TypeBound[]),
+			LIST_TYPE = new SingleType('List', [+Type.ANY] as TypeBound[]),
+			SET_TYPE = new SingleType('Set', [+Type.ANY] as TypeBound[]),
+			MAP_TYPE = new SingleType('Map', [+Type.ANY, +Type.ANY] as TypeBound[]),
+			FUNCTION_TYPE = new SingleType('Function', [+TupleType.BASE, -Type.NONE] as TypeBound[]),
 			BOOLEAN_TYPE = new SingleType('Boolean'),
 			EXPRESSION_TYPE = new SingleType('Expression'),
 			CLOSURE_ITERATOR_TYPE = new SingleType('ClosureIterator')
@@ -227,7 +224,7 @@ class Prelude {
 			define 'downcast', TYPE_CHECKER_TYPE, new TypeChecker() {
 				@CompileStatic
 				TypedExpression transform(TypedContext context, Expression... args) {
-					final typ = ((GenericType) args[0].type(context, new GenericType(META_TYPE, Type.NONE)).type).bounds[0]
+					final typ = ((GenericType) args[0].type(context, META_TYPE).type).bounds[0]
 					final expr = args[1].type(context)
 					new TypedExpression() {
 						Type getType() { typ }
@@ -549,7 +546,7 @@ class Prelude {
 					new CallExpression(new NameExpression('do_until'), new CallExpression(new NameExpression('not'), args[0]), args[1])
 				}
 			}
-			define 'do', new GenericType(FUNCTION_TYPE, TupleType.BASE), Function.NOP
+			define 'do', func(Type.NONE), Function.NOP
 			define 'don\'t', TEMPLATE_TYPE, new Template() {
 				@CompileStatic
 				Expression transform(Parser parser, Expression... args) {
@@ -665,7 +662,7 @@ class Prelude {
 		number: {
 			for (final n : NumberType.values())
 				define n.name(), new GenericType(META_TYPE, n), n
-			define 'euler_constant', NumberType.Float, new KFloat(BigDecimal.valueOf(Math.E))
+			define 'e', NumberType.Float, new KFloat(BigDecimal.valueOf(Math.E))
 			define 'pi', NumberType.Float, new KFloat(BigDecimal.valueOf(Math.PI))
 			define 'bit_not', func(NumberType.Int, NumberType.Int), new Function() {
 				IKismetObject call(IKismetObject... args) {
@@ -1456,7 +1453,8 @@ class Prelude {
 				final base = (SingleType) args[0].instruction.evaluate(context)
 				final arg = (Type) args[1].instruction.evaluate(context)
 				final typ = new GenericType(base, arg)
-				new TypedConstantExpression<Type>(META_TYPE.generic(typ), typ)
+				println META_TYPE.generic(typ)
+				new TypedConstantExpression<Type>(new GenericType(META_TYPE, typ), typ)
 			}
 		}
 		define 'hash',  funcc { ... a -> a[0].hashCode() }

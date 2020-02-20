@@ -1,0 +1,15 @@
+Lessable has <(self, self): bool
+
+def binary_search(a, k)
+  is (List[T], T): int32
+  for T: Lessable
+  do
+    for c = b = size a, result i = 0
+      while i < b
+        mid = half i + b
+        if a[mid] < k do i = next mid else b = mid
+      echo compose("i: ", str i, ", c: ", str c, ", a[i]: ", str a[i], ", k: ", str k)
+      unless i < c and a[i] == k do i = -1
+
+assert binary_search([1, 2, 3, 4, 5, 6], 4) == 3
+assert binary_search([3, 5, 1, 4, 1], 1) == -1

@@ -19,7 +19,7 @@ abstract class Expression implements IKismetObject<Expression> {
 		throw new UnsupportedOperationException('Cannot turn ' + this + ' to typed')
 	}
 
-	TypedExpression type(TypedContext tc) { type(tc, Type.NONE) }
+	TypedExpression type(TypedContext tc) { type(tc, Type.ANY) }
 
 	List<Expression> getMembers() { [] }
 
@@ -244,7 +244,7 @@ class PathExpression extends Expression {
 		println this
 		println result
 		println result?.type
-		if (preferred != Type.NONE && !result.type.relation(preferred).assignableTo)
+		if (!result.type.relation(preferred).assignableTo)
 			throw new UnexpectedTypeException("path expression $this is not $preferred")
 		result
 	}
@@ -479,6 +479,8 @@ class CallExpression extends Expression {
 				new TypedCallExpression(new VariableExpression(cc), args, ((GenericType) cc.variable.type)[1])
 			}
 		}*/
+		if (preferred == Type.ANY) preferred = Type.NONE
+
 		TypedExpression cv
 
 		// template
@@ -548,7 +550,7 @@ class ListExpression extends Expression {
 		def rel = preferred.relation(Prelude.LIST_TYPE)
 		if (rel.none)
 			throw new UnexpectedTypeException('Tried to infer list expression as non-list type '.concat(preferred.toString()))
-		def bound = rel.sub && preferred instanceof GenericType ? ((GenericType) preferred)[0] : Type.NONE
+		def bound = rel.sub && preferred instanceof GenericType ? ((GenericType) preferred)[0] : Type.ANY
 		def arr = new TypedExpression[members.size()]
 		for (int i = 0; i < arr.length; ++i) arr[i] = members.get(i).type(tc, bound)
 		new Typed(arr)
@@ -623,7 +625,7 @@ class TupleExpression extends Expression {
 		if (rel.sub && members.size() != bounds.length)
 			throw new UnexpectedTypeException("Tuple expression length ${members.size()} did not match expected tuple type length $bounds.length")
 		def arr = new TypedExpression[members.size()]
-		for (int i = 0; i < arr.length; ++i) arr[i] = members.get(i).type(tc, null == bounds ? Type.NONE : bounds[i])
+		for (int i = 0; i < arr.length; ++i) arr[i] = members.get(i).type(tc, null == bounds ? Type.ANY : bounds[i])
 		new Typed(arr)
 	}
 
@@ -688,7 +690,7 @@ class SetExpression extends Expression {
 		def rel = preferred.relation(Prelude.SET_TYPE)
 		if (rel.none)
 			throw new UnexpectedTypeException('Tried to infer set expression as non-set type '.concat(preferred.toString()))
-		def bound = rel.sub && preferred instanceof GenericType ? ((GenericType) preferred)[0] : Type.NONE
+		def bound = rel.sub && preferred instanceof GenericType ? ((GenericType) preferred)[0] : Type.ANY
 		def arr = new TypedExpression[members.size()]
 		for (int i = 0; i < arr.length; ++i) arr[i] = members.get(i).type(tc, bound)
 		new Typed(arr)
@@ -759,8 +761,8 @@ class MapExpression extends Expression {
 		def rel = preferred.relation(Prelude.MAP_TYPE)
 		if (rel.none)
 			throw new UnexpectedTypeException('Tried to infer map expression as non-map type '.concat(preferred.toString()))
-		def kbound = rel.sub && preferred instanceof GenericType ? ((GenericType) preferred)[0] : Type.NONE,
-			vbound = rel.sub && preferred instanceof GenericType ? ((GenericType) preferred)[1] : Type.NONE
+		def kbound = rel.sub && preferred instanceof GenericType ? ((GenericType) preferred)[0] : Type.ANY,
+			vbound = rel.sub && preferred instanceof GenericType ? ((GenericType) preferred)[1] : Type.ANY
 		def key = new TypedExpression[members.size()], val = new TypedExpression[members.size()]
 		for (int i = 0; i < key.length; ++i) {
 			def col = members.get(i)
@@ -968,7 +970,7 @@ class NumberExpression extends ConstantExpression<Number> {
 
 	TypedNumberExpression type(TypedContext tc, Type preferred) {
 		def result = new TypedNumberExpression(value.inner())
-		if (preferred == Type.NONE) return result
+		if (preferred == Type.ANY) return result
 		def rel = result.type.relation(preferred)
 		if (rel.none)
 			throw new UnexpectedTypeException("Preferred non-number type $preferred for literal with number $result.number")
@@ -1048,7 +1050,7 @@ class StringExpression extends ConstantExpression<String> {
 
 	TypedStringExpression type(TypedContext tc, Type preferred) {
 		final str = evaluate(null).inner()
-		if (preferred != Type.NONE && !preferred.relation(Prelude.STRING_TYPE).assignableFrom)
+		if (!preferred.relation(Prelude.STRING_TYPE).assignableFrom)
 			throw new UnexpectedTypeException("Preferred non-string type $preferred for literal with string \"${StringEscaper.escape(str)}\"")
 		new TypedStringExpression(str)
 	}

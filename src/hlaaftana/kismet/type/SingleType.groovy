@@ -5,15 +5,15 @@ import groovy.transform.CompileStatic
 @CompileStatic
 class SingleType extends AbstractType {
 	String name
-	Type[] bounds
+	TypeBound[] bounds
 
-	SingleType(String name, Type[] bounds = null) {
+	SingleType(String name, TypeBound[] bounds = null) {
 		this.name = name
 		this.bounds = bounds
 	}
 
 	Type generic(Type... genericArgs) {
-		if (!boundsMatch(bounds, genericArgs)) null
+		if (!boundsMatch(genericArgs)) null
 		else if (null == bounds) this
 		else new GenericType(this, genericArgs)
 	}
@@ -26,9 +26,19 @@ class SingleType extends AbstractType {
 
 	boolean losesAgainst(Type other) { false }
 
+	boolean boundsMatch(Type[] arr) {
+		if (null == bounds) return true
+		if (arr.length != bounds.length) return false
+		for (int i = 0; i < bounds.length; ++i) {
+			if (!bounds[i].assignableFrom(arr[i])) return false
+		}
+		true
+	}
+
 	static boolean boundsMatch(Type[] b1, Type[] b2) {
 		int len, len2
 		if ((null == b1 || (len = b1.length) == 0) && (null == b2 || (len2 = b2.length) == 0)) return true
+		len2 = b2.length
 		if (len != len2) return false
 		println b1[0]
 		println b2[0]

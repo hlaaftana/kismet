@@ -5,6 +5,8 @@ import hlaaftana.kismet.call.Function
 import hlaaftana.kismet.parser.Parser
 import hlaaftana.kismet.scope.Prelude
 import hlaaftana.kismet.scope.Context
+import hlaaftana.kismet.type.NumberType
+import hlaaftana.kismet.type.TupleType
 import hlaaftana.kismet.type.Type
 import hlaaftana.kismet.vm.IKismetObject
 import hlaaftana.kismet.vm.Memory
@@ -19,7 +21,9 @@ class Test {
 		def p = parser.parse(text)
 		println p.repr()
 		println p.evaluate(parser.context)*/
-		for (f in ['binarysearch', 'compareignorecase', 'factorial', 'fibonacci', 'fizzbuzz', 'memoize']) {
+		println Prelude.func(Type.NONE, Prelude.LIST_TYPE).relation(
+				Prelude.func(NumberType.Int32, Type.NONE))
+		if (true) for (f in ['binarysearch', 'compareignorecase', 'factorial', 'fibonacci', 'fizzbuzz', 'memoize']) {
 			println "file: $f"
 			final file = new File("Kismet/examples/${f}.ksmt")
 			def p = parser.parse(file.text)

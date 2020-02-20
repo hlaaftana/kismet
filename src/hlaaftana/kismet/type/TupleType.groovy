@@ -27,6 +27,10 @@ class TupleType extends GenericType {
 
 	boolean isIndefinite() { null != varargs }
 
+	TypeBound.Variance varianceAt(int i) {
+		TypeBound.Variance.COVARIANT
+	}
+
 	TupleType withVarargs(Type varargs) {
 		this.varargs = varargs
 		this

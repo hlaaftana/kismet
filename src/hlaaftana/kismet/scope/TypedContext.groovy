@@ -45,13 +45,13 @@ class TypedContext extends Memory {
 		variables.add(variable)
 	}
 
-	Variable addVariable(String name = null, Type type = Type.NONE) {
+	Variable addVariable(String name = null, Type type = Type.ANY) {
 		final var = new Variable(name, variables.size(), type)
 		variables.add(var)
 		var
 	}
 
-	Variable addVariable(String name = null, IKismetObject value, Type type = Type.NONE) {
+	Variable addVariable(String name = null, IKismetObject value, Type type = Type.ANY) {
 		final var = new Variable(name, variables.size(), type)
 		var.value = value
 		variables.add(var)
@@ -91,11 +91,11 @@ class TypedContext extends Memory {
 
 	List<VariableReference> getAll(String name) { getAll(name.hashCode(), name) }
 
-	VariableReference find(String name, Type expected) {
+	VariableReference find(String name, Type expected, boolean subtypeOfExpected = false) {
 		def match = new ArrayList<VariableReference>()
 		for (d in getAll(name)) {
-			def typ = d.variable.type
-			if (typ.relation(expected).assignableFrom) match.add(d)
+			def rel = d.variable.type.relation(expected)
+			if (subtypeOfExpected ? rel.assignableFrom : rel.assignableTo) match.add(d)
 		}
 		if (match.empty) return null
 		def winner = match.get(0)
@@ -198,7 +198,7 @@ class TypedContext extends Memory {
 		int hash, id
 		IKismetObject value
 
-		Variable(String name, int id, Type type = Type.NONE) {
+		Variable(String name, int id, Type type = Type.ANY) {
 			this.name = name
 			hash = name.hashCode()
 			this.id = id

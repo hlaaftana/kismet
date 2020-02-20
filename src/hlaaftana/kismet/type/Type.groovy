@@ -29,5 +29,8 @@ abstract class AbstractType implements WeakableType {
 		if (!rel.none) return rel
 		other instanceof WeakableType ? ~other.weakRelation(this) : rel
 	}
+
+	TypeBound positive() { TypeBound.co(this) }
+	TypeBound negative() { TypeBound.contra(this) }
 }
 
