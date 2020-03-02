@@ -24,8 +24,25 @@ class TypeBound {
 		new TypeBound(type, Variance.CONTRAVARIANT)
 	}
 
+	TypeBound multiply(Type type) {
+		new TypeBound(type, variance)
+	}
+
 	boolean assignableFrom(Type other) {
 		variance.apply(type.relation(other)).assignableFrom
+	}
+
+	boolean assignableTo(Type other) {
+		variance.apply(type.relation(other)).assignableTo
+	}
+
+	boolean isAny() {
+		(variance == Variance.COVARIANT && type == Type.ANY) ||
+				(variance == Variance.CONTRAVARIANT && type == Type.NONE)
+	}
+
+	TypeRelation relation(Type other) {
+		variance.apply(type.relation(other))
 	}
 
 	String toString() {

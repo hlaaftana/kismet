@@ -6,6 +6,7 @@ import hlaaftana.kismet.scope.Context
 import hlaaftana.kismet.scope.Prelude
 import hlaaftana.kismet.scope.TypedContext
 import hlaaftana.kismet.type.Type
+import hlaaftana.kismet.type.TypeBound
 import hlaaftana.kismet.vm.IKismetObject
 
 /*
@@ -57,7 +58,7 @@ class KismetIterator {
 
 	TypedExpression generate(TypedContext tc, Expression toCall, Type preferred) {
 		tc.addVariable('yield', new YieldTemplate(toCall), Prelude.TEMPLATE_TYPE)
-		inner.type(tc, preferred)
+		inner.type(tc, new TypeBound(preferred))
 	}
 
 	static class YieldTemplate extends Template {

@@ -29,12 +29,12 @@ class TypeRelation {
 	}
 
 	boolean worse(TypeRelation o) {
-		(none && kind != o.kind) ||
+		(none && o.kind != NONE) ||
 				((isSuper() || sub) && o.kind == kind && value > o.value)
 	}
 
 	boolean better(TypeRelation o) {
-		(equal && kind != o.kind) ||
+		(equal && o.kind != EQUAL) ||
 				((isSuper() || sub) && o.kind == kind && value < o.value)
 	}
 

@@ -22,10 +22,10 @@ class Test {
 		println p.repr()
 		println p.evaluate(parser.context)*/
 		println Prelude.func(Type.NONE, Prelude.LIST_TYPE).relation(
-				Prelude.func(NumberType.Int32, Type.NONE))
+				Prelude.func(NumberType.Int32, Type.ANY))
 		if (true) for (f in ['binarysearch', 'compareignorecase', 'factorial', 'fibonacci', 'fizzbuzz', 'memoize']) {
 			println "file: $f"
-			final file = new File("Kismet/examples/${f}.ksmt")
+			final file = new File("examples/${f}.ksmt")
 			def p = parser.parse(file.text)
 			println p
 			def tc = Prelude.typed.child()

@@ -9,6 +9,7 @@ import hlaaftana.kismet.scope.Prelude
 import hlaaftana.kismet.scope.TypedContext
 import hlaaftana.kismet.type.TupleType
 import hlaaftana.kismet.type.Type
+import hlaaftana.kismet.type.TypeBound
 import hlaaftana.kismet.vm.IKismetObject
 import hlaaftana.kismet.vm.KismetTuple
 import hlaaftana.kismet.vm.Memory
@@ -231,7 +232,7 @@ class FunctionDefineExpression extends Expression {
 		result
 	}
 
-	TypedExpression type(TypedContext tc, Type preferred) {
+	TypedExpression type(TypedContext tc, TypeBound preferred) {
 		def fnb = tc.child()
 		def args = arguments.fill(fnb)
 		def block = expression.type(fnb, preferred)
@@ -289,7 +290,7 @@ class FunctionExpression extends Expression {
 		result
 	}
 
-	TypedExpression type(TypedContext tc, Type preferred) {
+	TypedExpression type(TypedContext tc, TypeBound preferred) {
 		def fnb = tc.child()
 		def args = arguments.fill(fnb)
 		def block = expression.type(fnb, preferred)

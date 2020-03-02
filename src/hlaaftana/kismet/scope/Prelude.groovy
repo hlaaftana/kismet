@@ -29,15 +29,15 @@ class Prelude {
 	static final SingleType STRING_TYPE = new SingleType('String'),
 			TEMPLATE_TYPE = new SingleType('Template'),
 			TYPE_CHECKER_TYPE = new SingleType('TypeChecker'),
-			INSTRUCTOR_TYPE = new SingleType('Instructor', [+TupleType.BASE, -Type.NONE] as TypeBound[]),
-			TYPED_TEMPLATE_TYPE = new SingleType('TypedTemplate', [+TupleType.BASE, -Type.NONE] as TypeBound[]),
+			INSTRUCTOR_TYPE = new SingleType('Instructor', [+TupleType.BASE, +Type.ANY] as TypeBound[]),
+			TYPED_TEMPLATE_TYPE = new SingleType('TypedTemplate', [+TupleType.BASE, +Type.ANY] as TypeBound[]),
 			INSTRUCTION_TYPE = new SingleType('Instruction'),
 			MEMORY_TYPE = new SingleType('Memory'),
 			META_TYPE = new SingleType('Meta', [+Type.ANY] as TypeBound[]),
 			LIST_TYPE = new SingleType('List', [+Type.ANY] as TypeBound[]),
 			SET_TYPE = new SingleType('Set', [+Type.ANY] as TypeBound[]),
 			MAP_TYPE = new SingleType('Map', [+Type.ANY, +Type.ANY] as TypeBound[]),
-			FUNCTION_TYPE = new SingleType('Function', [+TupleType.BASE, -Type.NONE] as TypeBound[]),
+			FUNCTION_TYPE = new SingleType('Function', [+TupleType.BASE, +Type.ANY] as TypeBound[]),
 			BOOLEAN_TYPE = new SingleType('Boolean'),
 			EXPRESSION_TYPE = new SingleType('Expression'),
 			CLOSURE_ITERATOR_TYPE = new SingleType('ClosureIterator')
@@ -221,10 +221,10 @@ class Prelude {
 					})
 				}
 			}
-			define 'downcast', TYPE_CHECKER_TYPE, new TypeChecker() {
+			define 'cast', TYPE_CHECKER_TYPE, new TypeChecker() {
 				@CompileStatic
 				TypedExpression transform(TypedContext context, Expression... args) {
-					final typ = ((GenericType) args[0].type(context, META_TYPE).type).bounds[0]
+					final typ = ((GenericType) args[0].type(context, +META_TYPE).type).bounds[0]
 					final expr = args[1].type(context)
 					new TypedExpression() {
 						Type getType() { typ }
@@ -402,8 +402,8 @@ class Prelude {
 					if (!eaches.empty) {
 						int lastAdded = 0
 						for (int i = eaches.size() - 1; i >= 0; i--) {
-							final vari = eaches[i].first
-							final val = eaches[i].second
+							final vari = eaches[i].v1
+							final val = eaches[i].v2
 							final popped = lastAdded == 0 ? Arrays.asList(args).tail() : result[-lastAdded..-1]
 							for (int la = result.size() - 1; la >= result.size() - lastAdded; --la) {
 								result.remove(la)
@@ -472,7 +472,7 @@ class Prelude {
 			define 'if', TYPE_CHECKER_TYPE, new TypeChecker() {
 				@Override
 				TypedExpression transform(TypedContext context, Expression... args) {
-					new IfElseExpression(args[0].type(context, BOOLEAN_TYPE), args[1].type(context), TypedNoExpression.INSTANCE)
+					new IfElseExpression(args[0].type(context, +BOOLEAN_TYPE), args[1].type(context), TypedNoExpression.INSTANCE)
 				}
 
 				@Override
@@ -491,7 +491,7 @@ class Prelude {
 			define 'or?', TYPE_CHECKER_TYPE, new TypeChecker() {
 				@Override
 				TypedExpression transform(TypedContext context, Expression... args) {
-					new IfElseExpression(args[0].type(context, BOOLEAN_TYPE), args[1].type(context), args[2].type(context))
+					new IfElseExpression(args[0].type(context, +BOOLEAN_TYPE), args[1].type(context), args[2].type(context))
 				}
 
 				@Override
@@ -508,7 +508,7 @@ class Prelude {
 			define 'while', TYPE_CHECKER_TYPE, new TypeChecker() {
 				@Override
 				TypedExpression transform(TypedContext context, Expression... args) {
-					new WhileExpression(args[0].type(context, BOOLEAN_TYPE), args[1].type(context))
+					new WhileExpression(args[0].type(context, +BOOLEAN_TYPE), args[1].type(context))
 				}
 
 				@Override
@@ -528,7 +528,7 @@ class Prelude {
 			define 'do_until', TYPE_CHECKER_TYPE, new TypeChecker() {
 				@Override
 				TypedExpression transform(TypedContext context, Expression... args) {
-					new DoUntilExpression(args[0].type(context, BOOLEAN_TYPE), args[1].type(context))
+					new DoUntilExpression(args[0].type(context, +BOOLEAN_TYPE), args[1].type(context))
 				}
 
 				@Override
@@ -639,6 +639,18 @@ class Prelude {
 					KismetBoolean last = KismetBoolean.FALSE
 					for (it in args) if ((last = (KismetBoolean) it.evaluate(m)).inner) return KismetBoolean.TRUE
 					last
+				}
+			}
+			define 'and', instr(BOOLEAN_TYPE, BOOLEAN_TYPE, BOOLEAN_TYPE), new Instructor() {
+				@Override
+				IKismetObject call(Memory m, Instruction... args) {
+					new KismetBoolean(((KismetBoolean) args[0].evaluate(m)).inner && ((KismetBoolean) args[1].evaluate(m)).inner)
+				}
+			}
+			define 'or', instr(BOOLEAN_TYPE, BOOLEAN_TYPE, BOOLEAN_TYPE), new Instructor() {
+				@Override
+				IKismetObject call(Memory m, Instruction... args) {
+					new KismetBoolean(((KismetBoolean) args[0].evaluate(m)).inner || ((KismetBoolean) args[1].evaluate(m)).inner)
 				}
 			}
 			define 'xor', func(BOOLEAN_TYPE, BOOLEAN_TYPE, BOOLEAN_TYPE), new Function() {
@@ -1031,9 +1043,9 @@ class Prelude {
 					} else realMode = RoundingMode.HALF_UP
 					value.setScale(null == args[2] ? 0 : args[2] as int, realMode).stripTrailingZeros()
 				} else if (value instanceof BigInteger
-						|| value instanceof int
-						|| value instanceof long) value
-				else if (value instanceof float) Math.round(value.floatValue())
+						|| value instanceof Integer
+						|| value instanceof Long) value
+				else if (value instanceof Float) Math.round(value.floatValue())
 				else Math.round(((Number) value).doubleValue())
 			}
 			define 'round',  new Template() {
@@ -1054,8 +1066,8 @@ class Prelude {
 					((BigDecimal) value).setScale(args.length > 1 ? args[1] as int : 0,
 							RoundingMode.FLOOR).stripTrailingZeros()
 				else if (value instanceof BigInteger ||
-						value instanceof int ||
-						value instanceof long) value
+						value instanceof Integer ||
+						value instanceof Long) value
 				else Math.floor(value as double)
 			}
 			define 'ceil',  funcc(true) { ... args ->
@@ -1065,8 +1077,8 @@ class Prelude {
 					((BigDecimal) value).setScale(args.length > 1 ? args[1] as int : 0,
 							RoundingMode.CEILING).stripTrailingZeros()
 				else if (value instanceof BigInteger ||
-						value instanceof int ||
-						value instanceof long) value
+						value instanceof Integer ||
+						value instanceof Long) value
 				else Math.ceil(value as double)
 			}
 			define 'logarithm', func(NumberType.Float64, NumberType.Float64), new Function() {
@@ -1487,7 +1499,7 @@ class Prelude {
 		}*/
 		define 'defined?',  new TypeChecker() {
 			TypedExpression transform(TypedContext context, Expression... args) {
-				final type = args.length > 1 ? (Type) args[1].type(context).instruction.evaluate(context) : Type.ANY
+				final type = new TypeBound(args.length > 1 ? (Type) args[1].type(context).instruction.evaluate(context) : Type.ANY)
 				if (args[0] instanceof SetExpression) {
 					def names = new HashSet<String>(args[0].size())
 					for (n in args[0].members) {

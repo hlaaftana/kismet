@@ -4,6 +4,7 @@ import groovy.transform.CompileStatic
 import hlaaftana.kismet.exceptions.UndefinedVariableException
 import hlaaftana.kismet.exceptions.VariableExistsException
 import hlaaftana.kismet.type.Type
+import hlaaftana.kismet.type.TypeBound
 import hlaaftana.kismet.vm.IKismetObject
 
 @CompileStatic
@@ -16,7 +17,7 @@ enum AssignmentType {
 		}
 
 		TypedContext.VariableReference set(TypedContext tc, String name, Type type) {
-			final v = tc.find(name, type)
+			final v = tc.find(name, new TypeBound(type))
 			if (null == v) tc.addVariable(name, type).ref()
 			else v
 		}
@@ -63,7 +64,7 @@ enum AssignmentType {
 		}
 
 		TypedContext.VariableReference set(TypedContext tc, String name, Type type) {
-			final v = tc.find(name, type)
+			final v = tc.find(name, new TypeBound(type))
 			if (null == v)
 				throw new UndefinedVariableException("Can't change undefined variable $name to type $type")
 			else v

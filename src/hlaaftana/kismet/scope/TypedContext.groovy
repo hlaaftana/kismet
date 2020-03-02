@@ -4,6 +4,8 @@ import groovy.transform.CompileStatic
 import hlaaftana.kismet.exceptions.ForbiddenAccessException
 import hlaaftana.kismet.exceptions.UndefinedSymbolException
 import hlaaftana.kismet.type.Type
+import hlaaftana.kismet.type.TypeBound
+import hlaaftana.kismet.type.TypeRelation
 import hlaaftana.kismet.vm.IKismetObject
 import hlaaftana.kismet.vm.Memory
 
@@ -91,19 +93,19 @@ class TypedContext extends Memory {
 
 	List<VariableReference> getAll(String name) { getAll(name.hashCode(), name) }
 
-	VariableReference find(String name, Type expected, boolean subtypeOfExpected = false) {
-		def match = new ArrayList<VariableReference>()
+	VariableReference find(String name, TypeBound expected) {
+		def match = new ArrayList<Tuple2<VariableReference, TypeRelation>>()
 		for (d in getAll(name)) {
-			def rel = d.variable.type.relation(expected)
-			if (subtypeOfExpected ? rel.assignableFrom : rel.assignableTo) match.add(d)
+			def rel = expected.relation(d.variable.type)
+			if (rel.assignableFrom) match.add(new Tuple2<>(d, rel))
 		}
 		if (match.empty) return null
 		def winner = match.get(0)
 		for (int i = 1; i < match.size(); ++i) {
 			final e = match.get(i)
-			if (winner.variable.type.losesAgainst(e.variable.type)) winner = e
+			if (winner.v2.toSome() < e.v2.toSome()) winner = e
 		}
-		winner
+		winner.v1
 	}
 
 	List<VariableReference> getAll(Set<String> names) {
@@ -118,22 +120,22 @@ class TypedContext extends Memory {
 		result
 	}
 
-	VariableReference find(Set<String> names, Type expected) {
-		def match = new ArrayList<VariableReference>()
+	VariableReference find(Set<String> names, TypeBound expected) {
+		def match = new ArrayList<Tuple2<VariableReference, TypeRelation>>()
 		for (d in getAll(names)) {
-			def typ = d.variable.type
-			if (typ.relation(expected).assignableFrom) match.add(d)
+			def rel = expected.relation(d.variable.type)
+			if (rel.assignableFrom) match.add(new Tuple2<>(d, rel))
 		}
 		if (match.empty) return null
 		def winner = match.get(0)
 		for (int i = 1; i < match.size(); ++i) {
 			final e = match.get(i)
-			if (winner.variable.type.losesAgainst(e.variable.type)) winner = e
+			if (winner.v2.toSome() < e.v2.toSome()) winner = e
 		}
-		winner
+		winner.v1
 	}
 
-	VariableReference findThrow(String name, Type expected) {
+	VariableReference findThrow(String name, TypeBound expected) {
 		def var = find(name, expected)
 		if (null == var) throw new UndefinedSymbolException("Could not find variable with name $name and type $expected")
 		else var
@@ -208,6 +210,10 @@ class TypedContext extends Memory {
 		VariableReference ref() {
 			new VariableReference(this, new ArrayDeque<>())
 		}
+
+		String toString() {
+			"$name: $type"
+		}
 	}
 
 	static class VariableReference {
@@ -242,6 +248,10 @@ class TypedContext extends Memory {
 			for (index in heritagePath) mem = mem.relative(index)
 			mem.set(variable.id, value)
 			value
+		}
+
+		String toString() {
+			"$variable @ $heritagePath"
 		}
 	}
 }
