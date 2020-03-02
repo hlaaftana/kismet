@@ -480,7 +480,7 @@ class Parser {
 			Character.isWhitespace(cp) || cp == ((char) '.') || cp == ((char) '[') ||
 					cp == ((char) '(') || cp == ((char) '{') || cp == ((char) ']') ||
 					cp == ((char) ')') || cp == ((char) '}') || cp == ((char) ',') ||
-					cp == ((char) ':')
+					cp == ((char) ':') || cp == ((char) ';')
 		}
 
 		@Override

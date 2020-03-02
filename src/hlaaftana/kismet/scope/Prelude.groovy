@@ -415,7 +415,7 @@ class Prelude {
 								b.addAll(popped)
 								b.add(new CallExpression(new NameExpression('incr'), vari))
 								result.add(new CallExpression(new NameExpression('while'),
-									new CallExpression(new NameExpression('<='), vari, val[1]),
+									new CallExpression(new NameExpression('<='), vari, val[2]),
 									new BlockExpression(b)))
 								lastAdded = 2
 							} else if ('range<' == atom1) {
@@ -424,7 +424,7 @@ class Prelude {
 								b.addAll(popped)
 								b.add(new CallExpression(new NameExpression('incr'), vari))
 								result.add(new CallExpression(new NameExpression('while'),
-										new CallExpression(new NameExpression('<'), vari, val[1]),
+										new CallExpression(new NameExpression('<'), vari, val[2]),
 										new BlockExpression(b)))
 								lastAdded = 2
 							} else {
@@ -2291,6 +2291,7 @@ class Prelude {
 		}
 		alias 'has_all?', 'superset?'
 		alias 'inject', 'reduce', 'fold'
+		alias 'collect', 'map'
 		alias 'bottom_half', 'half'
 		alias 'size', 'length'
 		alias 'find_all', 'select', 'filter'
