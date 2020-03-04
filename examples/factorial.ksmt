@@ -1,5 +1,5 @@
 functional: dive {
-  defn [permutation (n: Int32) (r: Int32)] [downcast Int32 [int32 [product [range [next [- n r]] n]]]]
+  defn [permutation (n: Int32) (r: Int32)] [cast Int32 [int32 [product [range [next [- n r]] n]]]]
   defn [factorial (n: Int32)] [permutation n n]
   defn [combination (n: Int32) (r: Int32)] [div [permutation n r] [factorial r]]
 

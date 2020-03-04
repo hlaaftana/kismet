@@ -14,6 +14,28 @@ import hlaaftana.kismet.vm.RuntimeMemory
 
 @CompileStatic
 class Test {
+	static final Function echo = new Function() {
+		@Override
+		IKismetObject call(IKismetObject... arg) {
+			println "OUTPUT: " + arg[0]
+			return Kismet.NULL
+		}
+	}
+
+	static void run(Parser parser, String text) {
+		def p = parser.parse(text)
+		def tc = Prelude.typed.child()
+		tc.addVariable('echo', Prelude.func(Type.NONE, Type.ANY))
+		def t = p.type(tc)
+		println t
+		println t.type
+		def i = t.instruction
+		println i
+		def mem = new RuntimeMemory([Prelude.typed] as Memory[], tc.size())
+		mem.memory[0] = echo
+		i.evaluate(mem)
+	}
+
 	static main(args) {
 		def parser = new Parser()
 		parser.context = new Context(Kismet.DEFAULT_CONTEXT, [echo: (IKismetObject) Prelude.funcc(System.out.&println)])
@@ -21,30 +43,14 @@ class Test {
 		def p = parser.parse(text)
 		println p.repr()
 		println p.evaluate(parser.context)*/
-		println Prelude.func(Type.NONE, Prelude.LIST_TYPE).relation(
+		println Prelude.func(Type.ANY, Prelude.LIST_TYPE).relation(
 				Prelude.func(NumberType.Int32, Type.ANY))
+		run(parser, "size [1, 2]")
+
 		if (true) for (f in ['binarysearch', 'compareignorecase', 'factorial', 'fibonacci', 'fizzbuzz', 'memoize']) {
 			println "file: $f"
 			final file = new File("examples/${f}.ksmt")
-			def p = parser.parse(file.text)
-			println p
-			def tc = Prelude.typed.child()
-			def echofunc = new Function() {
-				@Override
-				IKismetObject call(IKismetObject... arg) {
-					println arg[0]
-					return Kismet.NULL
-				}
-			}
-			tc.addVariable('echo', Prelude.func(Type.NONE, Type.ANY))
-			def t = p.type(tc)
-			println t
-			def i = t.instruction
-			println i
-			def mem = new RuntimeMemory([Prelude.typed] as Memory[], tc.size())
-			mem.memory[0] = echofunc
-			i.evaluate(mem)
-			//p.evaluate(parser.context.child())
+			run(parser, file.text)
 		}
 	}
 }

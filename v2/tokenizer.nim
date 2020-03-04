@@ -1,13 +1,12 @@
 import strutils, unicode, options
 
 type
-  TokenType* = enum
-    ttNone, ttWhitespace, ttIndent, ttIndentBack, ttNewLine
-    ttBackslash, ttDot, ttComma, ttColon, ttSemicolon
-    ttOpenParen, ttCloseParen, ttOpenBrack, ttCloseBrack, ttOpenCurly, ttCloseCurly
-    ttString, ttNumber, ttWord, ttSymbol
+  TokenKind* = enum
+    tkNone, tkWhitespace, tkIndent, tkIndentBack, tkNewLine
+    tkBackslash, tkDot, tkComma, tkColon, tkSemicolon
+    tkOpenParen, tkCloseParen, tkOpenBrack, tkCloseBrack, tkOpenCurly, tkCloseCurly
+    tkString, tkNumber, tkWord, tkSymbol
 
-type
   DecimalFlags* = enum
     dfNegative, dfFloating
 
@@ -17,16 +16,37 @@ type
     exp*: int
 
   Token* = object
-    case kind*: TokenType
-    of ttString:
+    case kind*: TokenKind
+    of tkString:
       content*: string
-    of ttNumber:
+    of tkNumber:
       num*: PositiveDecimal
-    of ttWord, ttSymbol:
+    of tkWord, tkSymbol:
       raw*: string
-    of ttNewLine:
+    of tkNewLine:
       ampersand*: bool
     else: discard
+
+const
+  SpecialCharacters*: array[tkBackslash..tkCloseCurly, char] = [
+    tkBackslash: '\\',
+    tkDot: '.',
+    tkComma: ',',
+    tkColon: ':',
+    tkSemicolon: ';',
+    tkOpenParen: '(',
+    tkCloseParen: ')',
+    tkOpenBrack: '[',
+    tkCloseBrack: ']',
+    tkOpenCurly: '{',
+    tkCloseCurly: '}'
+  ]
+
+  SpecialCharacterSet* = block:
+    var result: set[char]
+    for sc in SpecialCharacters:
+      result.incl(sc)
+    result
 
 proc `$`*(number: PositiveDecimal): string =
   result = newStringOfCap(number.base.len + 2)
@@ -40,26 +60,16 @@ proc `$`*(number: PositiveDecimal): string =
 
 proc `$`*(token: Token): string =
   result = case token.kind
-  of ttNone: "<none>"
-  of ttWhitespace: " "
-  of ttIndent: "<indent>"
-  of ttIndentBack: "<indentback>"
-  of ttNewLine: "\p"
-  of ttBackslash: "\\"
-  of ttDot: "."
-  of ttComma: ","
-  of ttColon: ":"
-  of ttSemicolon: ";"
-  #of ttQuestionMark: "?"
-  of ttOpenParen: "("
-  of ttCloseParen: ")"
-  of ttOpenBrack: "["
-  of ttCloseBrack: "]"
-  of ttOpenCurly: "{"
-  of ttCloseCurly: "}"
-  of ttString: "\"" & token.content & "\""
-  of ttNumber: $token.num
-  of ttWord, ttSymbol: token.raw
+  of tkNone: "<none>"
+  of tkWhitespace: " "
+  of tkIndent: "<indent>"
+  of tkIndentBack: "<indentback>"
+  of tkNewLine: "\p"
+  of tkBackslash..tkCloseCurly:
+    $SpecialCharacters[token.kind]
+  of tkString: "\"" & token.content & "\""
+  of tkNumber: $token.num
+  of tkWord, tkSymbol: token.raw
 
 iterator rev[T](a: openArray[T]): T {.inline.} =
   var i = a.len
@@ -300,8 +310,7 @@ proc recordWord*(str: string, i: var int): string =
 
 proc recordSymbol*(str: string, i: var int): string =
   for c in runes(i, str):
-    if c notin (Whitespace + {'0'..'9', '_', '\'', '"', '`', '#', ';', ':', ',',
-        '(', ')', '[', ']', '{', '}'}) and not c.isAlpha:
+    if c notin (Whitespace + Digits + SpecialCharacterSet + {'_', '\'', '"', '`', '#'}) and not c.isAlpha:
       result.add(c)
     else:
       return
@@ -310,7 +319,7 @@ proc tokenize*(str: string): seq[Token] =
   result = newSeq[Token]()
   var
     #currentLineBars: int
-    lastKind: TokenType
+    lastKind: TokenKind
     lastIndents: seq[int]
     lastIndentSum, indent: int
     recordingIndent: bool
@@ -323,9 +332,9 @@ proc tokenize*(str: string): seq[Token] =
   template dropLast =
     let l1 = result.len - 1
     result.setLen(l1)
-    lastKind = if unlikely(l1 == 0): ttNone else: result[l1 - 1].kind
+    lastKind = if unlikely(l1 == 0): tkNone else: result[l1 - 1].kind
 
-  template addTokenOf(tt: TokenType) =
+  template addTokenOf(tt: TokenKind) =
     addToken(Token(kind: tt))
 
   var i = 0
@@ -347,87 +356,87 @@ proc tokenize*(str: string): seq[Token] =
           for indt in lastIndents.rev:
             dec d, indt # -2
             dec lastIndentSum, indt
-            addTokenOf(ttIndentBack)
+            addTokenOf(tkIndentBack)
             if d < 0:
               dec lastIndentSum, d
               lastIndents[lastIndents.high] = -d
-              addTokenOf(ttIndent)
+              addTokenOf(tkIndent)
               break
             lastIndents.setLen(lastIndents.high)
             if d == 0: break
         elif diff > 0:
           lastIndents.add(diff)
           inc lastIndentSum, diff
-          addTokenOf(ttIndent)
+          addTokenOf(tkIndent)
         indent = 0
         recordingIndent = false
 
     case c
     of Rune('#'): comment = true
-    of Rune(','): addTokenOf(ttComma)
-    of Rune(':'): addTokenOf(ttColon)
-    of Rune(';'): addTokenOf(ttSemicolon)
+    of Rune(','): addTokenOf(tkComma)
+    of Rune(':'): addTokenOf(tkColon)
+    of Rune(';'): addTokenOf(tkSemicolon)
     of Rune('.'):
-      if lastKind == ttDot:
+      if lastKind == tkDot:
         dropLast
-        addToken(Token(kind: ttSymbol, raw: "." & recordSymbol(str, i)))
+        addToken(Token(kind: tkSymbol, raw: "." & recordSymbol(str, i)))
       else:
-        addTokenOf(ttDot)
-    of Rune('\\'): addTokenOf(ttBackslash)
-    #of Rune('?'): addTokenOf(ttQuestionMark)
-    of Rune('['): addTokenOf(ttOpenBrack)
-    of Rune(']'): addTokenOf(ttCloseBrack)
-    of Rune('('): addTokenOf(ttOpenParen)
-    of Rune(')'): addTokenOf(ttCloseParen)
-    of Rune('{'): addTokenOf(ttOpenCurly)
-    of Rune('}'): addTokenOf(ttCloseCurly)
+        addTokenOf(tkDot)
+    of Rune('\\'): addTokenOf(tkBackslash)
+    #of Rune('?'): addTokenOf(tkQuestionMark)
+    of Rune('['): addTokenOf(tkOpenBrack)
+    of Rune(']'): addTokenOf(tkCloseBrack)
+    of Rune('('): addTokenOf(tkOpenParen)
+    of Rune(')'): addTokenOf(tkCloseParen)
+    of Rune('{'): addTokenOf(tkOpenCurly)
+    of Rune('}'): addTokenOf(tkCloseCurly)
     #[of Rune('|'):
-      addTokenOf(ttNewLine)
-      addTokenOf(ttIndent)
+      addTokenOf(tkNewLine)
+      addTokenOf(tkIndent)
       inc currentLineBars
     of Rune('^'):
-      addTokenOf(ttNewLine)
-      addTokenOf(ttIndentBack)
+      addTokenOf(tkNewLine)
+      addTokenOf(tkIndentBack)
       dec currentLineBars]#
     of Rune('&'):
-      addToken(Token(kind: ttNewLine, ampersand: true))
+      addToken(Token(kind: tkNewLine, ampersand: true))
     of Rune('\''), Rune('"'), Rune('`'):
       let s = recordString(str, i, c.char)
       if c == Rune('`'):
-        addToken(Token(kind: ttSymbol, raw: s))
+        addToken(Token(kind: tkSymbol, raw: s))
       else:
-        addToken(Token(kind: ttString, content: s))
+        addToken(Token(kind: tkString, content: s))
       when false:
         stringQuote = c
         recorded = ""
-        recordedType = ttString
+        recordedType = tkString
     of Rune('0')..Rune('9'):
       let n = recordNumber(str, i)
-      addToken(Token(kind: ttNumber, num: n))
+      addToken(Token(kind: tkNumber, num: n))
     of Rune('\l'), Rune('\c'):
       if c == Rune('\c') and str.len > i + 1 and str[i + 1] == '\n':
         inc i
       let r = high(result)
       for xi in countdown(r, 0):
-        if result[xi].kind == ttWhitespace:
+        if result[xi].kind == tkWhitespace:
           continue
-        elif result[xi].kind == ttNewline and result[xi].ampersand:
+        elif result[xi].kind == tkNewline and result[xi].ampersand:
           result.del(xi)
         break
       if r == high(result):
-        addTokenOf(ttNewLine)
+        addTokenOf(tkNewLine)
         when false:
           for _ in 1..currentLineBars:
-            addTokenOf(ttIndentBack)
+            addTokenOf(tkIndentBack)
           currentLineBars = 0
         recordingIndent = true
     elif w:
-      if lastKind != ttWhitespace:
-        addTokenOf(ttWhitespace)
+      if lastKind != tkWhitespace:
+        addTokenOf(tkWhitespace)
     elif c == '_' or c.isAlpha:
-      addToken(Token(kind: ttWord, raw: recordWord(str, i)))
+      addToken(Token(kind: tkWord, raw: recordWord(str, i)))
     else:
-      addToken(Token(kind: ttSymbol, raw: recordSymbol(str, i)))
+      addToken(Token(kind: tkSymbol, raw: recordSymbol(str, i)))
 
 when isMainModule:
   import times

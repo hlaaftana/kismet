@@ -1,20 +1,23 @@
-%operator {
+%parser {
   ;; = and : are predefined
-  precedence_above Assignment Range
-  infix .. Range
-  infix (- +) Arithmetic1
-  infix (* /) Arithmetic2
-  infix < Comparison
+  ;; precedence levels are a linked enum
+  group Range [after Assignment] infix ltr
+  symbols {
+    Range ..
+    Arithmetic1 - +
+    Arithmetic2 * /
+    Comparison <
+  }
 }
 
-functional = module {
-  defn permutation(n r: Int) = product n - r + 1 .. n
-  defn factorial(n: Int) = permutation n n
-  defn combination(n r: Int) = div (permutation n r) (factorial r)
+container functional {
+  def permutation(n r: Int) = product n - r + 1 .. n
+  def factorial(n: Int) = permutation n n
+  def combination(n r: Int) = div (permutation n r) (factorial r)
 }
 
-imperative = module {
-  defn factorial(n: Int) {
+container imperative {
+  def factorial(n: Int) {
     x = i = 1
     while i < n {
       x = x * (i = i + 1)
@@ -22,16 +25,16 @@ imperative = module {
     x
   }
 
-  defn permutation(n r: Int) {
+  def permutation(n r: Int) {
     x = 1
     i = next n - r
     while i < n {
-      |>= x (* (|>= i (+ 1)))
+      x |>= * (i |>= + 1)
     }
     x
   }
 
-  defn combination(n r: Int) (
+  def combination(n r: Int) (
     let (result x = 1, i = 0) (
       while i < r {
         x = x * (n - i) / (r - i)

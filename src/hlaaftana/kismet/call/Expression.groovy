@@ -520,7 +520,7 @@ class CallExpression extends Expression {
 		// function
 		final fn = Prelude.func(preferred.type, argtypes)
 		try {
-			if (callValue instanceof NameExpression && callValue.text == "<") {
+			if (callValue instanceof NameExpression && callValue.text == "size") {
 				println "WOOOOEEEE"
 				println fn
 				println tc.find(callValue.text, -fn)?.variable?.type
@@ -528,7 +528,7 @@ class CallExpression extends Expression {
 			}
 			cv = callValue.type(tc, -fn)
 		} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {
-			if (callValue instanceof NameExpression && callValue.text == "<") {
+			if (callValue instanceof NameExpression && callValue.text == "size") {
 				println "SUPERAIDS1"
 				println tc.variables
 				println repr()
@@ -542,6 +542,7 @@ class CallExpression extends Expression {
 		cv = callValue.type(tc)
 		def cc = tc.find('call', -Prelude.func(preferred.type, new TupleType(cv.type, new TupleType(argtypes))))
 		if (null == cc) throw new UndefinedSymbolException('Could not find overload for ' + repr() + ' as ' + argtypes + ': ' + preferred)
+		println cc.variable.type
 		new TypedCallExpression(new VariableExpression(cc), [cv, new TupleExpression.Typed(args)] as TypedExpression[], cc.variable.type instanceof SingleType ? Type.ANY : ((GenericType) cc.variable.type)[1])
 	}
 }
