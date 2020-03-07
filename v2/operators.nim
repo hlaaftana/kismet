@@ -1,12 +1,31 @@
+from tokenizer import TokenKind
+
 type
+  MatchKind* = enum
+    mkStartsWith, mkEndsWith, mkEquals
+    mkSpecialTokenEquals
+    mkCharStartsWith, mkCharEndsWith, mkCharEquals
+
+  Match* = object
+    case kind*: MatchKind
+    of mkStartsWith, mkEndsWith, mkEquals:
+      str*: string
+    of mkSpecialTokenEquals:
+      tokenKind*: TokenKind
+    of mkCharStartsWith, mkCharEndsWith, mkCharEquals:
+      ch*: char
+
   OperatorKind* = enum
-    okNone, okPrefix, okInfix, okPostfix
+    okInfix, okPrefix, okPostfix
+    # don't know if the following can work as custom syntax:
+    # okInfixTernary ->        _ ? _ : _
+    # okPrefixInfix ->         let _ in _
+    # okPrefixInfixTernary ->  for _ in _ : _
 
   OperatorGroupObj* {.acyclic.} = object
-    name*: string
     precedence*: int
+    matches*: seq[Match]
     kind*: OperatorKind
-    symbols*: seq[string]
     next*: ref OperatorGroupObj
   OperatorGroup* = ref OperatorGroupObj
 

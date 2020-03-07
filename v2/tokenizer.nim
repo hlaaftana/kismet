@@ -1,4 +1,4 @@
-import strutils, unicode, options
+import strutils, unicode, algorithm
 
 type
   TokenKind* = enum
@@ -6,9 +6,8 @@ type
     tkBackslash, tkDot, tkComma, tkColon, tkSemicolon
     tkOpenParen, tkCloseParen, tkOpenBrack, tkCloseBrack, tkOpenCurly, tkCloseCurly
     tkString, tkNumber, tkWord, tkSymbol
-
-  DecimalFlags* = enum
-    dfNegative, dfFloating
+  
+  SpecialCharacterKind* = range[tkBackslash..tkCloseCurly]
 
   PositiveDecimal* = object
     base*: seq[byte]
@@ -23,12 +22,12 @@ type
       num*: PositiveDecimal
     of tkWord, tkSymbol:
       raw*: string
-    of tkNewLine:
-      ampersand*: bool
+    #of tkNewLine:
+    #  ampersand*: bool
     else: discard
 
 const
-  SpecialCharacters*: array[tkBackslash..tkCloseCurly, char] = [
+  SpecialCharacters*: array[SpecialCharacterKind, char] = [
     tkBackslash: '\\',
     tkDot: '.',
     tkComma: ',',
@@ -70,6 +69,15 @@ proc `$`*(token: Token): string =
   of tkString: "\"" & token.content & "\""
   of tkNumber: $token.num
   of tkWord, tkSymbol: token.raw
+
+proc `==`*(tok1, tok2: Token): bool =
+  if tok1.kind != tok2.kind: return
+  case tok1.kind
+  of tkString: tok1.content == tok2.content
+  of tkNumber: tok1.num == tok2.num
+  of tkWord, tkSymbol: tok1.raw  == tok2.raw
+  #of tkNewline: not (tok1.ampersand xor tok2.ampersand)
+  else: true
 
 iterator rev[T](a: openArray[T]): T {.inline.} =
   var i = a.len
@@ -371,72 +379,46 @@ proc tokenize*(str: string): seq[Token] =
         indent = 0
         recordingIndent = false
 
-    case c
-    of Rune('#'): comment = true
-    of Rune(','): addTokenOf(tkComma)
-    of Rune(':'): addTokenOf(tkColon)
-    of Rune(';'): addTokenOf(tkSemicolon)
-    of Rune('.'):
-      if lastKind == tkDot:
-        dropLast
-        addToken(Token(kind: tkSymbol, raw: "." & recordSymbol(str, i)))
-      else:
-        addTokenOf(tkDot)
-    of Rune('\\'): addTokenOf(tkBackslash)
-    #of Rune('?'): addTokenOf(tkQuestionMark)
-    of Rune('['): addTokenOf(tkOpenBrack)
-    of Rune(']'): addTokenOf(tkCloseBrack)
-    of Rune('('): addTokenOf(tkOpenParen)
-    of Rune(')'): addTokenOf(tkCloseParen)
-    of Rune('{'): addTokenOf(tkOpenCurly)
-    of Rune('}'): addTokenOf(tkCloseCurly)
-    #[of Rune('|'):
-      addTokenOf(tkNewLine)
-      addTokenOf(tkIndent)
-      inc currentLineBars
-    of Rune('^'):
-      addTokenOf(tkNewLine)
-      addTokenOf(tkIndentBack)
-      dec currentLineBars]#
-    of Rune('&'):
-      addToken(Token(kind: tkNewLine, ampersand: true))
-    of Rune('\''), Rune('"'), Rune('`'):
-      let s = recordString(str, i, c.char)
-      if c == Rune('`'):
-        addToken(Token(kind: tkSymbol, raw: s))
-      else:
-        addToken(Token(kind: tkString, content: s))
-      when false:
-        stringQuote = c
-        recorded = ""
-        recordedType = tkString
-    of Rune('0')..Rune('9'):
-      let n = recordNumber(str, i)
-      addToken(Token(kind: tkNumber, num: n))
-    of Rune('\l'), Rune('\c'):
-      if c == Rune('\c') and str.len > i + 1 and str[i + 1] == '\n':
-        inc i
-      let r = high(result)
-      for xi in countdown(r, 0):
-        if result[xi].kind == tkWhitespace:
-          continue
-        elif result[xi].kind == tkNewline and result[xi].ampersand:
-          result.del(xi)
-        break
-      if r == high(result):
-        addTokenOf(tkNewLine)
-        when false:
-          for _ in 1..currentLineBars:
-            addTokenOf(tkIndentBack)
-          currentLineBars = 0
-        recordingIndent = true
-    elif w:
+    if w:
       if lastKind != tkWhitespace:
         addTokenOf(tkWhitespace)
-    elif c == '_' or c.isAlpha:
+    elif c.isAlpha:
       addToken(Token(kind: tkWord, raw: recordWord(str, i)))
-    else:
+    elif c.int32 > 127:
       addToken(Token(kind: tkSymbol, raw: recordSymbol(str, i)))
+    else:
+      let ch = c.char
+      case ch
+      of '#': comment = true
+      of SpecialCharacterSet:
+        let kind = TokenKind(low(SpecialCharacterKind).ord + binarySearch(SpecialCharacters, ch))
+        if kind in {tkDot, tkColon, tkSemicolon} and lastKind == kind:
+          dropLast
+          addToken(Token(kind: tkSymbol, raw: ch & recordSymbol(str, i)))
+        else:
+          addTokenOf(kind)
+      of '\'', '"', '`':
+        let s = recordString(str, i, ch)
+        if c == '`':
+          addToken(Token(kind: tkSymbol, raw: s))
+        else:
+          addToken(Token(kind: tkString, content: s))
+      of '0'..'9':
+        let n = recordNumber(str, i)
+        addToken(Token(kind: tkNumber, num: n))
+      of '\l', '\c':
+        if ch == '\c' and str.len > i + 1 and str[i + 1] == '\n':
+          inc i
+        let r = high(result)
+        for xi in countdown(r, 0):
+          if result[xi].kind == tkWhitespace:
+            continue
+          elif result[xi].kind == tkBackslash:
+            result.del(xi)
+          break
+        if r == high(result):
+          addTokenOf(tkNewLine)
+      else: addToken(Token(kind: tkSymbol, raw: recordSymbol(str, i)))
 
 when isMainModule:
   import times
