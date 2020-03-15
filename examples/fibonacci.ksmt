@@ -1,4 +1,4 @@
-defn [intlist n: Int32] [downcast List[Int32] [new_list n]]
+defn [intlist n: Int32] [cast List[Int32] [new_list n]]
 
 defn [fibonacci n: Int32] [
   let [f: 0, s: 1, each i: range< 0 n, result res: new_list n]

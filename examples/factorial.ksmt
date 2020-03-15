@@ -3,7 +3,9 @@ functional: dive {
   defn [factorial (n: Int32)] [permutation n n]
   defn [combination (n: Int32) (r: Int32)] [div [permutation n r] [factorial r]]
 
-  {#factorial, permutation, combination}
+  assert_is [factorial 5i32] 120i32
+  assert_is [permutation 4i32 2i32] 12i32
+  assert_is [combination 6i32 3i32] 20i32
 }
 
 imperative: dive {
@@ -34,9 +36,7 @@ imperative: dive {
         incr i
       }]]
 
-  {#factorial, permutation, combination}
+  assert_is [factorial 5i32] 120i32
+  assert_is [permutation 4i32 2i32] 12i32
+  assert_is [combination 6i32 3i32] 20i32
 }
-
-assert_is [functional.factorial 5i32] [imperative.factorial 5i32] 120i32
-assert_is [functional.permutation 4i32 2i32] [imperative.permutation 4i32 2i32] 12i32
-assert_is [functional.combination 6i32 3i32] [imperative.combination 6i32 3i32] 20i32

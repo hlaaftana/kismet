@@ -1,4 +1,6 @@
-import strutils, unicode, algorithm
+# TODO: make special tokenizer
+
+import strutils, unicode
 
 type
   TokenKind* = enum
@@ -99,62 +101,6 @@ proc `==`*(s: char, r: Rune): bool {.inline.} =
   r.int32 < 128i32 and r.char == s
 
 template `==`*(r: Rune, s: char): bool = s == r
-
-proc unescape*(str: string): string =
-  result = newStringOfCap(str.len)
-  var
-    escaped = false
-    recordU = false
-    uFunc: proc(s: string): int = nil
-    u: string
-  for c in str:
-    if escaped:
-      if u.len != 0:
-        if recordU:
-          if c == '}':
-            recordU = false
-            result.add($Rune(uFunc(u)))
-            u = ""
-            uFunc = parseHexInt
-          else: u.add(c)
-        else:
-          case c
-          of 'x', 'X': uFunc = parseHexInt
-          of 'o', 'O': uFunc = parseOctInt
-          of 'd', 'D': uFunc = parseInt
-          of 'b', 'B': uFunc = parseBinInt
-          of '{': recordU = true
-          else:
-            recordU = false
-            result.add('\\')
-            result.add('u')
-            result.add(c)
-            u = ""
-          continue
-      else:
-        if c == 'u':
-          u = newStringOfCap(4)
-          continue
-        else:
-          result.setLen(result.len - 1)
-          let ch = case c
-            of 't': '\t'
-            of '"': '"'
-            of '\'': '\''
-            of '\\': '\\'
-            of 'r': '\r'
-            of 'n': '\l'
-            of 'f': '\f'
-            of 'v': '\v'
-            of 'a': '\a'
-            of 'b': '\b'
-            of 'e': '\e'
-            else:
-              result.add('\\')
-              c
-          result.add(ch)
-    else: result.add(c)
-    escaped = c == '\\'
 
 proc recordString*(str: string, i: var int, quote: char): string =
   var
@@ -310,17 +256,21 @@ proc recordNumber*(str: string, i: var int): PositiveDecimal =
     inc i
 
 proc recordWord*(str: string, i: var int): string =
+  dec i
   for c in runes(i, str):
     if c == Rune('_') or c.isAlpha:
       result.add(c)
     else:
+      dec i
       return
 
 proc recordSymbol*(str: string, i: var int): string =
+  dec i
   for c in runes(i, str):
     if c notin (Whitespace + Digits + SpecialCharacterSet + {'_', '\'', '"', '`', '#'}) and not c.isAlpha:
       result.add(c)
     else:
+      dec i
       return
 
 proc tokenize*(str: string): seq[Token] =
@@ -380,7 +330,19 @@ proc tokenize*(str: string): seq[Token] =
         recordingIndent = false
 
     if w:
-      if lastKind != tkWhitespace:
+      if c in {'\L', '\c'}:
+        if c == '\c' and str.len > i + 1 and str[i + 1] == '\L':
+          inc i
+        let r = high(result)
+        for xi in countdown(r, 0):
+          if result[xi].kind == tkWhitespace:
+            continue
+          elif result[xi].kind == tkBackslash:
+            result.del(xi)
+          break
+        if r == high(result):
+          addTokenOf(tkNewLine)
+      elif lastKind != tkWhitespace:
         addTokenOf(tkWhitespace)
     elif c.isAlpha:
       addToken(Token(kind: tkWord, raw: recordWord(str, i)))
@@ -391,7 +353,7 @@ proc tokenize*(str: string): seq[Token] =
       case ch
       of '#': comment = true
       of SpecialCharacterSet:
-        let kind = TokenKind(low(SpecialCharacterKind).ord + binarySearch(SpecialCharacters, ch))
+        let kind = TokenKind(low(SpecialCharacterKind).ord + find(SpecialCharacters, ch))
         if kind in {tkDot, tkColon, tkSemicolon} and lastKind == kind:
           dropLast
           addToken(Token(kind: tkSymbol, raw: ch & recordSymbol(str, i)))
@@ -406,18 +368,6 @@ proc tokenize*(str: string): seq[Token] =
       of '0'..'9':
         let n = recordNumber(str, i)
         addToken(Token(kind: tkNumber, num: n))
-      of '\l', '\c':
-        if ch == '\c' and str.len > i + 1 and str[i + 1] == '\n':
-          inc i
-        let r = high(result)
-        for xi in countdown(r, 0):
-          if result[xi].kind == tkWhitespace:
-            continue
-          elif result[xi].kind == tkBackslash:
-            result.del(xi)
-          break
-        if r == high(result):
-          addTokenOf(tkNewLine)
       else: addToken(Token(kind: tkSymbol, raw: recordSymbol(str, i)))
 
 when isMainModule:
@@ -428,5 +378,11 @@ when isMainModule:
     let b = cpuTime()
     echo "took ", b - a
 
-  echo unescape("aaaa\\u{28483} ğpppppp \\t \\ux99 \\ub0101010100 \\\" ")
   echo tokenize("hello: \"aaaa\\u{28483} ğpppppp \\t \\u99 \\ux{99} \\ub{0101010100\\ub{0101010100} a\\\" oo\")()")
+  echo tokenize("title: about gluggers")
+  echo tokenize("""title: CLAUDE
+style: "
+  body {
+    background-color: #FF0000;
+  }
+"""")

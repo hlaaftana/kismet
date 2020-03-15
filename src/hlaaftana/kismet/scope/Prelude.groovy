@@ -52,6 +52,7 @@ class Prelude {
 		else if (value instanceof TypeChecker) TYPE_CHECKER_TYPE
 		else if (value instanceof Instructor) INSTRUCTOR_TYPE
 		else if (value instanceof TypedTemplate) TYPED_TEMPLATE_TYPE
+		else if (value instanceof Type) new GenericType(META_TYPE, value)
 		else throw new UnsupportedOperationException("Cannot infer type for kismet object $value")
 	}
 
@@ -110,6 +111,7 @@ class Prelude {
 			}
 			define '.property', func(Type.ANY, MAP_TYPE, STRING_TYPE), new Function() {
 				IKismetObject call(IKismetObject... args) {
+					println args
 					Kismet.model(((Map) args[0].inner()).get(((CharSequence) args[1]).toString()))
 				}
 			}
@@ -261,6 +263,7 @@ class Prelude {
 					})
 				}
 			}
+			define 'Function', new GenericType(META_TYPE, FUNCTION_TYPE), FUNCTION_TYPE
 			define 'fn', new Template() {
 				@Override
 				Expression transform(Parser parser, Expression... args) {
