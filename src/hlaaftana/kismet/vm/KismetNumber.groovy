@@ -163,6 +163,7 @@ final class KInt extends KismetNumber<BigInteger> {
 	static BigInteger toBigInt(Number num) {
 		if (num instanceof BigInteger) (BigInteger) num
 		else if (num instanceof BigDecimal) ((BigDecimal) num).toBigInteger()
+		else if (num instanceof KismetNumber) toBigInt(num.inner())
 		else BigInteger.valueOf(num.longValue())
 	}
 
@@ -241,6 +242,7 @@ final class KFloat extends KismetNumber<BigDecimal> {
 	static BigDecimal toBigDec(Number num) {
 		if (num instanceof BigDecimal) (BigDecimal) num
 		else if (num instanceof BigInteger) ((BigInteger) num).toBigDecimal()
+		else if (num instanceof KismetNumber) toBigDec(num.inner())
 		else BigDecimal.valueOf(num.doubleValue())
 	}
 
@@ -333,7 +335,7 @@ final class KFloat64 extends KismetNumber<Double> {
 	}
 
 	KFloat64 div(KismetNumber obj) {
-		new KFloat64(inner / obj.doubleValue())
+		new KFloat64((double) inner / obj.doubleValue())
 	}
 
 	KFloat64 intdiv(KismetNumber obj) {

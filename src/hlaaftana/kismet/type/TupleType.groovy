@@ -14,14 +14,14 @@ class TupleType extends GenericType {
 
 	TupleType(TypedExpression[] zro) {
 		super(BASE, new Type[zro.length])
-		for (int i = 0; i < zro.length; ++i) bounds[i] = zro[i].type
+		for (int i = 0; i < zro.length; ++i) arguments[i] = zro[i].type
 	}
 
-	String toString() { "Tuple[${bounds.join(', ')}" + (null == varargs ? "]" : ", $varargs...]") }
+	String toString() { "Tuple[${arguments.join(', ')}" + (null == varargs ? "]" : ", $varargs...]") }
 
 	boolean losesAgainst(Type other) {
 		def t = (TupleType) other
-		for (int i = 0; i < bounds.length; ++i) if (bounds[i].losesAgainst(t.bounds[i])) return true
+		for (int i = 0; i < arguments.length; ++i) if (arguments[i].losesAgainst(t.arguments[i])) return true
 		false
 	}
 
@@ -37,8 +37,8 @@ class TupleType extends GenericType {
 	}
 
 	Type getAt(int i) {
-		i >= bounds.length ? varargs : bounds[i]
+		i >= arguments.length ? varargs : arguments[i]
 	}
 
-	boolean equals(obj) { obj instanceof TupleType && Arrays.equals(bounds, obj.bounds) && varargs == obj.varargs }
+	boolean equals(obj) { obj instanceof TupleType && Arrays.equals(arguments, obj.arguments) && varargs == obj.varargs }
 }

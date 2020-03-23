@@ -4,10 +4,15 @@ import groovy.transform.CompileStatic
 import groovy.transform.InheritConstructors
 import hlaaftana.kismet.Kismet
 import hlaaftana.kismet.exceptions.*
-import hlaaftana.kismet.parser.*
-import hlaaftana.kismet.scope.*
+import hlaaftana.kismet.parser.Parser
+import hlaaftana.kismet.parser.StringEscaper
+import hlaaftana.kismet.scope.AssignmentType
+import hlaaftana.kismet.scope.Context
+import hlaaftana.kismet.scope.Prelude
+import hlaaftana.kismet.scope.TypedContext
 import hlaaftana.kismet.type.*
 import hlaaftana.kismet.vm.*
+
 import static hlaaftana.kismet.call.ExprBuilder.*
 
 @CompileStatic
@@ -144,7 +149,7 @@ class PathExpression extends Expression {
 		}
 
 		String toString() { getterName(name) }
-		Expression asExpr() { new NameExpression(name) }
+		Expression asExpr() { name(name) }
 		PropertyStep borrow(Expression expr) { new PropertyStep(expr.toString()) }
 
 		TypedExpression type(TypedContext ctx, TypedExpression before) {
@@ -241,9 +246,6 @@ class PathExpression extends Expression {
 	TypedExpression type(TypedContext tc, TypeBound preferred) {
 		TypedExpression result = root.type(tc)
 		for (s in steps) result = s.type(tc, result)
-		println this
-		println result
-		println result?.type
 		if (!preferred.relation(result.type).assignableFrom)
 			throw new UnexpectedTypeException("path expression $this is not $preferred")
 		result
@@ -264,6 +266,10 @@ class TypedWrapperExpression extends Expression {
 
 	TypedExpression type(TypedContext tc, TypeBound preferred) {
 		inner
+	}
+
+	String repr() {
+		"typed($inner)"
 	}
 }
 
@@ -508,7 +514,13 @@ class CallExpression extends Expression {
 		try {
 			cv = callValue.type(tc, -typedTmpl)
 		} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {}
-		if (null != cv) return ((TypedTemplate) cv.instruction.evaluate(tc)).transform(tc, args)
+		if (null != cv) {
+			try {
+				return ((TypedTemplate) cv.instruction.evaluate(tc)).transform(tc, args)
+			} catch (NullPointerException ignored) {
+				throw new UnexpectedValueException("Something was wrong: $this")
+			}
+		}
 
 		// instructor
 		final inr = Prelude.instr(preferred.type, argtypes)
@@ -520,29 +532,15 @@ class CallExpression extends Expression {
 		// function
 		final fn = Prelude.func(preferred.type, argtypes)
 		try {
-			if (callValue instanceof NameExpression && callValue.text == "size") {
-				println "WOOOOEEEE"
-				println fn
-				println tc.find(callValue.text, -fn)?.variable?.type
-				println "EEEEOOOOW"
-			}
 			cv = callValue.type(tc, -fn)
-		} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {
-			if (callValue instanceof NameExpression && callValue.text == "size") {
-				println "SUPERAIDS1"
-				println tc.variables
-				println repr()
-				println(-fn)
-				println "SUPERAIDS2"
-				ignored.printStackTrace()
-			}
-		}
+		} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {}
 		if (null != cv) return new TypedCallExpression(cv, args, cv.type instanceof SingleType ? Type.ANY : ((GenericType) cv.type)[1])
 
 		cv = callValue.type(tc)
+		// TODO: change the 'call' signature in Prelude after all untyped functions are typed (held back by generics)
+		println "WARNING: $this WILL USE 'call' FUNCTION"
 		def cc = tc.find('call', -Prelude.func(preferred.type, new TupleType(cv.type, new TupleType(argtypes))))
 		if (null == cc) throw new UndefinedSymbolException('Could not find overload for ' + repr() + ' as ' + argtypes + ': ' + preferred)
-		println cc.variable.type
 		new TypedCallExpression(new VariableExpression(cc), [cv, new TupleExpression.Typed(args)] as TypedExpression[], cc.variable.type instanceof SingleType ? Type.ANY : ((GenericType) cc.variable.type)[1])
 	}
 }
@@ -649,7 +647,7 @@ class TupleExpression extends CollectionExpression {
 		def rel = preferred.relation(baseType)
 		if (rel.none)
 			throw new UnexpectedTypeException('Tried to infer tuple expression as non-tuple type '.concat(preferred.toString()))
-		final bounds = rel.sub && preferred.type instanceof TupleType ? ((TupleType) preferred.type).bounds : (Type[]) null
+		final bounds = rel.sub && preferred.type instanceof TupleType ? ((TupleType) preferred.type).arguments : (Type[]) null
 		if (rel.sub && members.size() != bounds.length)
 			throw new UnexpectedTypeException("Tuple expression length ${members.size()} did not match expected tuple type length $bounds.length")
 		def arr = new TypedExpression[members.size()]
@@ -881,14 +879,14 @@ class ColonExpression extends Expression {
 		def val = right.type(tc, preferred) // no need to check if it satisfies because it will check itself
 		def atom = Prelude.toAtom(left)
 		if (null != atom) {
-			def var = tc.find(atom, preferred)
-			if (null == var) var = tc.addVariable(atom, val.type).ref()
+			def var = AssignmentType.ASSIGN.set(tc, atom, val.type)
 			new VariableSetExpression(var, val)
 		} else if (left instanceof PathExpression) {
 			final p = (PathExpression) left
 			def rh = p.steps.last()
 			rh.typeSet(tc, (p.steps.size() == 1 ? p.root : new PathExpression(p.root, p.steps.init())).type(tc), val)
 		} else if (left instanceof NumberExpression) {
+			// TODO: ranges with this syntax
 			def b = left.value.inner().intValue()
 			def var = tc.getVariable(b)
 			if (null == var) var = new TypedContext.Variable(null, b, preferred.type)
@@ -985,16 +983,16 @@ class NumberExpression extends ConstantExpression<Number> {
 			else if (b == 64) v = new Long(r)
 			else throw new NumberFormatException("Invalid number of bits $b for explicit integer")
 		}
-		setValue(v)
+		super.@value = KismetNumber.from(v)
 	}
 
-	NumberExpression(Number v) { setValue(v) }
+	NumberExpression(Number v) { super.@value = KismetNumber.from(v) }
 
 	NumberExpression(String x) {
 		Parser.NumberBuilder b = new Parser.NumberBuilder(null)
 		char[] a = x.toCharArray()
 		for (int i = 0; i < a.length; ++i) b.doPush((int) a[i])
-		setValue b.doFinish().value.inner()
+		super.@value = KismetNumber.from(b.doFinish().value.inner())
 	}
 
 	TypedNumberExpression type(TypedContext tc, TypeBound preferred) {
@@ -1062,7 +1060,7 @@ class StringExpression extends ConstantExpression<String> {
 
 	StringExpression(String v) {
 		try {
-			setValue(StringEscaper.unescape(raw = v))
+			super.@value = new KismetString(StringEscaper.unescape(raw = v))
 		} catch (ex) {
 			exception = ex
 		}
@@ -1088,7 +1086,6 @@ class StringExpression extends ConstantExpression<String> {
 @CompileStatic
 class StaticExpression<T extends Expression> extends ConstantExpression<Object> {
 	T expression
-	Type type
 
 	String repr() { expression ? "static[$expression]($value)" : "static($value)" }
 
@@ -1107,8 +1104,6 @@ class StaticExpression<T extends Expression> extends ConstantExpression<Object> 
 	}
 
 	TypedExpression type(TypedContext tc, TypeBound preferred) {
-		if (!preferred.relation(type).assignableFrom)
-			throw new UnexpectedSyntaxException("Cannot coerce static expression with type $type to $expression")
 		new TypedConstantExpression(preferred.type, value)
 	}
 }

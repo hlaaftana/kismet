@@ -1,18 +1,19 @@
-mean: / sum size
+defn [mean l: List[Number]] [/ [sum l] [size l]]
 
-defn [median l] {
+defn [median l: List[Number]] {
   s: size l
   d: div s 2
   or? [odd? s] l[d] [div [+ l[d] l[prev d]] 2]
 }
 
-defn [standard_deviation l] {
+defn [standard_deviation l: List[Number]] {
   m: mean l
   s: 0
-  `for:` [a l] {
+  let (each a: l) {
     incr s [squared [- a m]]
   }
-  sqrt [/ s [prev [size l]]]
+  square_root [/ s [prev [size l]]]
 }
 
-skewness: / [* [- mean median] [fn 3]] standard_deviation
+defn [skewness l: List[Number]] [
+  / [* [- [mean l] [median l]] 3] [standard_deviation l]]

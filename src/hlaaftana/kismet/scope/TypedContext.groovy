@@ -66,36 +66,37 @@ class TypedContext extends Memory {
 		null
 	}
 
-	VariableReference find(int h, String name) {
+	VariableReference find(int h, String name, boolean doParents = true) {
 		for (var in variables)
 			if (var.hash == h && var.name == name)
 				return var.ref()
-		for (int i = 0; i < heritage.size(); ++i) {
+		if (doParents) for (int i = 0; i < heritage.size(); ++i) {
 			final v = heritage.get(i).find(h, name)
 			if (null != v) return v.relative(i)
 		}
 		null
 	}
 
-	VariableReference find(String name) { find(name.hashCode(), name) }
+	VariableReference find(String name, boolean doParents = true) { find(name.hashCode(), name, doParents) }
 
-	List<VariableReference> getAll(int h, String name) {
+	List<VariableReference> getAll(int h, String name, boolean doParents = true) {
 		def result = new ArrayList<VariableReference>()
 		for (var in variables)
 			if (var.hash == h && var.name == name)
 				result.add(var.ref())
-		for (int i = 0; i < heritage.size(); ++i) {
-			final v = heritage.get(i).getAll(h, name)
-			for (r in v) result.add(r.relative(i))
-		}
+		if (doParents)
+			for (int i = 0; i < heritage.size(); ++i) {
+				final v = heritage.get(i).getAll(h, name)
+				for (r in v) result.add(r.relative(i))
+			}
 		result
 	}
 
-	List<VariableReference> getAll(String name) { getAll(name.hashCode(), name) }
+	List<VariableReference> getAll(String name, boolean doParents = true) { getAll(name.hashCode(), name, doParents) }
 
-	VariableReference find(String name, TypeBound expected) {
+	VariableReference find(String name, TypeBound expected, boolean doParents = true) {
 		def match = new ArrayList<Tuple2<VariableReference, TypeRelation>>()
-		for (d in getAll(name)) {
+		for (d in getAll(name, doParents)) {
 			def rel = expected.relation(d.variable.type)
 			if (rel.assignableFrom) match.add(new Tuple2<>(d, rel))
 		}
@@ -108,21 +109,21 @@ class TypedContext extends Memory {
 		winner.v1
 	}
 
-	List<VariableReference> getAll(Set<String> names) {
+	List<VariableReference> getAll(Set<String> names, boolean doParents = true) {
 		def result = new ArrayList<VariableReference>()
 		for (var in variables)
 			if (names.contains(var.name))
 				result.add(var.ref())
-		for (int i = 0; i < heritage.size(); ++i) {
+		if (doParents) for (int i = 0; i < heritage.size(); ++i) {
 			final v = heritage.get(i).getAll(names)
 			for (r in v) result.add(r.relative(i))
 		}
 		result
 	}
 
-	VariableReference find(Set<String> names, TypeBound expected) {
+	VariableReference find(Set<String> names, TypeBound expected, boolean doParents = true) {
 		def match = new ArrayList<Tuple2<VariableReference, TypeRelation>>()
-		for (d in getAll(names)) {
+		for (d in getAll(names, doParents)) {
 			def rel = expected.relation(d.variable.type)
 			if (rel.assignableFrom) match.add(new Tuple2<>(d, rel))
 		}
@@ -135,30 +136,30 @@ class TypedContext extends Memory {
 		winner.v1
 	}
 
-	VariableReference findThrow(String name, TypeBound expected) {
-		def var = find(name, expected)
+	VariableReference findThrow(String name, TypeBound expected, boolean doParents = true) {
+		def var = find(name, expected, doParents)
 		if (null == var) throw new UndefinedSymbolException("Could not find variable with name $name and type $expected")
 		else var
 	}
 
-	List<VariableReference> getAllStatic(int h, String name) {
+	List<VariableReference> getAllStatic(int h, String name, boolean doParents = true) {
 		def result = new ArrayList<VariableReference>()
 		for (var in variables) {
 			if (null != var.value && var.hash == h && var.name == name)
 				result.add(var.ref())
 		}
-		for (int i = 0; i < heritage.size(); ++i) {
+		if (doParents) for (int i = 0; i < heritage.size(); ++i) {
 			final v = heritage.get(i).getAllStatic(h, name)
 			for (r in v) result.add(r.relative(i))
 		}
 		result
 	}
 
-	List<VariableReference> getAllStatic(String name) { getAllStatic(name.hashCode(), name) }
+	List<VariableReference> getAllStatic(String name, boolean doParents = true) { getAllStatic(name.hashCode(), name, doParents) }
 
-	VariableReference findStatic(String name, Type expected) {
+	VariableReference findStatic(String name, Type expected, boolean doParents = true) {
 		def match = new ArrayList<VariableReference>()
-		for (d in getAllStatic(name)) {
+		for (d in getAllStatic(name, doParents)) {
 			def typ = d.variable.type
 			if (typ.relation(expected).assignableFrom) match.add(d)
 		}

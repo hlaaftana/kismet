@@ -10,12 +10,13 @@ import hlaaftana.kismet.parser.Optimizer
 import hlaaftana.kismet.parser.Parser
 import hlaaftana.kismet.parser.StringEscaper
 import hlaaftana.kismet.type.*
-import static hlaaftana.kismet.type.TypeBound.*
 import hlaaftana.kismet.vm.*
 
 import java.math.RoundingMode
 import java.text.SimpleDateFormat
 import java.util.regex.Pattern
+
+import static hlaaftana.kismet.call.ExprBuilder.*
 
 @CompileStatic
 @SuppressWarnings("ChangeToOperator")
@@ -65,6 +66,10 @@ class Prelude {
 		define(name, inferType(object), object)
 	}
 
+	static void define(SingleType type) {
+		define(type.name, new GenericType(META_TYPE, type), type)
+	}
+
 	static void typed(String name, Type type, IKismetObject object) {
 		typed.addVariable(name, object, type)
 	}
@@ -85,9 +90,9 @@ class Prelude {
 			@Override
 			Expression transform(Parser parser, Expression... args) {
 				def arr = new ArrayList<Expression>(args.length + 1)
-				arr.add(new NameExpression(old))
+				arr.add(name(old))
 				arr.addAll(args)
-				new CallExpression(new NameExpression('not'), new CallExpression(arr))
+				call(name('not'), call(arr))
 			}
 		}
 		for (final n : news) {
@@ -111,7 +116,6 @@ class Prelude {
 			}
 			define '.property', func(Type.ANY, MAP_TYPE, STRING_TYPE), new Function() {
 				IKismetObject call(IKismetObject... args) {
-					println args
 					Kismet.model(((Map) args[0].inner()).get(((CharSequence) args[1]).toString()))
 				}
 			}
@@ -129,9 +133,10 @@ class Prelude {
 			define '::=', TEMPLATE_TYPE, new AssignTemplate(AssignmentType.SET)
 			define ':=', TEMPLATE_TYPE, new AssignTemplate(AssignmentType.DEFINE)
 			define '=', TEMPLATE_TYPE, new AssignTemplate(AssignmentType.ASSIGN)
+			define 'shadow', TEMPLATE_TYPE, new AssignTemplate(AssignmentType.SHADOW)
 			define 'name_expr', func(EXPRESSION_TYPE, STRING_TYPE), new Function() {
 				IKismetObject call(IKismetObject... args) {
-					new NameExpression(((KismetString) args[0]).inner())
+					name(((KismetString) args[0]).inner())
 				}
 			}
 			define 'name_expr?', func(BOOLEAN_TYPE, EXPRESSION_TYPE), new Function() {
@@ -169,7 +174,7 @@ class Prelude {
 			}
 			define 'string_expr', func(EXPRESSION_TYPE, STRING_TYPE), new Function() {
 				IKismetObject call(IKismetObject... args) {
-					new StringExpression(((KismetString) args[0]).inner())
+					string(((KismetString) args[0]).inner())
 				}
 			}
 			define 'string_expr?', func(BOOLEAN_TYPE, EXPRESSION_TYPE), new Function() {
@@ -179,7 +184,7 @@ class Prelude {
 			}
 			define 'call_expr', func(EXPRESSION_TYPE, LIST_TYPE.generic(EXPRESSION_TYPE)), new Function() {
 				IKismetObject call(IKismetObject... args) {
-					new CallExpression((List<Expression>) args[0].inner())
+					call((List<Expression>) args[0].inner())
 				}
 			}
 			define 'call_expr?', func(BOOLEAN_TYPE, EXPRESSION_TYPE), new Function() {
@@ -189,7 +194,7 @@ class Prelude {
 			}
 			define 'block_expr', func(EXPRESSION_TYPE, LIST_TYPE.generic(EXPRESSION_TYPE)), new Function() {
 				IKismetObject call(IKismetObject... args) {
-					new BlockExpression((List<Expression>) args[0].inner())
+					block((List<Expression>) args[0].inner())
 				}
 			}
 			define 'block_expr?', func(BOOLEAN_TYPE, EXPRESSION_TYPE), new Function() {
@@ -210,6 +215,7 @@ class Prelude {
 			define 'tmpl', TYPE_CHECKER_TYPE, new TypeChecker() {
 				TypedExpression transform(TypedContext context, Expression... args) {
 					def c = context.child()
+					c.label = "anonymous template"
 					c.addVariable('exprs', LIST_TYPE.generic(EXPRESSION_TYPE))
 					def typ = args[0].type(c)
 					if (typ.type != EXPRESSION_TYPE) throw new UnexpectedTypeException('Expected type of template to be expression but was ' + typ.type)
@@ -226,7 +232,7 @@ class Prelude {
 			define 'cast', TYPE_CHECKER_TYPE, new TypeChecker() {
 				@CompileStatic
 				TypedExpression transform(TypedContext context, Expression... args) {
-					final typ = ((GenericType) args[0].type(context, +META_TYPE).type).bounds[0]
+					final typ = ((GenericType) args[0].type(context, +META_TYPE).type).arguments[0]
 					final expr = args[1].type(context)
 					new TypedExpression() {
 						Type getType() { typ }
@@ -236,15 +242,15 @@ class Prelude {
 			}
 			define '+=', TEMPLATE_TYPE, new Template() {
 				Expression transform(Parser parser, Expression... args) {
-					new CallExpression([new NameExpression('='), args[0],
-							new CallExpression([new NameExpression('+'), args[0], args[1]])])
+					call([name('='), args[0],
+							call([name('+'), args[0], args[1]])])
 				}
 			}
 			define 'def', TEMPLATE_TYPE, new Template() {
 				Expression transform(Parser parser, Expression... args) {
 					if (args.length == 0) throw new UnexpectedSyntaxException('Cannot def without any arguments')
 					if (args[0] instanceof NameExpression) {
-						new VariableModifyExpression(AssignmentType.DEFINE, ((NameExpression) args[0]).text, args[1])
+						var(AssignmentType.DEFINE, ((NameExpression) args[0]).text, args[1])
 					} else {
 						new FunctionDefineExpression(args)
 					}
@@ -253,6 +259,7 @@ class Prelude {
 			define 'instructor', new TypeChecker() {
 				TypedExpression transform(TypedContext context, Expression... args) {
 					def c = context.child()
+					c.label = "anonymous instructor"
 					c.addVariable('instructions', LIST_TYPE.generic(INSTRUCTION_TYPE))
 					def typ = args[0].type(c)
 					new TypedConstantExpression(new GenericType(INSTRUCTOR_TYPE, TupleType.BASE, typ.type), new Instructor() {
@@ -263,7 +270,7 @@ class Prelude {
 					})
 				}
 			}
-			define 'Function', new GenericType(META_TYPE, FUNCTION_TYPE), FUNCTION_TYPE
+			define FUNCTION_TYPE
 			define 'fn', new Template() {
 				@Override
 				Expression transform(Parser parser, Expression... args) {
@@ -288,65 +295,63 @@ class Prelude {
 					} else throw new UnexpectedSyntaxException("Can't define function with declaration " + f)
 					def exprs = new ArrayList<Expression>(a.length - 1)
 					for (int i = 1; i < a.length; ++i) exprs.add(null == parser ? a[i] : parser.optimizer.optimize(a[i]))
-					new FunctionDefineExpression(name, args, exprs.size() == 1 ? exprs[0] : new BlockExpression(exprs))
+					new FunctionDefineExpression(name, args, exprs.size() == 1 ? exprs[0] : block(exprs))
 				}
 			}
 			define 'defmcr', new Template() {
 				@CompileStatic
 				Expression transform(Parser parser, Expression... args) {
 					def a = new ArrayList<Expression>(args.length + 1)
-					a.add(new NameExpression('mcr'))
+					a.add(name('mcr'))
 					for (int i = 1; i < args.length; ++i)
 						a.add(args[i])
-					new VariableModifyExpression(AssignmentType.DEFINE, toAtom(args[0]), new CallExpression(a))
+					var(AssignmentType.DEFINE, toAtom(args[0]), call(a))
 				}
 			}
 			define 'fn*', new Template() {
 				@Override
 				Expression transform(Parser parser, Expression... args) {
 					def kill = new ArrayList<Expression>(args.length + 1)
-					kill.add(new NameExpression('fn'))
+					kill.add(name('fn'))
 					kill.addAll(args)
-					def res = new CallExpression(new NameExpression('fn'), new CallExpression(
-							new NameExpression('call'), new CallExpression(kill),
-							new PathExpression(new NameExpression('_all'), [
-									(PathExpression.Step) new PathExpression.SubscriptStep(new NumberExpression(0))])))
-					println res
+					def res = call(name('fn'), call(
+							name('call'), call(kill),
+							subscript(name('_all'), number(0))))
 					res
 				}
 			}
 			define 'incr', TEMPLATE_TYPE, new Template() {
 				Expression transform(Parser parser, Expression... args) {
-					def val = args.length > 1 ? new CallExpression(new NameExpression('+'), args[0], args[1]) :
-							new CallExpression(new NameExpression('next'), args[0])
-					new ColonExpression(args[0], val)
+					def val = args.length > 1 ? call(name('+'), args[0], args[1]) :
+							call(name('next'), args[0])
+					colon(args[0], val)
 				}
 			}
 			define 'decr', TEMPLATE_TYPE, new Template() {
 				Expression transform(Parser parser, Expression... args) {
-					def val = args.length > 1 ? new CallExpression(new NameExpression('-'), args[0], args[1]) :
-							new CallExpression(new NameExpression('prev'), args[0])
-					new ColonExpression(args[0], val)
+					def val = args.length > 1 ? call(name('-'), args[0], args[1]) :
+							call(name('prev'), args[0])
+					colon(args[0], val)
 				}
 			}
 			define '|>=', TEMPLATE_TYPE, new Template() {
 				@CompileStatic
 				Expression transform(Parser parser, Expression... args) {
 					def val = pipeForwardExpr(args[0], args.tail().toList())
-					new ColonExpression(args[0], val)
+					colon(args[0], val)
 				}
 			}
 			define '<|=', TEMPLATE_TYPE, new Template() {
 				@CompileStatic
 				Expression transform(Parser parser, Expression... args) {
 					def val = pipeBackwardExpr(args[0], args.tail().toList())
-					new ColonExpression(args[0], val)
+					colon(args[0], val)
 				}
 			}
 			define 'dive', TEMPLATE_TYPE, new Template() {
 				@CompileStatic
 				Expression transform(Parser parser, Expression... args) {
-					new DiveExpression(args.length == 1 ? args[0] : new BlockExpression(args.toList()))
+					new DiveExpression(args.length == 1 ? args[0] : block(args.toList()))
 				}
 			}
 			define 'static', TYPE_CHECKER_TYPE, new TypeChecker() {
@@ -388,14 +393,14 @@ class Prelude {
 								def atom = toAtom(em)
 								String atom0 = null
 								if (null != atom)
-									result.add(new VariableModifyExpression(AssignmentType.SET, atom, val))
+									result.add(var(AssignmentType.SET, atom, val))
 								else if (em instanceof CallExpression && em.size() == 2 &&
 										'result' == (atom0 = toAtom(em[0]))) {
 									def name = toAtom(em[1])
 									if (null == name)
 										throw new UnexpectedSyntaxException("Non-name let results aren't supported")
-									result.add(new VariableModifyExpression(AssignmentType.SET, name, val))
-									resultVar = new NameExpression(name)
+									result.add(var(AssignmentType.SET, name, val))
+									resultVar = ExprBuilder.name(name)
 								} else if ('each' == atom0) {
 									eaches.add(new Tuple2(em[1], val))
 								}
@@ -413,41 +418,40 @@ class Prelude {
 							}
 							String atom1 = null
 							if (val instanceof CallExpression && 'range' == (atom1 = toAtom(val[0]))) {
-								result.add(new ColonExpression(vari, val[1]))
+								result.add(colon(vari, val[1]))
 								def b = new ArrayList<Expression>(lastAdded + 1)
 								b.addAll(popped)
-								b.add(new CallExpression(new NameExpression('incr'), vari))
-								result.add(new CallExpression(new NameExpression('while'),
-									new CallExpression(new NameExpression('<='), vari, val[2]),
-									new BlockExpression(b)))
+								b.add(call(name('incr'), vari))
+								result.add(call(name('while'),
+									call(name('<='), vari, val[2]),
+									block(b)))
 								lastAdded = 2
 							} else if ('range<' == atom1) {
-								result.add(new ColonExpression(vari, val[1]))
+								result.add(colon(vari, val[1]))
 								def b = new ArrayList<Expression>(lastAdded + 1)
 								b.addAll(popped)
-								b.add(new CallExpression(new NameExpression('incr'), vari))
-								result.add(new CallExpression(new NameExpression('while'),
-										new CallExpression(new NameExpression('<'), vari, val[2]),
-										new BlockExpression(b)))
+								b.add(call(name('incr'), vari))
+								result.add(call(name('while'),
+										call(name('<'), vari, val[2]),
+										block(b)))
 								lastAdded = 2
 							} else {
-								final iterName = new NameExpression('_iter'.concat((eaches.size() - i).toString()))
-								result.add(new ColonExpression(iterName,
-									new CallExpression(new NameExpression('to_iterator'), val)))
+								final iterName = name('_iter'.concat((eaches.size() - i).toString()))
+								result.add(colon(iterName,
+									call(name('to_iterator'), val)))
 								def b = new ArrayList<Expression>(lastAdded + 1)
-								b.add(new ColonExpression(vari, new CallExpression(
-										new NameExpression('next'), iterName)))
+								b.add(colon(vari, call(
+										name('next'), iterName)))
 								b.addAll(popped)
-								result.add(new CallExpression(new NameExpression('while'),
-										new CallExpression(new NameExpression('has_next?'), iterName),
-										new BlockExpression(b)))
+								result.add(call(name('while'),
+										call(name('has_next?'), iterName),
+										block(b)))
 								lastAdded = 2
 							}
 						}
-					}
-					result.addAll(args.tail())
+					} else result.addAll(args.tail())
 					if (null != resultVar) result.add(resultVar)
-					final r = new BlockExpression(result)
+					final r = block(result)
 					args.length == 1 ? r : new DiveExpression(r)
 				}
 			}
@@ -455,21 +459,24 @@ class Prelude {
 				@CompileStatic
 				Expression transform(Parser parser, Expression... args) {
 					def slowdown = new ArrayList<Expression>(args.length + 1)
-					slowdown.add(new NameExpression('quote'))
+					slowdown.add(name('quote'))
 					slowdown.addAll(args)
-					new StaticExpression(new CallExpression(slowdown),
+					new StaticExpression(call(slowdown),
 							args.length == 1 ? args[0] :
-									new BlockExpression(args.toList()))
+									block(args.toList()))
 				}
 			}
 			define 'get_or_set', TEMPLATE_TYPE, new Template() {
 				@Override
 				Expression transform(Parser parser, Expression... args) {
-					def onc = new OnceExpression(args[0])
-					new CallExpression(new NameExpression('or?'),
-							new CallExpression(new NameExpression('null?'), onc),
-							onc,
-							new ColonExpression(args[0], args[1]))
+					def onc = name('internal`get_or_set')
+					def res = block(
+						var(AssignmentType.SHADOW, 'internal`get_or_set', args[0]),
+						call(name('or?'),
+							call(name('null?'), onc),
+							colon(args[0], args[1]),
+							onc))
+					res
 				}
 			}
 			define 'if', TYPE_CHECKER_TYPE, new TypeChecker() {
@@ -488,7 +495,7 @@ class Prelude {
 			define 'unless', TEMPLATE_TYPE, new Template() {
 				@Override
 				Expression transform(Parser parser, Expression... args) {
-					new CallExpression(new NameExpression('if'), new CallExpression(new NameExpression('not'), args[0]), args[1])
+					call(name('if'), call(name('not'), args[0]), args[1])
 				}
 			}
 			define 'or?', TYPE_CHECKER_TYPE, new TypeChecker() {
@@ -505,7 +512,7 @@ class Prelude {
 			define 'not_or?', TEMPLATE_TYPE, new Template() {
 				@Override
 				Expression transform(Parser parser, Expression... args) {
-					new CallExpression(new NameExpression('or?'), new CallExpression(new NameExpression('not'), args[0]), args[1], args[2])
+					call(name('or?'), call(name('not'), args[0]), args[1], args[2])
 				}
 			}
 			define 'while', TYPE_CHECKER_TYPE, new TypeChecker() {
@@ -525,7 +532,7 @@ class Prelude {
 			define 'until', TEMPLATE_TYPE, new Template() {
 				@Override
 				Expression transform(Parser parser, Expression... args) {
-					new CallExpression(new NameExpression('while'), new CallExpression(new NameExpression('not'), args[0]), args[1])
+					call(name('while'), call(name('not'), args[0]), args[1])
 				}
 			}
 			define 'do_until', TYPE_CHECKER_TYPE, new TypeChecker() {
@@ -546,7 +553,7 @@ class Prelude {
 			define 'do_while', TEMPLATE_TYPE, new Template() {
 				@Override
 				Expression transform(Parser parser, Expression... args) {
-					new CallExpression(new NameExpression('do_until'), new CallExpression(new NameExpression('not'), args[0]), args[1])
+					call(name('do_until'), call(name('not'), args[0]), args[1])
 				}
 			}
 			define 'do', func(Type.NONE), Function.NOP
@@ -571,7 +578,7 @@ class Prelude {
 						String t = args[0] instanceof NumberExpression ?
 								((NumberExpression) args[0]).value.inner().toString() :
 								((NameExpression) args[0]).text
-						new NumberExpression(new BigInteger(t, 16))
+						number(new BigInteger(t, 16))
 					} else throw new UnexpectedSyntaxException('Expression after hex was not a hexadecimal number literal.'
 							+ ' To convert hex strings to integers do [from_base str 16], '
 							+ ' and to convert integers to hex strings do [to_base i 16].')
@@ -581,7 +588,7 @@ class Prelude {
 				Expression transform(Parser parser, Expression... args) {
 					if (args[0] instanceof NumberExpression) {
 						String t = ((NumberExpression) args[0]).value.inner().toString()
-						new NumberExpression(new BigInteger(t, 2))
+						number(new BigInteger(t, 2))
 					} else throw new UnexpectedSyntaxException('Expression after binary was not a binary number literal.'
 							+ ' To convert binary strings to integers do [from_base str 2], '
 							+ ' and to convert integers to binary strings do [to_base i 2].')
@@ -591,7 +598,7 @@ class Prelude {
 				Expression transform(Parser parser, Expression... args) {
 					if (args[0] instanceof NumberExpression) {
 						String t = ((NumberExpression) args[0]).value.inner().toString()
-						new NumberExpression(new BigInteger(t, 8))
+						number(new BigInteger(t, 8))
 					} else throw new UnexpectedSyntaxException('Expression after octal was not a octal number literal.'
 							+ ' To convert octal strings to integers do [from_base str 8], '
 							+ ' and to convert integers to octal strings do [to_base i 8].')
@@ -625,7 +632,7 @@ class Prelude {
 		}
 		negated 'null?', 'not_null?'
 		bool: {
-			define 'Boolean', new GenericType(META_TYPE, BOOLEAN_TYPE), BOOLEAN_TYPE
+			define BOOLEAN_TYPE
 			define 'true', BOOLEAN_TYPE, KismetBoolean.TRUE
 			define 'false', BOOLEAN_TYPE, KismetBoolean.FALSE
 			define 'and', new GenericType(INSTRUCTOR_TYPE, new TupleType(new Type[0]).withVarargs(BOOLEAN_TYPE), BOOLEAN_TYPE), new Instructor() {
@@ -869,7 +876,7 @@ class Prelude {
 					new KismetBoolean(((KismetNumber) args[0]).compareTo((KismetNumber) args[1]) >= 0)
 				}
 			}
-			define '<=>', func(NumberType.Int32, NumberType.Number, NumberType.Number), new Function() {
+			define 'cmp', func(NumberType.Int32, NumberType.Number, NumberType.Number), new Function() {
 				IKismetObject call(IKismetObject... a) {
 					new KInt32(((KismetNumber) a[0]).compareTo((KismetNumber) a[1]))
 				}
@@ -1014,9 +1021,9 @@ class Prelude {
 			define 'natural?', TEMPLATE_TYPE, new Template() {
 				Expression transform(Parser parser, Expression... args) {
 					def onc = new OnceExpression(args[0])
-					new CallExpression(new NameExpression('and'),
-							new CallExpression(new NameExpression('integer?'), onc),
-							new CallExpression(new NameExpression('positive?'), onc))
+					call(name('and'),
+							call(name('integer?'), onc),
+							call(name('positive?'), onc))
 				}
 			}
 			define 'absolute',  funcc(true) { ... a -> a[0].invokeMethod('abs', null) }
@@ -1055,11 +1062,11 @@ class Prelude {
 				@Override
 				Expression transform(Parser parser, Expression... args) {
 					def x = new ArrayList<Expression>(4)
-					x.add(new NameExpression('do_round'))
+					x.add(name('do_round'))
 					x.add(args[0])
 					if (args.length > 1) x.add(new StaticExpression(args[1], toAtom(args[1])))
 					if (args.length > 2) x.add(args[2])
-					new CallExpression(x)
+					call(x)
 				}
 			}
 			define 'floor',  funcc(true) { ... args ->
@@ -1136,9 +1143,6 @@ class Prelude {
 			}
 			define 'minus', func(NumberType.Number, NumberType.Number, NumberType.Number), new Function() {
 				IKismetObject call(IKismetObject... args) {
-					println args
-					println args*.inner()
-					println args*.inner()*.getClass()
 					((KismetNumber) args[0]).minus((KismetNumber) args[1])
 				}
 			}
@@ -1389,7 +1393,7 @@ class Prelude {
 				new WrapperKismetObject(c)
 			}
 		}
-		define '<=>', func(NumberType.Int32, STRING_TYPE, STRING_TYPE), new Function() {
+		define 'cmp', func(NumberType.Int32, STRING_TYPE, STRING_TYPE), new Function() {
 			IKismetObject call(IKismetObject... a) {
 				new KInt32(((KismetString) a[0]).compareTo((KismetString) a[1]))
 			}
@@ -1456,20 +1460,36 @@ class Prelude {
 				new WrapperKismetObject(values)
 			}
 		}
-		define 'List', new GenericType(META_TYPE, LIST_TYPE), LIST_TYPE
+		define LIST_TYPE
 		define '.[]', func(Type.ANY, LIST_TYPE, NumberType.Int32), new Function() {
 			IKismetObject call(IKismetObject... args) {
 				Kismet.model(args[0].inner().invokeMethod('getAt', [args[1].inner()] as Object[]))
 			}
 		}
+		define TupleType.BASE
+		define STRING_TYPE
+		define TEMPLATE_TYPE
+		define INSTRUCTOR_TYPE
+		define TYPE_CHECKER_TYPE
+		define TYPED_TEMPLATE_TYPE
+		define INSTRUCTION_TYPE
+		define SET_TYPE
+		define MAP_TYPE
+		define EXPRESSION_TYPE
+		define CLOSURE_ITERATOR_TYPE
+		define META_TYPE
 		define '.[]', typedTmpl(META_TYPE, META_TYPE, META_TYPE), new TypedTemplate() {
 			@Override
 			TypedExpression transform(TypedContext context, TypedExpression... args) {
 				final base = (SingleType) args[0].instruction.evaluate(context)
 				final arg = (Type) args[1].instruction.evaluate(context)
 				final typ = new GenericType(base, arg)
-				println META_TYPE.generic(typ)
 				new TypedConstantExpression<Type>(new GenericType(META_TYPE, typ), typ)
+			}
+		}
+		define 'type_of', typedTmpl(META_TYPE, Type.ANY), new TypedTemplate() {
+			TypedExpression transform(TypedContext context, TypedExpression... args) {
+				new TypedConstantExpression<Type>(args[0].type, new GenericType(META_TYPE, args[0].type))
 			}
 		}
 		define 'hash',  funcc { ... a -> a[0].hashCode() }
@@ -1487,8 +1507,8 @@ class Prelude {
 		/*define '??',  macr { Context c, Expression... exprs ->
 			def p = (PathExpression) exprs[0]
 			if (null == p.root) {
-				new CallExpression([new NameExpression('fn'), new CallExpression([
-						new NameExpression('??'), new PathExpression(new NameExpression('$0'),
+				call([name('fn'), call([
+						name('??'), new PathExpression(name('$0'),
 						p.steps)])]).evaluate(c)
 			} else {
 				IKismetObject result = p.root.evaluate(c)
@@ -1671,7 +1691,7 @@ class Prelude {
 		define 'do_regex',  func(true) { IKismetObject... args -> ~(args[0].toString()) }
 		define 'regex',  new Template() {
 			Expression transform(Parser parser, Expression... args) {
-				new CallExpression(new NameExpression('do_regex'), args[0] instanceof StringExpression ?
+				call(name('do_regex'), args[0] instanceof StringExpression ?
 						new StaticExpression(((StringExpression) args[0]).raw) : args[0])
 			}
 		}
@@ -1681,7 +1701,7 @@ class Prelude {
 					new PathExpression(((PathExpression) args[0]).root, ((PathExpression) args[0]).steps +
 						[new PathExpression.SubscriptStep(args[1])]) :
 					new PathExpression(args[0], [new PathExpression.SubscriptStep(args[1])])
-				new ColonExpression(path, args[2])
+				colon(path, args[2])
 			}
 		}
 		define 'at', TEMPLATE_TYPE, new Template() {
@@ -1707,8 +1727,20 @@ class Prelude {
 		define 'to_iterator',  funcc { ... args -> toIterator(args[0]) }
 		define 'list_iterator',  funcc { ... args -> args[0].invokeMethod('listIterator', null) }
 		define 'has_next?',  funcc { ... args -> args[0].invokeMethod('hasNext', null) }
+		define 'next', func(NumberType.Number, NumberType.Number), new Function() {
+			@Override
+			IKismetObject call(IKismetObject... args) {
+				((KismetNumber) args[0]).plus(new KInt32(1))
+			}
+		}
 		define 'next',  funcc { ... args -> args[0].invokeMethod('next', null) }
 		define 'has_prev?',  funcc { ... args -> args[0].invokeMethod('hasPrevious', null) }
+		define 'prev', func(NumberType.Number, NumberType.Number), new Function() {
+			@Override
+			IKismetObject call(IKismetObject... args) {
+				((KismetNumber) args[0]).minus(new KInt32(1))
+			}
+		}
 		define 'prev',  funcc { ... args -> args[0].invokeMethod('previous', null) }
 		define 'new_list',  funcc { ... args -> new ArrayList(args[0] as int) }
 		define 'list',  funcc { ... args -> args.toList() }
@@ -1740,7 +1772,7 @@ class Prelude {
 		define 'to_set',  funcc { ... args -> toSet(args[0]) }
 		define 'to_pair',  funcc { ... args -> new Pair(args[0].invokeMethod('getAt', 0), args[0].invokeMethod('getAt', 1)) }
 		define 'to_tuple',  funcc(true) { ... args -> new Tuple(args[0] as Object[]) }
-		define 'entry_pairs',  funcc { ... args ->
+		define 'pairs', func(LIST_TYPE, MAP_TYPE), funcc { ... args ->
 			def r = []
 			for (x in (args[0] as Map)) r.add(new Pair(x.key, x.value))
 			r
@@ -1822,7 +1854,7 @@ class Prelude {
 			Expression transform(Parser parser, Expression... args) {
 				def m = new ArrayList<Expression>(args.length - 1)
 				for (int i = 1; i < args.length; ++i) m.add(args[i])
-				new CallExpression(args[0], new ListExpression(m))
+				call(args[0], new ListExpression(m))
 			}
 		}
 		define 'invert_map',  funcc { ... args ->
@@ -2003,14 +2035,10 @@ class Prelude {
 		define 'disjoint?',  funcc { ... args -> args[0].invokeMethod('disjoint', args[1]) }
 		define 'intersect?',  funcc { ... args -> !args[0].invokeMethod('disjoint', args[1]) }
 		define 'call',  func { IKismetObject... args ->
-			println "om"
-			println args
 			def x = args[1].inner() as Object[]
 			def ar = new IKismetObject[x.length]
 			for (int i = 0; i < ar.length; ++i) {
-				println x[i].getClass()
 				ar[i] = Kismet.model(x[i])
-				println ar[i].getClass()
 			}
 			((Function) args[0]).call(ar)
 		}
@@ -2388,12 +2416,12 @@ class Prelude {
 				exprs.add(((CallExpression) exp).callValue)
 				exprs.add(base)
 				exprs.addAll(((CallExpression) exp).arguments)
-				def ex = new CallExpression(exprs)
+				def ex = call(exprs)
 				base = ex
 			} else if (exp instanceof BlockExpression) {
 				base = pipeForwardExpr(base, ((BlockExpression) exp).members)
 			} else if (exp instanceof NameExpression) {
-				base = new CallExpression([exp, base])
+				base = call([exp, base])
 			} else throw new UnexpectedSyntaxException('Did not expect ' + exp.class + ' in |>')
 		}
 		(CallExpression) base
@@ -2407,12 +2435,12 @@ class Prelude {
 				exprs.add(((CallExpression) exp).callValue)
 				exprs.addAll(((CallExpression) exp).arguments)
 				exprs.add(base)
-				def ex = new CallExpression(exprs)
+				def ex = call(exprs)
 				base = ex
 			} else if (exp instanceof BlockExpression) {
 				base = pipeBackwardExpr(base, ((BlockExpression) exp).members)
 			} else if (exp instanceof NameExpression) {
-				base = new CallExpression([exp, base])
+				base = call([exp, base])
 			} else throw new UnexpectedSyntaxException('Did not expect ' + exp.class + ' in |>')
 		}
 		(CallExpression) base
@@ -2424,11 +2452,11 @@ class Prelude {
 			final mems = ((BlockExpression) expr).members
 			def result = new ArrayList<Expression>(mems.size())
 			for (x in ((BlockExpression) expr).members) result.add(infixLTR(x))
-			new BlockExpression(result)
+			block(result)
 		} else expr
 	}
 
-	private static final NameExpression INFIX_CALLS_LTR_PATH = new NameExpression('infix')
+	private static final NameExpression INFIX_CALLS_LTR_PATH = name('infix')
 
 	static Expression infixLTR(Collection<Expression> args) {
 		if (args.empty) return NoExpression.INSTANCE
@@ -2436,7 +2464,7 @@ class Prelude {
 		else if (args.size() == 2) {
 			if (INFIX_CALLS_LTR_PATH == args[0]) return args[1]
 			final val = infixLTR(args[0])
-			def result = new CallExpression((Expression[]) null)
+			def result = call((Expression[]) null)
 			result.callValue = val
 			result.arguments = Arrays.asList(val, infixLTR(args[1]))
 			result
@@ -2449,17 +2477,17 @@ class Prelude {
 			if (i % 2 == 0) last.add(ex)
 			else if (ex != last[0]) calls.add([ex])
 		}
-		CallExpression result = new CallExpression(
+		CallExpression result = call(
 				infixLTR(args[1]),
 				infixLTR(args[0]),
 				infixLTR(args[2]))
 		for (b in calls) {
-			def exprs = new ArrayList<>(b.size() + 1)
+			def exprs = new ArrayList<Expression>(b.size() + 1)
 			int i = 0
 			exprs.add(b.get(i++))
 			exprs.add(result)
 			while (i < b.size()) exprs.add(b.get(i++))
-			result = new CallExpression(exprs)
+			result = call(exprs)
 		}
 		result
 	}
@@ -2521,16 +2549,16 @@ class Prelude {
 
 	static boolean check(Context c, IKismetObject val, Expression exp) {
 		if (exp instanceof CallExpression) {
-			def exprs = new ArrayList<>()
+			def exprs = new ArrayList<Expression>()
 			def valu = exp.callValue
 			if (valu instanceof NameExpression) {
 				def t = ((NameExpression) valu).text
-				exprs.add(new NameExpression(isAlpha(t) ? t + '?' : t))
+				exprs.add(name(isAlpha(t) ? t + '?' : t))
 			} else exprs.add(valu)
 			c.set('it', val)
-			exprs.add(new NameExpression('it'))
+			exprs.add(name('it'))
 			exprs.addAll(exp.arguments)
-			def x = new CallExpression(exprs)
+			def x = call(exprs)
 			x.evaluate(c)
 		} else if (exp instanceof BlockExpression) {
 			boolean result = true
@@ -2539,8 +2567,8 @@ class Prelude {
 		} else if (exp instanceof NameExpression) {
 			c.set('it', val)
 			def t = exp.text
-			new CallExpression(new NameExpression(isAlpha(t) ? t + '?' : t),
-					new NameExpression('it')).evaluate(c)
+			call(name(isAlpha(t) ? t + '?' : t),
+					name('it')).evaluate(c)
 		} else if (exp instanceof StringExpression) {
 			val.inner() == exp.value.inner()
 		} else if (exp instanceof NumberExpression) {
@@ -2595,7 +2623,7 @@ class Prelude {
 				final name = args[i]
 				final atom = toAtom(name)
 				if (null != atom)
-					last = new VariableModifyExpression(type, atom, last)
+					last = var(type, atom, last)
 				else if (name instanceof CallExpression)
 					last = new FunctionDefineExpression(args)
 				else if (name instanceof PathExpression)
@@ -2603,7 +2631,7 @@ class Prelude {
 				else throw new UnexpectedSyntaxException("Cannot perform assignment $type $name, value expression is $last")
 			}
 			if (last instanceof NameExpression)
-				last = new VariableModifyExpression(AssignmentType.SET, ((NameExpression) last).text, NoExpression.INSTANCE)
+				last = var(AssignmentType.SET, ((NameExpression) last).text, NoExpression.INSTANCE)
 			last
 		}
 	}

@@ -27,7 +27,7 @@ enum NumberType implements WeakableType {
 		}
 	}, Int {
 		KInt instantiate(Number num) {
-			new KInt(KInt.toBigInt(num.longValue()))
+			new KInt(KInt.toBigInt(num))
 		}
 	}, Float32 {
 		KFloat32 instantiate(Number num) {

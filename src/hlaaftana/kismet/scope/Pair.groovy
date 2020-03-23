@@ -67,12 +67,16 @@ class Pair<A, B> implements List, Map.Entry<A, B> {
 	}
 
 	def set(int i, e) {
-		i == 0 ? (first = e) : i == 1 ? (second = e) : null
+		throw new UnsupportedOperationException("cannot set on Pair")
 	}
 
-	void add(int i, e) {}
+	void add(int i, e) {
+		throw new UnsupportedOperationException("cannot add on Pair")
+	}
 
-	def remove(int i) { null }
+	def remove(int i) {
+		throw new UnsupportedOperationException("cannot remove on Pair")
+	}
 
 	int indexOf(o) {
 		first == o ? 0 : second == o ? 1 : -1

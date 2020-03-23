@@ -4,9 +4,11 @@ import groovy.transform.CompileStatic
 import hlaaftana.kismet.Kismet
 import hlaaftana.kismet.call.*
 import hlaaftana.kismet.exceptions.UndefinedVariableException
-import hlaaftana.kismet.scope.Prelude
 import hlaaftana.kismet.scope.Context
+import hlaaftana.kismet.scope.Prelude
 import hlaaftana.kismet.vm.IKismetObject
+
+import static hlaaftana.kismet.call.ExprBuilder.*
 
 @CompileStatic
 class Optimizer {
@@ -128,16 +130,15 @@ class Optimizer {
 				if (iter.hasNext()) {
 					if (a instanceof CallExpression) {
 						def ses = new ArrayList<Expression>(((CallExpression) a).members)
-						ses.add(1, new NameExpression(name))
-						branches.add new CallExpression(ses)
+						ses.add(1, name(name))
+						branches.add call(ses)
 					} else if (a instanceof NameExpression) {
 						final text = ((NameExpression) a).text
-						branches.add new CallExpression(new NameExpression(Prelude.isAlpha(text) ? text + '?' : text),
-								new NameExpression(name))
+						branches.add call(name(Prelude.isAlpha(text) ? text + '?' : text), name(name))
 					} else if (a instanceof BlockExpression) {
 						addBranches(((BlockExpression) a).members)
 						continue
-					} else branches.add(new CallExpression(new NameExpression('is?'), new NameExpression(name), a))
+					} else branches.add(call(name('is?'), name(name), a))
 					branches.add(iter.next())
 				} else branches.add(a)
 			}
@@ -239,7 +240,7 @@ class Optimizer {
 				else stepExpr = exprs[3]
 			}
 			def tail = arguments.tail()
-			block = tail.size() == 1 ? tail[0] : new BlockExpression(tail)
+			block = tail.size() == 1 ? tail[0] : block(tail)
 		}
 
 		IKismetObject evaluate(Context c) {
@@ -306,7 +307,7 @@ class Optimizer {
 				else iterExpr = exprs[2]
 			}
 			def tail = arguments.tail()
-			block = tail.size() == 1 ? tail[0] : new BlockExpression(tail)
+			block = tail.size() == 1 ? tail[0] : block(tail)
 		}
 
 		private void indexName(Expression expr) {

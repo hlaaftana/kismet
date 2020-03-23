@@ -8,6 +8,8 @@ import hlaaftana.kismet.exceptions.ParseException
 import hlaaftana.kismet.scope.Context
 import hlaaftana.kismet.scope.TypedContext
 
+import static hlaaftana.kismet.call.ExprBuilder.*
+
 @CompileStatic
 class Parser {
 	Optimizer optimizer = new Optimizer(this)
@@ -51,7 +53,7 @@ class Parser {
 	}
 
 	static BlockExpression toBlock(Expression expr) {
-		expr instanceof BlockExpression ? (BlockExpression) expr : new BlockExpression([expr])
+		expr instanceof BlockExpression ? (BlockExpression) expr : block(expr)
 	}
 
 	// non-static classes break this entire file in stub generation
@@ -157,7 +159,7 @@ class Parser {
 			else if (commad || es > 1) new ListExpression(expressions)
 			else {
 				def expr = expressions.get(0)
-				expr instanceof CallExpression ? expr : new CallExpression(expr)
+				expr instanceof CallExpression ? expr : call(expr)
 			}
 		}
 	}
@@ -272,8 +274,8 @@ class Parser {
 				def result = new ArrayList<ColonExpression>(expressions.size())
 				for (e in expressions) {
 					if (e instanceof ColonExpression) result.add((ColonExpression) e)
-					else if (e instanceof NameExpression) result.add(new ColonExpression(new StringExpression(e.toString()), e))
-					else result.add(new ColonExpression(e, e))
+					else if (e instanceof NameExpression) result.add(colon(string(e.toString()), e))
+					else result.add(colon(e, e))
 				}
 				new MapExpression(result)
 			} else if (es == 0) new SetExpression(Collections.<Expression>emptyList())
@@ -344,10 +346,10 @@ class Parser {
 			if (!ignoreNewline && (cp == 10 || cp == 13) && ready) {
 				return doFinish()
 			} else if (null == last) {
-				if (cp == ((char) ';'))
+				if (cp == ((char) ';')) {
 					if (eagerEnd) return doFinish()
 					else semicoloned.add(whitespaced = new ArrayList<>())
-				else if (cp == ((char) '%')) lastPercent = true
+				} else if (cp == ((char) '%')) lastPercent = true
 				else if (cp == ((char) '('))
 					last = new ParenBuilder(parser)
 				else if (cp == ((char) '[')) last = new BracketBuilder(parser)
@@ -560,6 +562,7 @@ class Parser {
 				} else if (cp == ((char) ':')) {
 					kind = Kind.COLON
 					(last = new LineBuilder(parser, true)).eagerEnd = true
+					last.goBack = true
 				} else {
 					goBack = true
 					return steps.empty ? root : new PathExpression(root, steps)
@@ -635,7 +638,7 @@ class Parser {
 
 		StringExpression doPush(int cp) {
 			if (!escaped && cp == quote)
-				return new StringExpression(last.toString())
+				return string(last.toString())
 			escaped = !escaped && cp == ((char) '\\')
 			last.appendCodePoint(cp)
 			(StringExpression) null

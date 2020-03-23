@@ -18,7 +18,7 @@ class KismetTuple implements IKismetObject<IKismetObject[]>, List<IKismetObject>
 	boolean isEmpty() { inner.length == 0 }
 
 	boolean contains(Object o) {
-		for (final e : inner) if (o.equals(e)) return true
+		for (final e : inner) if (o == e) return true
 		false
 	}
 
@@ -79,12 +79,12 @@ class KismetTuple implements IKismetObject<IKismetObject[]>, List<IKismetObject>
 	}
 
 	int indexOf(Object o) {
-		for (int i = 0; i < inner.length; ++i) if (o.equals(inner[i])) return i
+		for (int i = 0; i < inner.length; ++i) if (o == inner[i]) return i
 		-1
 	}
 
 	int lastIndexOf(Object o) {
-		for (int i = inner.length - 1; i >= 0; --i) if (o.equals(inner[i])) return i
+		for (int i = inner.length - 1; i >= 0; --i) if (o == inner[i]) return i
 		-1
 	}
 

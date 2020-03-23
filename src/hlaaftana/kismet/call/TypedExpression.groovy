@@ -3,9 +3,9 @@ package hlaaftana.kismet.call
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.Kismet
 import hlaaftana.kismet.exceptions.UnexpectedValueException
-import hlaaftana.kismet.scope.Context
 import hlaaftana.kismet.scope.Prelude
 import hlaaftana.kismet.scope.TypedContext
+import hlaaftana.kismet.type.NumberType
 import hlaaftana.kismet.type.Type
 import hlaaftana.kismet.vm.*
 
@@ -23,7 +23,7 @@ abstract class Instruction {
 abstract class TypedExpression {
 	abstract Type getType()
 	abstract Instruction getInstruction()
-	boolean isRuntimeOnly() { true }
+	boolean isRuntimeOnly() { false }
 }
 
 @CompileStatic
@@ -100,7 +100,7 @@ class VariableExpression extends TypedExpression {
 	}
 
 	Type getType() { reference.variable.type }
-	boolean isRuntimeOnly() { null == reference.variable.value }
+	boolean isRuntimeOnly() { false }
 
 	String toString() { "$reference.variable.name" }
 }
@@ -120,7 +120,6 @@ class VariableSetInstruction extends Instruction {
 	IKismetObject evaluate(Memory context) {
 		final val = value.evaluate(context)
 		context.set(id, path, val)
-		println "setting $path $id to $val"
 		val
 	}
 
@@ -154,7 +153,7 @@ class VariableSetExpression extends TypedExpression {
 	}
 
 	Type getType() { value.type }
-	boolean isRuntimeOnly() { null == reference.variable.value || value.runtimeOnly }
+	boolean isRuntimeOnly() { value.runtimeOnly }
 
 	String toString() { "$reference.variable.name = $value" }
 }
@@ -171,7 +170,6 @@ class DiveInstruction extends Instruction {
 
 	IKismetObject evaluate(Memory context) {
 		def res = other.evaluate(new RuntimeMemory([context] as Memory[], stackSize))
-		println "dive $res"
 		res
 	}
 
@@ -287,8 +285,6 @@ class TypedConstantExpression<T extends IKismetObject> extends TypedExpression {
 	String toString() { "constant $type $value" }
 }
 
-import hlaaftana.kismet.type.NumberType
-
 @CompileStatic
 class TypedNumberExpression extends TypedExpression {
 	NumberType type
@@ -360,10 +356,7 @@ class CallInstruction extends Instruction {
 		def val = value.evaluate(context)
 		def arr = new IKismetObject[arguments.length]
 		for (int i = 0; i < arguments.length; ++i) arr[i] = arguments[i].evaluate(context)
-		if (arr.length == 2 && arr[1] instanceof Tuple) println arguments
-		println "calling $value"
 		def res = ((Function) val).call(arr)
-		println "result: $res"
 		res
 	}
 
@@ -437,9 +430,7 @@ class InstructorCallInstruction extends Instruction {
 	@Override
 	IKismetObject evaluate(Memory context) {
 		def val = value.evaluate(context)
-		println "instructor calling $value"
 		def res = ((Instructor) val).call(context, arguments)
-		println "instructor result: $res"
 		res
 	}
 

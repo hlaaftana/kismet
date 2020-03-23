@@ -29,9 +29,24 @@ enum AssignmentType {
 		}
 
 		TypedContext.VariableReference set(TypedContext tc, String name, Type type) {
-			final v = tc.find(name)
+			final v = tc.find(name, new TypeBound(type), false)
 			if (null == v) tc.addVariable(name, type).ref()
 			else throw new VariableExistsException("Cannot define existing variable $name (tried to assign type $type)")
+		}
+	}, SHADOW {
+		void set(Context c, String name, IKismetObject value) {
+			final v = c.getSafe(name)
+			if (null == v) c.add(name, value)
+			else c.set(name, value)
+		}
+
+		TypedContext.VariableReference set(TypedContext tc, String name, Type type) {
+			final v = tc.find(name, new TypeBound(type), false)
+			if (null != v) {
+				v.variable.name = null
+				v.variable.hash = 0
+			}
+			tc.addVariable(name, type).ref()
 		}
 	}, SET {
 		void set(Context c, String name, IKismetObject value) {
@@ -41,19 +56,9 @@ enum AssignmentType {
 		}
 
 		TypedContext.VariableReference set(TypedContext tc, String name, Type type) {
-			final hash = name.hashCode()
-			def cands = new ArrayList<TypedContext.Variable>()
-			for (v in tc.variables) {
-				if (v.hash == hash && v.name == name && type.relation(v.type).assignableTo)
-					cands.add(v)
-			}
-			if (cands.empty) return tc.addVariable(name, type).ref()
-			def winner = cands.get(0)
-			for (int i = 1; i < cands.size(); ++i) {
-				final e = cands.get(i)
-				if (winner.type.losesAgainst(e.type)) winner = e
-			}
-			winner.ref()
+			final winner = tc.find(name, false)
+			if (null == winner) tc.addVariable(name, type).ref()
+			else winner
 		}
 	}, CHANGE {
 		void set(Context c, String name, IKismetObject value) {

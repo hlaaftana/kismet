@@ -4,6 +4,7 @@ import groovy.transform.CompileStatic
 import hlaaftana.kismet.Kismet
 import hlaaftana.kismet.call.Block
 import hlaaftana.kismet.call.BlockExpression
+import hlaaftana.kismet.call.ExprBuilder
 import hlaaftana.kismet.call.Expression
 import hlaaftana.kismet.exceptions.UndefinedVariableException
 import hlaaftana.kismet.vm.IKismetObject
@@ -90,7 +91,7 @@ class Context extends Memory {
 	}
 
 	Block childBlock(Expression[] expr) {
-		new Block(new BlockExpression(expr.toList()), child())
+		new Block(ExprBuilder.block(expr), child())
 	}
 
 	Block child(List<Expression> expr) {
@@ -106,7 +107,7 @@ class Context extends Memory {
 	}
 
 	IKismetObject childEval(Expression[] expr) {
-		new BlockExpression(expr.toList()).evaluate(child())
+		ExprBuilder.block(expr).evaluate(child())
 	}
 
 	IKismetObject childEval(List<Expression> expr) {

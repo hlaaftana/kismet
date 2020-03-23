@@ -1,10 +1,10 @@
 Lessable has <(self, self): bool
 
-def binary_search(a, k)
-  is (List[T], T): int32
+def binary_search(a: List[T], k: T)
+  returns i = 0
   for T: Lessable
   do
-    for c = b = size a, result i = 0
+    for c = b = size a
       while i < b
         mid = half i + b
         if a[mid] < k do i = next mid else b = mid
