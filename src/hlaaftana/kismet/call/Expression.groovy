@@ -434,7 +434,7 @@ class CallExpression extends Expression {
 		if (null == callValue) return Kismet.NULL
 		IKismetObject obj = callValue.evaluate(c)
 		if (obj.inner() instanceof KismetCallable) {
-			((KismetCallable) obj.inner()).call(c, arguments.toArray(new Expression[0]))
+			((KismetCallable) obj.inner()).call(c, arguments.<Expression>toArray(new Expression[arguments.size()]))
 		} else {
 			final arr = new IKismetObject[2]
 			arr[0] = obj
@@ -494,7 +494,7 @@ class CallExpression extends Expression {
 		} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {}
 		if (null != cv && cv.type == Prelude.TEMPLATE_TYPE)
 			return ((Template) cv.instruction.evaluate(tc))
-					.transform(null, arguments.toArray(new Expression[0])).type(tc, preferred)
+					.transform(null, arguments.<Expression>toArray(new Expression[arguments.size()])).type(tc, preferred)
 
 		// type checker
 		try {
@@ -502,7 +502,7 @@ class CallExpression extends Expression {
 		} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {}
 		if (null != cv && cv.type == Prelude.TYPE_CHECKER_TYPE)
 			return ((TypeChecker) cv.instruction.evaluate(tc))
-					.transform(tc, arguments.toArray(new Expression[0]))
+					.transform(tc, arguments.<Expression>toArray(new Expression[arguments.size()]))
 
 		// runtime args
 		def args = new TypedExpression[arguments.size()]
@@ -515,11 +515,8 @@ class CallExpression extends Expression {
 			cv = callValue.type(tc, -typedTmpl)
 		} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {}
 		if (null != cv) {
-			try {
-				return ((TypedTemplate) cv.instruction.evaluate(tc)).transform(tc, args)
-			} catch (NullPointerException ignored) {
-				throw new UnexpectedValueException("Something was wrong: $this")
-			}
+			def x = ((TypedTemplate) cv.instruction.evaluate(tc))
+			return x.transform(tc, args)
 		}
 
 		// instructor

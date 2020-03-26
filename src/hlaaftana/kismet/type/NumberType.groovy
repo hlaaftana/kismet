@@ -72,9 +72,15 @@ enum NumberType implements WeakableType {
 	}
 
 	TypeRelation weakRelation(Type other) {
-		if (other instanceof NumberType && !(character ^ other.character)) {
+		/*if (other instanceof NumberType && !(character ^ other.character)) {
 			final k = ordinal() - other.ordinal()
 			TypeRelation.some(k)
+		} else TypeRelation.none()*/
+		if (other instanceof NumberType) {
+			if (this == other) TypeRelation.equal()
+			else if (this == Number) TypeRelation.supertype(other.ordinal())
+			else if (other == Number) TypeRelation.subtype(ordinal())
+			else TypeRelation.none()
 		} else TypeRelation.none()
 	}
 

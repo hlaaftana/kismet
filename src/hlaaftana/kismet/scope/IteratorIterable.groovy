@@ -1,9 +1,10 @@
 package hlaaftana.kismet.scope
 
 import groovy.transform.CompileStatic
+import hlaaftana.kismet.vm.IKismetObject
 
 @CompileStatic
-class IteratorIterable<T> implements Iterator<T>, Iterable<T> {
+class IteratorIterable<T> implements Iterator<T>, Iterable<T>, IKismetObject<IteratorIterable<T>> {
 	Iterator<T> inside
 
 	IteratorIterable(Iterator<T> inside) {
@@ -28,5 +29,9 @@ class IteratorIterable<T> implements Iterator<T>, Iterable<T> {
 	@Override
 	void remove() {
 		inside.remove()
+	}
+
+	IteratorIterable<T> inner() {
+		this
 	}
 }

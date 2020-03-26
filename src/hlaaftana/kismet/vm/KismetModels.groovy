@@ -23,7 +23,7 @@ class KismetModels {
 		else if (obj instanceof Collection) modelCollection((Collection) obj)
 		else if (obj.getClass().isArray()) modelCollection(obj as List)
 		else if (obj instanceof Closure) new GroovyFunction((Closure) obj)
-		else if (obj instanceof Iterator) model((Object) new IteratorIterable((Iterator) obj))
+		else if (obj instanceof Iterator) new IteratorIterable((Iterator) obj)
 		else new WrapperKismetObject(obj)
 	}
 }

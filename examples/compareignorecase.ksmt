@@ -1,4 +1,4 @@
-defn compare_ignore_case?(x) {
+def compare_ignore_case?(x: List[String]) {
   |> x to_iterator [collect lower] [consecutives 2] [every? [fn* [a b] [is? a b]]]
 }
 

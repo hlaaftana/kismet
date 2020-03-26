@@ -38,20 +38,18 @@ class GenericType extends AbstractType {
 				if (null == other.arguments) TypeRelation.equal()
 				else TypeRelation.supertype(other.size())
 			} else if (indefinite || size() == other.size()) {
-				TypeRelation max
-				TypeBound.Variance variance = varianceAt(0)
-				TypeRelation rel = variance.apply(this[0].relation(((GenericType) other)[0]))
+				TypeRelation min
+				def variance = varianceAt(0)
+				def rel = variance.apply(this[0].relation(((GenericType) other)[0]))
 				if (rel.none) return TypeRelation.none()
-				max = rel
+				min = rel
 				for (int i = 1; i < size(); ++i) {
 					variance = varianceAt(1)
 					rel = variance.apply(this[i].relation(((GenericType) other)[i]))
 					if (rel.none) return TypeRelation.none()
-					if (!max.equal && !rel.equal && ((rel.super ^ max.super) || (rel.sub ^ max.sub)))
-						return TypeRelation.none()
-					if (rel.value > max.value) max = rel
+					if (rel.toSome() < min.toSome()) min = rel
 				}
-				max
+				min
 			} else TypeRelation.none() //TypeRelation.some(bounds.length - other.bounds.length)
 		} else if (base == other) {
 			if (null == arguments) TypeRelation.equal()
@@ -68,6 +66,6 @@ class GenericType extends AbstractType {
 	}
 
 	TypeBound.Variance varianceAt(int i) {
-		base.bounds[i].variance
+		null == base.bounds ? TypeBound.Variance.COVARIANT : base.bounds[i].variance
 	}
 }

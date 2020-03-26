@@ -1,3 +1,5 @@
-defn [foo (a: Int) (returns Int)] [or? [< a 5] [foo [+ a 1]] a]
+defn [foo (a: Int) (returns Int)] {
+  or? [< a 5] [foo [+ a 1]] a
+}
 
 assert_is 5 [foo 1]

@@ -2,9 +2,14 @@ package hlaaftana.kismet
 
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.call.Function
+import hlaaftana.kismet.call.TypedExpression
+import hlaaftana.kismet.call.TypedStringExpression
+import hlaaftana.kismet.call.TypedTemplate
 import hlaaftana.kismet.parser.Parser
 import hlaaftana.kismet.scope.Context
 import hlaaftana.kismet.scope.Prelude
+import hlaaftana.kismet.scope.TypedContext
+import hlaaftana.kismet.type.GenericType
 import hlaaftana.kismet.type.Type
 import hlaaftana.kismet.vm.IKismetObject
 import hlaaftana.kismet.vm.Memory
@@ -27,16 +32,28 @@ class Test {
 		}
 	}
 
+	static final TypedTemplate type_relation = new TypedTemplate() {
+		static Type toType(Type type) {
+			type instanceof GenericType && type.base == Prelude.META_TYPE ? type.arguments[0] : type
+		}
+
+		TypedExpression transform(TypedContext context, TypedExpression... args) {
+			new TypedStringExpression(toType(args[0].type).relation(toType(args[1].type)).toString())
+		}
+	}
+
 	static void run(Parser parser, String text) {
 		def p = parser.parse(text)
 		def tc = Prelude.typed.child()
-		tc.addVariable('echo', Prelude.func(Type.NONE, Type.ANY))
-		tc.addVariable('analyze', Prelude.func(Type.NONE, Type.ANY))
+		tc.addVariable('echo', echo, Prelude.func(Type.NONE, Type.ANY))
+		tc.addVariable('analyze', analyze, Prelude.func(Type.NONE, Type.ANY))
+		tc.addVariable('type_relation', type_relation, Prelude.typedTmpl(Prelude.STRING_TYPE, Prelude.META_TYPE, Prelude.META_TYPE))
 		def t = p.type(tc)
 		def i = t.instruction
 		def mem = new RuntimeMemory([Prelude.typed] as Memory[], tc.size())
 		mem.memory[0] = echo
 		mem.memory[1] = analyze
+		mem.memory[2] = type_relation
 		i.evaluate(mem)
 	}
 

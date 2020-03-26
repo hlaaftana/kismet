@@ -10,13 +10,10 @@ class TupleType extends GenericType {
 	static final SingleType BASE = new SingleType('Tuple')
 	Type varargs
 
+	TupleType() { super(BASE) }
+
 	TupleType(Type[] bounds) {
 		super(BASE, bounds)
-	}
-
-	TupleType(TypedExpression[] zro) {
-		super(BASE, new Type[zro.length])
-		for (int i = 0; i < zro.length; ++i) arguments[i] = zro[i].type
 	}
 
 	String toString() { "Tuple[${arguments.join(', ')}" + (null == varargs ? "]" : ", $varargs...]") }

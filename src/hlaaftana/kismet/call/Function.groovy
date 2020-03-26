@@ -343,6 +343,9 @@ class FunctionDefineExpression extends Expression {
 		}
 		def var = tc.addVariable(name, typ)
 		def block = expr.type(fnb, new TypeBound(typ.arguments[1]))
+		if (null == arguments.result) {
+			typ.arguments[1] = block.type
+		}
 		new VariableSetExpression(var.ref(), new BasicTypedExpression(typ, new Instruction() {
 			final Instruction inner = block.instruction
 			final int stackSize = fnb.size()

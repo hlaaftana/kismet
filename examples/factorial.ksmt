@@ -21,7 +21,7 @@ imperative: dive {
 
   defn [permutation (n: Int32) (r: Int32)] {
     x: 1i32
-    i: next [minus n r]
+    i: + [- n r] 1i32
     while [<= i n] {
       |>= x [* i]
       incr i

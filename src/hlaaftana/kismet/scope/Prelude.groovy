@@ -386,6 +386,16 @@ class Prelude {
 									eaches.add(new Tuple2(c.left, c.right))
 									continue
 								}
+							} else if (set.size() == 3) {
+								def n = toAtom(set[0])
+								if ('result' == n) {
+									result.add(new ColonExpression(set[1], set[2]))
+									resultVar = set[1]
+									continue
+								} else if ('each' == n) {
+									eaches.add(new Tuple2(set[1], set[2]))
+									continue
+								}
 							}
 							def lem = set.members
 							def val = lem.pop()
@@ -674,7 +684,7 @@ class Prelude {
 				}
 			}
 			alias 'bool', 'true?', '?'
-			negated 'bool', 'false?', 'no?', 'off?'
+			negated 'bool', 'false?'
 			define 'not', func(BOOLEAN_TYPE, BOOLEAN_TYPE), new Function() {
 				IKismetObject call(IKismetObject... args) {
 					new KismetBoolean(!((KismetBoolean) args[0]).inner)
@@ -1002,17 +1012,12 @@ class Prelude {
 					new KismetBoolean(((KismetNumber) args[0]).divisibleBy((KismetNumber) args[1]))
 				}
 			}
-			define 'integer?', func(BOOLEAN_TYPE, NumberType.Number), new Function() {
+			define 'integer?', func(BOOLEAN_TYPE, new UnionType([NumberType.Number, NumberType.Float32, NumberType.Float64, NumberType.Float] as Set<Type>)), new Function() {
 				IKismetObject call(IKismetObject... args) {
 					new KismetBoolean(((KismetNumber) args[0]).divisibleBy(KInt32.ONE))
 				}
 			}
-			define 'integer?', func(BOOLEAN_TYPE, NumberType.Float32), new Function() {
-				IKismetObject call(IKismetObject... args) {
-					new KismetBoolean(((KismetNumber) args[0]).divisibleBy(KInt32.ONE))
-				}
-			}
-			define 'integer?', func(BOOLEAN_TYPE, NumberType.Int8), new Function() {
+			define 'integer?', func(BOOLEAN_TYPE, new UnionType([NumberType.Int8, NumberType.Int16, NumberType.Int32, NumberType.Int64, NumberType.Int] as Set<Type>)), new Function() {
 				IKismetObject call(IKismetObject... args) {
 					KismetBoolean.TRUE
 				}
@@ -1463,7 +1468,7 @@ class Prelude {
 		define LIST_TYPE
 		define '.[]', func(Type.ANY, LIST_TYPE, NumberType.Int32), new Function() {
 			IKismetObject call(IKismetObject... args) {
-				Kismet.model(args[0].inner().invokeMethod('getAt', [args[1].inner()] as Object[]))
+				Kismet.model(((List) args[0].inner()).get(((KInt32) args[1]).inner))
 			}
 		}
 		define TupleType.BASE
@@ -1487,6 +1492,15 @@ class Prelude {
 				new TypedConstantExpression<Type>(new GenericType(META_TYPE, typ), typ)
 			}
 		}
+		define '.[]', typedTmpl(META_TYPE, META_TYPE, new TupleType().withVarargs(META_TYPE)), new TypedTemplate() {
+			@Override
+			TypedExpression transform(TypedContext context, TypedExpression... args) {
+				final base = (SingleType) args[0].instruction.evaluate(context)
+				final arg = (KismetTuple) args[1].instruction.evaluate(context).inner()
+				final typ = new GenericType(base, arg.<Type>toArray(new Type[arg.size()]))
+				new TypedConstantExpression<Type>(new GenericType(META_TYPE, typ), typ)
+			}
+		}
 		define 'type_of', typedTmpl(META_TYPE, Type.ANY), new TypedTemplate() {
 			TypedExpression transform(TypedContext context, TypedExpression... args) {
 				new TypedConstantExpression<Type>(args[0].type, new GenericType(META_TYPE, args[0].type))
@@ -1495,7 +1509,12 @@ class Prelude {
 		define 'hash',  funcc { ... a -> a[0].hashCode() }
 		define 'percent',  funcc(true) { ... a -> a[0].invokeMethod 'div', 100 }
 		define 'to_percent',  funcc(true) { ... a -> a[0].invokeMethod 'multiply', 100 }
-		define 'strip_trailing_zeros',  funcc(true) { ... a -> ((BigDecimal) a[0]).stripTrailingZeros() }
+		define 'strip_trailing_zeros', func(NumberType.Float, NumberType.Float), new Function() {
+			@Override
+			IKismetObject call(IKismetObject... args) {
+				new KFloat(((KFloat) args[0]).inner.stripTrailingZeros())
+			}
+		}
 		define 'as',  func { IKismetObject... a -> a[0].invokeMethod('as', [a[1].inner()] as Object[]) }
 		define 'is?', func(BOOLEAN_TYPE, Type.ANY, Type.ANY), funcc { ... args -> args.inject { a, b -> a == b } }
 		negated 'is?', 'isn\'t?'
@@ -1520,7 +1539,7 @@ class Prelude {
 				result
 			}
 		}*/
-		define 'defined?',  new TypeChecker() {
+		define 'defined?', TYPE_CHECKER_TYPE, new TypeChecker() {
 			TypedExpression transform(TypedContext context, Expression... args) {
 				final type = new TypeBound(args.length > 1 ? (Type) args[1].type(context).instruction.evaluate(context) : Type.ANY)
 				if (args[0] instanceof SetExpression) {
@@ -1598,13 +1617,13 @@ class Prelude {
 			Random r = args.length > 1 && args[1] instanceof Random ? (Random) args[1] : new Random()
 			x[r.nextInt(x.size())]
 		}
-		define 'high',  funcc { ... args ->
+		define 'upper_bound',  funcc { ... args ->
 			if (args[0] instanceof Number) ((Object) args[0].class).invokeMethod('getProperty', 'MAX_VALUE')
 			else if (args[0] instanceof Range) ((Range) args[0]).to
 			else if (args[0] instanceof Collection) ((Collection) args[0]).size() - 1
 			else throw new UnexpectedValueException('Don\'t know how to get high of ' + args[0] + ' with class ' + args[0].class)
 		}
-		define 'low',  funcc { ... args ->
+		define 'lower_bound',  funcc { ... args ->
 			if (args[0] instanceof Number) ((Object) args[0].class).invokeMethod('getProperty', 'MIN_VALUE')
 			else if (args[0] instanceof Range) ((Range) args[0]).from
 			else if (args[0] instanceof Collection) 0

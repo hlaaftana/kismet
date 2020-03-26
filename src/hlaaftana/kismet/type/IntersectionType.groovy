@@ -1,8 +1,10 @@
 package hlaaftana.kismet.type
 
 import groovy.transform.CompileStatic
+import groovy.transform.EqualsAndHashCode
 
 @CompileStatic
+@EqualsAndHashCode
 class IntersectionType extends AbstractType {
 	Set<Type> members
 
@@ -27,9 +29,9 @@ class IntersectionType extends AbstractType {
 			else if (theirs.empty) return TypeRelation.subtype(ours.size())
 			else {
 				final iter = members.iterator()
-				TypeRelation max = iter.next().relation(other)
+				def max = iter.next().relation((Type) other)
 				while (iter.hasNext()) {
-					final rel = iter.next().relation(other)
+					final rel = iter.next().relation((Type) other)
 					if (!rel.none && rel.toSome() > max.toSome()) max = rel
 				}
 				max
@@ -37,7 +39,7 @@ class IntersectionType extends AbstractType {
 		} else if (members.size() == 0) TypeRelation.supertype(Integer.MAX_VALUE)
 		else {
 			final iter = members.iterator()
-			TypeRelation min = iter.next().relation(other)
+			def min = iter.next().relation(other)
 			while (iter.hasNext()) {
 				final rel = iter.next().relation(other)
 				if (rel.none) return rel
@@ -46,8 +48,6 @@ class IntersectionType extends AbstractType {
 			min
 		}
 	}
-
-	boolean equals(other) { other instanceof IntersectionType && members == other.members }
 
 	int size() { members.size() }
 }

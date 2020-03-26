@@ -55,7 +55,7 @@ class Optimizer {
 						for (int i = 0; i < arguments.length; ++i) {
 							arguments[i] = optimize(expr.arguments[i])
 						}
-					} else arguments = (Expression[]) expr.arguments.toArray(new Expression[0])
+					} else arguments = (Expression[]) expr.arguments.<Expression>toArray(new Expression[expr.arguments.size()])
 					final result = ((Template) inner).transform(parser, arguments)
 					return tmpl.optimized ? result : optimize(result)
 				}

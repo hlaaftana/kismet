@@ -490,7 +490,7 @@ class Parser {
 				} else {
 					delegate = new NameBuilder(parser)
 				}
-				delegate.doPush((char) '-')
+				delegate.doPush((int) ((char) '-'))
 			}
 			delegate.doPush(cp)
 		}
@@ -640,7 +640,8 @@ class Parser {
 			}, SUBSCRIPT {
 				Step toStep(Expression expr) {
 					new PathExpression.SubscriptStep(expr instanceof CallExpression &&
-							expr.arguments.empty ? expr.callValue : expr)
+							expr.arguments.empty ? expr.callValue : expr instanceof ListExpression ?
+							new TupleExpression(expr.members) : expr)
 				}
 			}, CALL, BLOCK {
 				Step toStep(Expression expr) {

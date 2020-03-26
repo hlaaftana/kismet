@@ -1,14 +1,14 @@
-defn binary_search(a: List, k: Int) {
+defn binary_search(a: List[Int], k: Int) {
   c: b: size a
-  i: 0
+  i: 0i32
   while [< i b] {
     mid: half [+ i b]
-    or?(< [cast Int a[mid]] k, i: next mid, b: mid)
+    or? [< cast(Int, a[mid]) k] (i: next mid) (b: mid)
   }
   echo [string "i: " i ", c: " c ", a[i]: " a[i] ", k: " k]
-  unless [and [cast Boolean [< i c]] [cast Boolean [is? [cast Int a[i]] k]]] i: 1n
+  unless [and cast(Boolean, < i c) cast(Boolean, is? cast(Int, a[i]) k)] i: -1i32
   i
 }
 
-assert_is [binary_search [1, 2, 3, 4, 5, 6] 4] 3
-assert_is [binary_search [3, 5, 1, 4, 1] 1] 1n
+assert_is 3 [binary_search [1, 2, 3, 4, 5, 6] 4]
+assert_is -1 [binary_search [3, 5, 1, 4, 1] 1]

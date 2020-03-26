@@ -1,4 +1,4 @@
-defn [fizzbuzz_imperative n] {
+defn [fizzbuzz_imperative (n: Int)] {
     let (result x: "", each it: range 1 n) {
         if (d3: divs? it 3) (add x "Fizz")
         if (d5: divs? it 5) (add x "Buzz")
@@ -7,7 +7,7 @@ defn [fizzbuzz_imperative n] {
     }
 }
 
-defn [fizzbuzz_functional n] {
+defn [fizzbuzz_functional (n: Int)] {
   |> [collect [range 1 n] [fn i
     [or? [divs? i 15] "FizzBuzz"
       [or? [divs? i 3] "Fizz"
