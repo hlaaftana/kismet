@@ -1,8 +1,10 @@
 package hlaaftana.kismet.type
 
 import groovy.transform.CompileStatic
+import groovy.transform.EqualsAndHashCode
 
 @CompileStatic
+@EqualsAndHashCode
 class TypeRelation {
 	private static final int NONE = 0, SUB = 1, SUPER = 2, EQUAL = 4
 	private static final TypeRelation EQ = new TypeRelation(EQUAL, 0), NO = new TypeRelation(NONE, 0)
@@ -42,10 +44,6 @@ class TypeRelation {
 		if (sub) true
 		else if (isSuper()) false
 		else null
-	}
-
-	boolean equals(o) {
-		o instanceof TypeRelation && o.kind == kind && o.value == value
 	}
 
 	TypeRelation bitwiseNegate() {

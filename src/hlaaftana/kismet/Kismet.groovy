@@ -22,8 +22,6 @@ class Kismet {
 	}
 
 	static IKismetObject model(x) {
-		null == x ? NULL :
-			x instanceof IKismetObject ? (IKismetObject) x :
-					(IKismetObject) ((Object) KismetModels).invokeMethod('model', [x] as Object[])
+		KismetModels.model(x)
 	}
 }

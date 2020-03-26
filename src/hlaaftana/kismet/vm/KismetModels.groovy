@@ -9,31 +9,21 @@ import hlaaftana.kismet.type.NumberType
 class KismetModels {
 	static IKismetObject KISMET_NULL = new WrapperKismetObject(null)
 
-	static <T> IKismetObject<T> model(IKismetObject<T> obj) {
-		null == obj ? KISMET_NULL : obj
-	}
-
-	static IKismetObject model(Closure c) { new GroovyFunction(c) }
-
-	static <T> IKismetObject<IteratorIterable<T>> model(Iterator<T> it) {
-		model((Object) new IteratorIterable<T>(it))
-	}
-
-	static <T extends Number> KismetNumber<T> model(T num) {
-		(KismetNumber<T>) NumberType.from(num).instantiate(num)
-	}
-
-	static KChar model(char c) { new KChar(c) }
-
-	static KismetBoolean model(boolean b) { new KismetBoolean(b) }
-
-	static KismetString model(CharSequence seq) {
-		new KismetString(seq)
+	static IKismetObject modelCollection(Collection col) {
+		new WrapperKismetObject(col)
 	}
 
 	static IKismetObject model(obj) {
-		null == obj ? KISMET_NULL :
-				obj.class.array ? model(obj as List) :
-						new WrapperKismetObject(obj)
+		if (null == obj) KISMET_NULL
+		else if (obj instanceof IKismetObject) obj
+		else if (obj instanceof Number) NumberType.from((Number) obj).instantiate(obj)
+		else if (obj instanceof Boolean) new KismetBoolean(obj.booleanValue())
+		else if (obj instanceof Character) new KChar(obj.charValue())
+		else if (obj instanceof CharSequence) new KismetString((CharSequence) obj)
+		else if (obj instanceof Collection) modelCollection((Collection) obj)
+		else if (obj.getClass().isArray()) modelCollection(obj as List)
+		else if (obj instanceof Closure) new GroovyFunction((Closure) obj)
+		else if (obj instanceof Iterator) model((Object) new IteratorIterable((Iterator) obj))
+		else new WrapperKismetObject(obj)
 	}
 }

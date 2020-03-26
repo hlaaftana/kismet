@@ -158,18 +158,18 @@ class TypedContext extends Memory {
 	List<VariableReference> getAllStatic(String name, boolean doParents = true) { getAllStatic(name.hashCode(), name, doParents) }
 
 	VariableReference findStatic(String name, Type expected, boolean doParents = true) {
-		def match = new ArrayList<VariableReference>()
+		def match = new ArrayList<Tuple2<VariableReference, TypeRelation>>()
 		for (d in getAllStatic(name, doParents)) {
-			def typ = d.variable.type
-			if (typ.relation(expected).assignableFrom) match.add(d)
+			def rel = expected.relation(d.variable.type)
+			if (rel.assignableFrom) match.add(new Tuple2<>(d, rel))
 		}
 		if (match.empty) return null
 		def winner = match.get(0)
 		for (int i = 1; i < match.size(); ++i) {
 			final e = match.get(i)
-			if (winner.variable.type.losesAgainst(e.variable.type)) winner = e
+			if (winner.v2.toSome() < e.v2.toSome()) winner = e
 		}
-		winner
+		winner.v1
 	}
 
 	IKismetObject get(String name) {

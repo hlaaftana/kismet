@@ -1,9 +1,11 @@
 package hlaaftana.kismet.type
 
 import groovy.transform.CompileStatic
+import groovy.transform.EqualsAndHashCode
 import hlaaftana.kismet.call.TypedExpression
 
 @CompileStatic
+@EqualsAndHashCode
 class TupleType extends GenericType {
 	static final SingleType BASE = new SingleType('Tuple')
 	Type varargs
@@ -19,12 +21,6 @@ class TupleType extends GenericType {
 
 	String toString() { "Tuple[${arguments.join(', ')}" + (null == varargs ? "]" : ", $varargs...]") }
 
-	boolean losesAgainst(Type other) {
-		def t = (TupleType) other
-		for (int i = 0; i < arguments.length; ++i) if (arguments[i].losesAgainst(t.arguments[i])) return true
-		false
-	}
-
 	boolean isIndefinite() { null != varargs }
 
 	TypeBound.Variance varianceAt(int i) {
@@ -39,6 +35,4 @@ class TupleType extends GenericType {
 	Type getAt(int i) {
 		i >= arguments.length ? varargs : arguments[i]
 	}
-
-	boolean equals(obj) { obj instanceof TupleType && Arrays.equals(arguments, obj.arguments) && varargs == obj.varargs }
 }

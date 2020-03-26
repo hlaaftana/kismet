@@ -1,9 +1,11 @@
 package hlaaftana.kismet.type
 
 import groovy.transform.CompileStatic
+import groovy.transform.EqualsAndHashCode
 import hlaaftana.kismet.exceptions.WrongGenericsException
 
 @CompileStatic
+@EqualsAndHashCode
 class GenericType extends AbstractType {
 	SingleType base
 	Type[] arguments
@@ -55,17 +57,6 @@ class GenericType extends AbstractType {
 			if (null == arguments) TypeRelation.equal()
 			else TypeRelation.subtype(1)
 		} else TypeRelation.none()
-	}
-
-	boolean equals(other) { other instanceof GenericType && base == other.base && Arrays.equals(arguments, other.arguments) }
-
-	boolean losesAgainst(Type other) {
-		def t = (GenericType) other
-		if (base.losesAgainst(t.base)) return true
-		//if (bounds.length < t.bounds.length) return true
-		for (int i = 0; i < size(); ++i)
-			if (this[i].losesAgainst(t[i])) return true
-		false
 	}
 
 	int size() { arguments.length }

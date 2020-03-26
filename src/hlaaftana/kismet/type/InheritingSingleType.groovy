@@ -18,6 +18,4 @@ class InheritingSingleType extends SingleType {
 	}
 
 	String toString() { name }
-
-	boolean losesAgainst(Type other) { relation(other).super }
 }

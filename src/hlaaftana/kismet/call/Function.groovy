@@ -301,27 +301,27 @@ class KismetFunction extends Function implements Nameable {
 class FunctionDefineExpression extends Expression {
 	String name
 	Arguments arguments
-	Expression expression
+	Expression body
 
 	FunctionDefineExpression(Expression[] args) {
 		final first = args[0]
 		final f = first.members ?: [first]
 		name = ((NameExpression) f[0]).text
 		arguments = new Arguments(f.tail())
-		expression = args.length == 1 ? null : block(args.tail())
+		body = args.length == 1 ? null : block(args.tail())
 	}
 
-	FunctionDefineExpression(String name = null, Arguments arguments, Expression expr) {
+	FunctionDefineExpression(String name, Arguments arguments, Expression body) {
 		this.name = name
 		this.arguments = arguments
-		this.expression = expr
+		this.body = body
 	}
 
 	IKismetObject evaluate(Context c) {
 		def result = new KismetFunction()
 		result.name = name
 		result.arguments = arguments
-		result.block = c.child(expression)
+		result.block = c.child(body)
 		c.set(name, result)
 		result
 	}
@@ -331,7 +331,7 @@ class FunctionDefineExpression extends Expression {
 		fnb.label = "function " + name
 		def args = arguments.fill(fnb)
 		def typ = Prelude.func(Type.ANY, args)
-		def expr = expression
+		def expr = body
 		if (null != arguments.result) {
 			def returnType = arguments.result.getType(fnb)
 			typ.arguments[1] = returnType

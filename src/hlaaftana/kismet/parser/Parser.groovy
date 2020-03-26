@@ -15,22 +15,18 @@ class Parser {
 	Optimizer optimizer = new Optimizer(this)
 	Context context
 	int ln = 1, cl = 0
+	boolean signedNumbers = true
 	String commentStart = ';;'
-
-	TypedExpression parseTyped(String code) {
-		parse(code).type(new TypedContext())
-	}
 
 	BlockExpression parse(String code) {
 		toBlock(optimizer.optimize(parseAST(code)))
 	}
 
-	@SuppressWarnings('GroovyVariableNotAssigned')
 	Expression parseAST(String code) {
 		BlockBuilder builder = new BlockBuilder(this)
 		char[] arr = code.toCharArray()
 		int len = arr.length
-		boolean comment
+		boolean comment = false
 		for (int i = 0; i < len; ++i) {
 			int c = (int) arr[i]
 			if (c == 10) {
@@ -39,8 +35,8 @@ class Parser {
 				comment = false
 			} else {
 				++cl
-				if (!comment && !builder.overrideComments)
-					comment = Arrays.copyOfRange(arr, i, i + commentStart.length()) == commentStart.toCharArray()
+				comment = comment || (!builder.overrideComments &&
+						Arrays.copyOfRange(arr, i, i + commentStart.length()) == commentStart.toCharArray())
 			}
 			if (comment) continue
 			try {
@@ -359,6 +355,8 @@ class Parser {
 				else if (cp == ((char) '`')) last = new QuoteAtomBuilder(parser)
 				else if (cp == ((char) '.')) {
 					(last = new PathBuilder(parser, whitespaced.pop())).push(cp)
+				} else if (parser.signedNumbers && cp == ((char) '-')) {
+					last = new MinusBuilder(parser)
 				} else if (!NameBuilder.isNotIdentifier(cp)) (last = new NameBuilder(parser)).push(cp)
 				if (lastPercent && null != last) {
 					last.percent = true
@@ -447,6 +445,8 @@ class Parser {
 					if (newlyStage) arr[0].append((char) '0')
 					init 1
 				} else throw new NumberFormatException('Tried to put fraction after ' + stageNames[stage])
+			} else if (newlyStage && (stage == 0 || stage == 2) && cp == ((char) '-')) {
+				arr[stage].append((char) '-')
 			} else if (!newlyStage && (cp == ((char) 'e') || cp == ((char) 'E'))) {
 				if (stage < 2) init 2
 				else throw new NumberFormatException('Tried to put exponent after ' + stageNames[stage])
@@ -459,9 +459,11 @@ class Parser {
 			} else if (up == ((char) 'N')) {
 				if (stage != 4) init 4
 				arr[4].append(cp)
+			} else if (up == ((char) '%')) {
+				arr[2] = null != arr[2] ? new StringBuilder(Integer.parseInt(arr[2].toString()) - 2) : new StringBuilder('-2')
 			} else if (newlyStage && stage != 3 && stage != 4) throw new NumberFormatException('Started number but wasnt number')
 			else {
-				goBack = true; return new NumberExpression(type, arr)
+				goBack = true; return doFinish()
 			}
 			(NumberExpression) null
 		}
@@ -471,6 +473,33 @@ class Parser {
 		}
 
 		boolean isReady() { !newlyStage || stage == 3 }
+	}
+
+	static class MinusBuilder extends ExprBuilder<Expression> {
+		ExprBuilder delegate
+
+		MinusBuilder(Parser p) { super(p) }
+
+		@Override
+		Expression doPush(int cp) {
+			if (null == delegate) {
+				if (cp >= ((char) '0') && cp <= ((char) '9')) {
+					delegate = new NumberBuilder(parser)
+				} else if (NameBuilder.isNotIdentifier(cp)) {
+					return new NameExpression('-')
+				} else {
+					delegate = new NameBuilder(parser)
+				}
+				delegate.doPush((char) '-')
+			}
+			delegate.doPush(cp)
+		}
+
+		Expression doFinish() {
+			null == delegate ? new NameExpression('-') : delegate.doFinish()
+		}
+
+		boolean isReady() { true }
 	}
 
 	static class NameBuilder extends ExprBuilder<NameExpression> {
@@ -574,19 +603,16 @@ class Parser {
 		void add(Expression e) {
 			if (kind == Kind.CALL) {
 				def mems = e instanceof TupleExpression ? e.members : Collections.singletonList(e)
-				final ss = steps.size()
-				if (ss == 0) {
-					def list = new ArrayList<Expression>(1 + mems.size())
+				final ss = steps.size(), ss0 = ss == 0
+				def list = new ArrayList<Expression>((ss0 ? 0 : 1) + 1 + mems.size())
+				if (ss0) {
 					list.add(root)
-					list.addAll(mems)
-					root = new CallExpression(list)
 				} else {
-					def list = new ArrayList<Expression>(2 + mems.size())
 					list.add(steps.get(ss - 1).asExpr())
 					list.add(ss == 1 ? root : new PathExpression(root, steps.init()))
-					list.addAll(mems)
-					root = new CallExpression(list)
 				}
+				list.addAll(mems)
+				root = new CallExpression(list)
 				steps.clear()
 			} else if (kind == Kind.COLON) {
 				final ss = steps.size()

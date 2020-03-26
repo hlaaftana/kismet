@@ -9,7 +9,5 @@ class NoType extends AbstractType {
 		other == this ? TypeRelation.equal() : TypeRelation.subtype(Integer.MAX_VALUE)
 	}
 
-	boolean losesAgainst(Type other) { true }
-
 	String toString() { 'None' }
 }

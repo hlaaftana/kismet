@@ -78,11 +78,6 @@ enum NumberType implements WeakableType {
 		} else TypeRelation.none()
 	}
 
-	boolean losesAgainst(Type other) {
-		final nt = (NumberType) other
-		ordinal() >= nt.ordinal()
-	}
-
 	/// temporary until i get overloads
 	abstract KismetNumber instantiate(Number num)
 

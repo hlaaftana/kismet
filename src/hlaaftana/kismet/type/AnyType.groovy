@@ -10,6 +10,4 @@ class AnyType extends AbstractType {
 	}
 
 	String toString() { 'Any' }
-
-	boolean losesAgainst(Type other) { true }
 }

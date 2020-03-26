@@ -1,8 +1,10 @@
 package hlaaftana.kismet.type
 
 import groovy.transform.CompileStatic
+import groovy.transform.EqualsAndHashCode
 
 @CompileStatic
+@EqualsAndHashCode
 class TypeBound {
 	Type type
 	Variance variance

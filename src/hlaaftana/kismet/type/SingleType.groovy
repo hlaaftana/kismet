@@ -24,8 +24,6 @@ class SingleType extends AbstractType {
 
 	String toString() { name }
 
-	boolean losesAgainst(Type other) { false }
-
 	boolean boundsMatch(Type[] arr) {
 		if (null == bounds) return true
 		if (arr.length != bounds.length) return false
