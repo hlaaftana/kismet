@@ -11,17 +11,17 @@ type
   
   SpecialCharacterKind* = range[tkBackslash..tkCloseCurly]
 
-  PositiveDecimal* = object
+  NumberToken* = object
     base*: seq[byte]
-    floating*: bool
-    exp*: int
+    floating*, negative*: bool
+    exp*, bits*: int
 
   Token* = object
     case kind*: TokenKind
     of tkString:
       content*: string
     of tkNumber:
-      num*: PositiveDecimal
+      num*: NumberToken
     of tkWord, tkSymbol:
       raw*: string
     #of tkNewLine:
@@ -49,7 +49,7 @@ const
       result.incl(sc)
     result
 
-proc `$`*(number: PositiveDecimal): string =
+proc `$`*(number: NumberToken): string =
   result = newStringOfCap(number.base.len + 2)
   for d in number.base:
     result.add(('0'.byte + d).char)
@@ -180,13 +180,15 @@ proc recordString*(str: string, i: var int, quote: char): string =
         result.add(c)
     inc i
 
-proc recordNumber*(str: string, i: var int): PositiveDecimal =
+proc recordNumber*(str: string, i: var int, negative = false): NumberToken =
   type Stage = enum
-    inBase, inDecimal, inExpStart, inExp, inExpNeg
+    inBase, inDecimal, inExpStart, inExp, inExpNeg, inBits
 
   var
     stage = inBase
     lastZeros: Natural = 0
+  
+  result.negative = negative
   
   defer:
     if not result.floating:
@@ -244,14 +246,21 @@ proc recordNumber*(str: string, i: var int): PositiveDecimal =
       case c
       of 'i', 'I':
         result.floating = false
-        return
+        stage = inBits
       of 'f', 'F':
         result.floating = true
-        return
+        stage = inBits
       of '0'..'9':
         let val = (c.byte - '0'.byte).int
         result.exp = result.exp * 10 + (if stage == inExpNeg: -val else: val)
       else:
+        return
+    of inBits:
+      case c
+      of '0'..'9':
+        result.bits = (result.bits * 10) + (c.byte - '0'.byte).int
+      else:
+        dec i
         return
     inc i
 
@@ -368,6 +377,12 @@ proc tokenize*(str: string): seq[Token] =
       of '0'..'9':
         let n = recordNumber(str, i)
         addToken(Token(kind: tkNumber, num: n))
+      of '+', '-':
+        if i + 1 < str.len and str[i + 1] in {'0'..'9'}:
+          inc i
+          addToken(Token(kind: tkNumber, num: recordNumber(str, i, ch == '-')))
+        else:
+          addToken(Token(kind: tkSymbol, raw: recordSymbol(str, i)))
       else: addToken(Token(kind: tkSymbol, raw: recordSymbol(str, i)))
 
 when isMainModule:
