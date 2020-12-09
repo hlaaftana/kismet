@@ -2,11 +2,11 @@ defn binary_search(a: List[Int], k: Int) {
   c: b: size a
   i: 0i32
   while [< i b] {
-    mid: half [+ i b]
-    or? [< cast(Int, a[mid]) k] (i: next mid) (b: mid)
+    mid: int32 [half [+ i b]]
+    or? [< a[mid] k] (i: next mid) (b: mid)
   }
   echo [string "i: " i ", c: " c ", a[i]: " a[i] ", k: " k]
-  unless [and cast(Boolean, < i c) cast(Boolean, is? cast(Int, a[i]) k)] i: -1i32
+  unless [and [< i c] [is? a[i] k]] i: -1i32
   i
 }
 

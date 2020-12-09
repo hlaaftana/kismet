@@ -15,6 +15,11 @@ class TypedContext extends Memory {
 	List<TypedContext> heritage = new ArrayList<>()
 	List<Variable> variables = new ArrayList<>()
 
+	TypedContext() {}
+	TypedContext(String name) {
+		label = name
+	}
+
 	TypedContext child() {
 		def result = new TypedContext()
 		result.heritage.add(this)
@@ -138,7 +143,9 @@ class TypedContext extends Memory {
 
 	VariableReference findThrow(String name, TypeBound expected, boolean doParents = true) {
 		def var = find(name, expected, doParents)
-		if (null == var) throw new UndefinedSymbolException("Could not find variable with name $name and type $expected")
+		if (null == var) {
+			throw new UndefinedSymbolException("Could not find variable with name $name and type $expected")
+		}
 		else var
 	}
 

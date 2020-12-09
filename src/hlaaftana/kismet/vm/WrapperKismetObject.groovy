@@ -24,10 +24,10 @@ class WrapperKismetObject<T> implements IKismetObject<T> {
 		Kismet.model(inner().invokeMethod('setProperty', [name, value.inner()] as Object[]))
 	}
 
-	IKismetObject getAt(IKismetObject obj) { getAt(obj.inner()) }
+	/*IKismetObject getAt(IKismetObject obj) { getAt(obj.inner()) }
 
 	IKismetObject putAt(IKismetObject obj, IKismetObject val) { putAt(obj.inner(), val.inner()) }
-
+*/
 	IKismetObject getAt(obj) {
 		Kismet.model(inner().invokeMethod('getAt', [obj] as Object[]))
 	}

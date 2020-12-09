@@ -5,9 +5,11 @@ import hlaaftana.kismet.call.Function
 import hlaaftana.kismet.call.TypedExpression
 import hlaaftana.kismet.call.TypedStringExpression
 import hlaaftana.kismet.call.TypedTemplate
+import hlaaftana.kismet.lib.Functions
+import hlaaftana.kismet.lib.Strings
+import hlaaftana.kismet.lib.Types
 import hlaaftana.kismet.parser.Parser
 import hlaaftana.kismet.scope.Context
-import hlaaftana.kismet.scope.Prelude
 import hlaaftana.kismet.scope.TypedContext
 import hlaaftana.kismet.type.GenericType
 import hlaaftana.kismet.type.Type
@@ -34,26 +36,34 @@ class Test {
 
 	static final TypedTemplate type_relation = new TypedTemplate() {
 		static Type toType(Type type) {
-			type instanceof GenericType && type.base == Prelude.META_TYPE ? type.arguments[0] : type
+			type instanceof GenericType && type.base == Types.META_TYPE ? type.arguments[0] : type
 		}
 
 		TypedExpression transform(TypedContext context, TypedExpression... args) {
 			new TypedStringExpression(toType(args[0].type).relation(toType(args[1].type)).toString())
 		}
+	}, explain_typed = new TypedTemplate() {
+		@Override
+		TypedExpression transform(TypedContext context, TypedExpression... args) {
+			println "FUCKING " +  args[0].toString()
+			args[0]
+		}
 	}
 
 	static void run(Parser parser, String text) {
 		def p = parser.parse(text)
-		def tc = Prelude.typed.child()
-		tc.addVariable('echo', echo, Prelude.func(Type.NONE, Type.ANY))
-		tc.addVariable('analyze', analyze, Prelude.func(Type.NONE, Type.ANY))
-		tc.addVariable('type_relation', type_relation, Prelude.typedTmpl(Prelude.STRING_TYPE, Prelude.META_TYPE, Prelude.META_TYPE))
+		def tc = Kismet.PRELUDE.typed.child()
+		tc.addVariable('echo', echo, Functions.func(Type.NONE, Type.ANY))
+		tc.addVariable('analyze', analyze, Functions.func(Type.NONE, Type.ANY))
+		tc.addVariable('type_relation', type_relation, Functions.typedTmpl(Strings.STRING_TYPE, Types.META_TYPE, Types.META_TYPE))
+		tc.addVariable('explain_typed', explain_typed, Functions.typedTmpl(Type.NONE, Type.ANY))
 		def t = p.type(tc)
 		def i = t.instruction
-		def mem = new RuntimeMemory([Prelude.typed] as Memory[], tc.size())
+		def mem = new RuntimeMemory([Kismet.PRELUDE.typed] as Memory[], tc.size())
 		mem.memory[0] = echo
 		mem.memory[1] = analyze
 		mem.memory[2] = type_relation
+		mem.memory[3] = explain_typed
 		i.evaluate(mem)
 	}
 

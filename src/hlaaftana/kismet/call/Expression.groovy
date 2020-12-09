@@ -4,11 +4,14 @@ import groovy.transform.CompileStatic
 import groovy.transform.InheritConstructors
 import hlaaftana.kismet.Kismet
 import hlaaftana.kismet.exceptions.*
+import hlaaftana.kismet.lib.CollectionsIterators
+import hlaaftana.kismet.lib.Functions
+import hlaaftana.kismet.lib.Strings
+import hlaaftana.kismet.lib.Syntax
 import hlaaftana.kismet.parser.Parser
 import hlaaftana.kismet.parser.StringEscaper
 import hlaaftana.kismet.scope.AssignmentType
 import hlaaftana.kismet.scope.Context
-import hlaaftana.kismet.scope.Prelude
 import hlaaftana.kismet.scope.TypedContext
 import hlaaftana.kismet.type.*
 import hlaaftana.kismet.vm.*
@@ -98,7 +101,7 @@ class PathExpression extends Expression {
 		if (m.size() == 1) return m.get(0)
 		def result = new ArrayList<Step>(m.size() - 1)
 		final s = steps
-		assert s.size() == m.size(), "Members must be same size as joined expressions"
+		assert s.size() + 1 == m.size(), "Members must be same size as joined expressions"
 		for (int i = 1; i < m.size(); ++i) {
 			result.add(s.get(i - 1).borrow(m.get(i)))
 		}
@@ -490,17 +493,17 @@ class CallExpression extends Expression {
 
 		// template
 		try {
-			cv = callValue.type(tc, -Prelude.TEMPLATE_TYPE)
+			cv = callValue.type(tc, -Functions.TEMPLATE_TYPE)
 		} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {}
-		if (null != cv && cv.type == Prelude.TEMPLATE_TYPE)
+		if (null != cv && cv.type == Functions.TEMPLATE_TYPE)
 			return ((Template) cv.instruction.evaluate(tc))
 					.transform(null, arguments.<Expression>toArray(new Expression[arguments.size()])).type(tc, preferred)
 
 		// type checker
 		try {
-			cv = callValue.type(tc, -Prelude.TYPE_CHECKER_TYPE)
+			cv = callValue.type(tc, -Functions.TYPE_CHECKER_TYPE)
 		} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {}
-		if (null != cv && cv.type == Prelude.TYPE_CHECKER_TYPE)
+		if (null != cv && cv.type == Functions.TYPE_CHECKER_TYPE)
 			return ((TypeChecker) cv.instruction.evaluate(tc))
 					.transform(tc, arguments.<Expression>toArray(new Expression[arguments.size()]))
 
@@ -510,7 +513,7 @@ class CallExpression extends Expression {
 		for (int i = 0; i < args.length; ++i) argtypes[i] = (args[i] = arguments.get(i).type(tc)).type
 
 		// typed template
-		final typedTmpl = Prelude.typedTmpl(preferred.type, argtypes)
+		final typedTmpl = Functions.typedTmpl(preferred.type, argtypes)
 		try {
 			cv = callValue.type(tc, -typedTmpl)
 		} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {}
@@ -520,14 +523,14 @@ class CallExpression extends Expression {
 		}
 
 		// instructor
-		final inr = Prelude.instr(preferred.type, argtypes)
+		final inr = Functions.instr(preferred.type, argtypes)
 		try {
 			cv = callValue.type(tc, -inr)
 		} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {}
 		if (null != cv) return new InstructorCallExpression(cv, args, cv.type instanceof SingleType ? Type.ANY : ((GenericType) cv.type)[1])
 
 		// function
-		final fn = Prelude.func(preferred.type, argtypes)
+		final fn = Functions.func(preferred.type, argtypes)
 		try {
 			cv = callValue.type(tc, -fn)
 		} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {}
@@ -535,8 +538,8 @@ class CallExpression extends Expression {
 
 		cv = callValue.type(tc)
 		// TODO: change the 'call' signature in Prelude after all untyped functions are typed (held back by generics)
-		println "WARNING: $this WILL USE 'call' FUNCTION"
-		def cc = tc.find('call', -Prelude.func(preferred.type, new TupleType(cv.type, new TupleType(argtypes))))
+		//println "WARNING: $this WILL USE 'call' FUNCTION"
+		def cc = tc.find('call', -Functions.func(preferred.type, new TupleType(cv.type, new TupleType(argtypes))))
 		if (null == cc) throw new UndefinedSymbolException('Could not find overload for ' + repr() + ' as ' + argtypes + ': ' + preferred)
 		new TypedCallExpression(new VariableExpression(cc), [cv, new TupleExpression.Typed(args)] as TypedExpression[], cc.variable.type instanceof SingleType ? Type.ANY : ((GenericType) cc.variable.type)[1])
 	}
@@ -568,7 +571,7 @@ class ListExpression extends CollectionExpression {
 		new WrapperKismetObject(members*.evaluate(c))
 	}
 
-	SingleType getBaseType() { Prelude.LIST_TYPE }
+	SingleType getBaseType() { CollectionsIterators.LIST_TYPE }
 
 	TypedExpression type(TypedContext tc, TypeBound preferred) {
 		final bound = match(preferred)
@@ -591,7 +594,7 @@ class ListExpression extends CollectionExpression {
 				if (rel.sub) bound = m.type
 				else if (rel.none) throw new UnexpectedTypeException('Type ' + m.type + ' is incompatible with list with bound ' + bound)
 			}
-			new GenericType(Prelude.LIST_TYPE, bound)
+			new GenericType(CollectionsIterators.LIST_TYPE, bound)
 		}
 
 		Instruction getInstruction() { new Instr(members) }
@@ -635,7 +638,7 @@ class TupleExpression extends CollectionExpression {
 	IKismetObject evaluate(Context c) {
 		def arr = new IKismetObject[members.size()]
 		for (int i = 0; i < arr.length; ++i) arr[i] = members.get(i).evaluate(c)
-		new WrapperKismetObject(new Tuple<IKismetObject>(arr))
+		new KismetTuple(arr)
 	}
 
 	SingleType getBaseType() { TupleType.BASE }
@@ -645,7 +648,7 @@ class TupleExpression extends CollectionExpression {
 		if (rel.none)
 			throw new UnexpectedTypeException('Tried to infer tuple expression as non-tuple type '.concat(preferred.toString()))
 		final bounds = rel.sub && preferred.type instanceof TupleType ? ((TupleType) preferred.type).arguments : (Type[]) null
-		if (rel.sub && members.size() != bounds.length)
+		if (null != bounds && members.size() != bounds.length)
 			throw new UnexpectedTypeException("Tuple expression length ${members.size()} did not match expected tuple type length $bounds.length")
 		def arr = new TypedExpression[members.size()]
 		for (int i = 0; i < arr.length; ++i) arr[i] = members.get(i).type(tc, preferred * (null == bounds ? Type.ANY : bounds[i]))
@@ -682,7 +685,7 @@ class TupleExpression extends CollectionExpression {
 			IKismetObject evaluate(Memory context) {
 				def arr = new IKismetObject[members.length]
 				for (int i = 0; i < arr.length; ++i) arr[i] = members[i].evaluate(context)
-				Kismet.model(new Tuple<IKismetObject>(arr))
+				new KismetTuple(arr)
 			}
 		}
 
@@ -709,7 +712,7 @@ class SetExpression extends CollectionExpression {
 		Kismet.model(arr)
 	}
 
-	SingleType getBaseType() { Prelude.SET_TYPE }
+	SingleType getBaseType() { CollectionsIterators.SET_TYPE }
 
 	TypedExpression type(TypedContext tc, TypeBound preferred) {
 		final bound = match(preferred)
@@ -732,7 +735,7 @@ class SetExpression extends CollectionExpression {
 				if (rel.sub) bound = m.type
 				else if (rel.none) throw new UnexpectedTypeException('Type ' + m.type + ' is incompatible with set with bound ' + bound)
 			}
-			new GenericType(Prelude.SET_TYPE, bound)
+			new GenericType(CollectionsIterators.SET_TYPE, bound)
 		}
 
 		Instruction getInstruction() { new Instr(members) }
@@ -779,7 +782,7 @@ class MapExpression extends CollectionExpression {
 		Kismet.model(arr)
 	}
 
-	SingleType getBaseType() { Prelude.MAP_TYPE }
+	SingleType getBaseType() { CollectionsIterators.MAP_TYPE }
 
 	TypedExpression type(TypedContext tc, TypeBound preferred) {
 		def rel = preferred.relation(baseType)
@@ -814,7 +817,7 @@ class MapExpression extends CollectionExpression {
 				if (vrel.sub) value = values[i].type
 				else if (vrel.none) throw new UnexpectedTypeException('Type ' + values[i].type + ' is incompatible with map with value bound ' + value)
 			}
-			new GenericType(Prelude.MAP_TYPE, key, value)
+			new GenericType(CollectionsIterators.MAP_TYPE, key, value)
 		}
 
 		Instruction getInstruction() { new Instr(keys, values) }
@@ -874,7 +877,7 @@ class ColonExpression extends Expression {
 
 	TypedExpression type(TypedContext tc, TypeBound preferred) {
 		def val = right.type(tc, preferred) // no need to check if it satisfies because it will check itself
-		def atom = Prelude.toAtom(left)
+		def atom = Syntax.toAtom(left)
 		if (null != atom) {
 			def var = AssignmentType.ASSIGN.set(tc, atom, val.type)
 			new VariableSetExpression(var, val)
@@ -1074,7 +1077,7 @@ class StringExpression extends ConstantExpression<String> {
 
 	TypedStringExpression type(TypedContext tc, TypeBound preferred) {
 		final str = evaluate(null).inner()
-		if (!preferred.relation(Prelude.STRING_TYPE).assignableFrom)
+		if (!preferred.relation(Strings.STRING_TYPE).assignableFrom)
 			throw new UnexpectedTypeException("Preferred non-string type $preferred for literal with string \"${StringEscaper.escape(str)}\"")
 		new TypedStringExpression(str)
 	}

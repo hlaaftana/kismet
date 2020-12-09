@@ -1,5 +1,5 @@
 defn [memoized f] {
-  cache: {#}
+  cache: cast Map[Tuple, Any] {#}
   fn {
     get_or_set cache[_all] [call f _all]
   }
@@ -11,15 +11,15 @@ defn [memoized f] {
 ;;  newfun
 ;;}
 
-static memoize: tmpl {
-  fun: cast Expression exprs[0i32]
-  call_expr [static_expr set_to, fun, call_expr [name_expr "memoized", fun]]
+static our_memoize: tmpl {
+  fun: cast Expression exprs[0]
+  call_expr [name_expr "set_to", fun, call_expr [name_expr "memoized", fun]]
 }
 
 defn [nth_fibonacci (n: Int) (returns Int)] {
-  or? [< n 2] 1 [sum [collect [range [decr n] [decr n]] nth_fibonacci]]
+  or? [< n 2] 1 [sum [collect [decr n, decr n] nth_fibonacci]]
 }
 
-memoize nth_fibonacci
+our_memoize nth_fibonacci
 
 assert_is 165580141 [nth_fibonacci 40]

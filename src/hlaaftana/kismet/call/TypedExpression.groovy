@@ -3,7 +3,7 @@ package hlaaftana.kismet.call
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.Kismet
 import hlaaftana.kismet.exceptions.UnexpectedValueException
-import hlaaftana.kismet.scope.Prelude
+import hlaaftana.kismet.lib.Strings
 import hlaaftana.kismet.scope.TypedContext
 import hlaaftana.kismet.type.NumberType
 import hlaaftana.kismet.type.Type
@@ -321,7 +321,7 @@ class TypedStringExpression extends TypedExpression {
 		instruction = new ConstantInstruction<>(new KismetString(string))
 	}
 
-	Type getType() { Prelude.STRING_TYPE }
+	Type getType() { Strings.STRING_TYPE }
 	boolean isRuntimeOnly() { false }
 
 	String toString() { "string $string" }

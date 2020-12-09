@@ -8,7 +8,7 @@ defn [fizzbuzz_imperative (n: Int)] {
 }
 
 defn [fizzbuzz_functional (n: Int)] {
-  |> [collect [range 1 n] [fn i
+  |> [collect [range 1 n] [fn [i: Int]
     [or? [divs? i 15] "FizzBuzz"
       [or? [divs? i 3] "Fizz"
         [or? [divs? i 5] "Buzz"

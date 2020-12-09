@@ -48,7 +48,10 @@ abstract class KismetNumber<T extends Number> extends Number implements IKismetO
 
 	int hashCode() { inner().hashCode() }
 
-	boolean equals(obj) { inner().equals(obj) }
+	boolean equals(obj) {
+		obj instanceof KismetNumber ? inner().equals(((KismetNumber) obj).inner()) :
+				(obj instanceof Number && inner().equals(obj))
+	}
 
 	byte byteValue() { inner().byteValue() }
 
@@ -170,6 +173,12 @@ final class KInt extends KismetNumber<BigInteger> {
 	NumberType getType() { NumberType.Int }
 
 	BigInteger inner() { inner }
+
+	int hashCode() { inner.hashCode() }
+
+	boolean equals(other) {
+		other instanceof KInt && inner == ((KInt) other).inner
+	}
 
 	void set(Number value) { inner = toBigInt(value) }
 

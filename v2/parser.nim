@@ -1,6 +1,6 @@
 import strutils
 
-from tokenizer import PositiveDecimal, runes
+from tokenizer import NumberToken, runes
 
 const commentStart = ";;"
 
@@ -36,7 +36,7 @@ type
       root: Expression
       steps: seq[PathStep]
     of ekNumber:
-      num: PositiveDecimal
+      num: NumberToken
       numNeg: bool
     of ekString:
       str: string
@@ -145,8 +145,21 @@ proc recordNumber(str: string, i: var int): Expression =
     inc i
 
 proc recordLine(str: string, i: var int): Expression =
-  var exprs: seq[Expression]
-
+  result = Expression(kind: ekCall)
+  defer:
+    if result.content.len == 1:
+      result = result.content[0]
+  while i < str.len:
+    let ch = str[i]
+    case ch
+    of '\c', '\L':
+      return
+    of Whitespace - {'\c', '\L'}: discard
+    of '0'..'9':
+      result.content.add(recordNumber(str, i))
+    of '[':
+      result.content.add(recordCall)
+  
 
 proc recordOpenBlock(str: string, i: var int): Expression =
   new(result)
@@ -155,4 +168,5 @@ proc recordOpenBlock(str: string, i: var int): Expression =
     result.content.add(recordLine(str, i))
 
 proc parse(str: string): Expression =
-  discard
+  var i = 0
+  result = recordOpenBlock(str, i)

@@ -4,6 +4,7 @@ import groovy.transform.CompileStatic
 import hlaaftana.kismet.Kismet
 import hlaaftana.kismet.scope.Context
 import hlaaftana.kismet.vm.IKismetObject
+import hlaaftana.kismet.vm.KismetTuple
 
 abstract class Macro implements KismetCallable {
 	boolean pure
@@ -24,7 +25,7 @@ class KismetMacro extends Macro {
 			c.context.set('$'.concat(String.valueOf(it)), Kismet.model(args[it]))
 		}
 		c.context.set('$context', Kismet.model(s))
-		c.context.set('$all', Kismet.model(new Tuple(args)))
+		c.context.set('$all', new KismetTuple(args))
 		c()
 	}
 }

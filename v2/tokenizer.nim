@@ -55,7 +55,7 @@ proc `$`*(number: NumberToken): string =
     result.add(('0'.byte + d).char)
   if number.floating and -number.exp < number.base.len:
     result.insert(".", number.base.len + number.exp)
-  else:
+  elif number.exp != 0:
     result.add('e')
     result.add($number.exp)
 
@@ -71,6 +71,22 @@ proc `$`*(token: Token): string =
   of tkString: "\"" & token.content & "\""
   of tkNumber: $token.num
   of tkWord, tkSymbol: token.raw
+
+proc `$`*(tokens: seq[Token]): string =
+  var ind = 0
+  for t in tokens:
+    case t.kind
+    of tkIndent:
+      ind += 1
+      result.add("  ")
+    of tkIndentBack:
+      ind -= 1
+      result.setLen(result.len - 2)
+    of tkNewLine:
+      result.add("\p")
+      for _ in 1..(ind * 2):
+        result.add(' ')
+    else: result.add($t)
 
 proc `==`*(tok1, tok2: Token): bool =
   if tok1.kind != tok2.kind: return
@@ -91,8 +107,12 @@ iterator runes*(i: var int, s: string): Rune =
   var
     result: Rune
   while i < len(s):
-    fastRuneAt(s, i, result, true)
-    yield result
+    if s[i] == '\c' and i + 1 < len(s) and s[i + 1] == '\L':
+      inc i, 2
+      yield Rune '\L'
+    else:
+      fastRuneAt(s, i, result, true)
+      yield result
 
 proc contains*(s: set[char], r: Rune): bool {.inline.} =
   r.int32 < 128i32 and r.char in s
@@ -199,6 +219,7 @@ proc recordNumber*(str: string, i: var int, negative = false): NumberToken =
         result.exp = 0
         result.base.setLen(result.base.len + result.exp)
 
+  dec i
   while i < str.len:
     let c = str[i]
     case stage
@@ -289,8 +310,7 @@ proc tokenize*(str: string): seq[Token] =
     lastKind: TokenKind
     lastIndents: seq[int]
     lastIndentSum, indent: int
-    recordingIndent: bool
-    comment: bool
+    recordingIndent, comment: bool
 
   template addToken(t: Token) =
     result.add(t)
@@ -314,8 +334,8 @@ proc tokenize*(str: string): seq[Token] =
     let w = c in Whitespace
 
     if recordingIndent and c notin {'\l', '\r'}:
-      if c == '\t'.Rune: inc indent, 4
-      elif w: inc indent
+      if c == '\t'.Rune: inc indent, 4; continue
+      elif w: inc indent; continue
       elif c != Rune('#'):
         let diff = indent - lastIndentSum
         if diff < 0:
@@ -339,9 +359,9 @@ proc tokenize*(str: string): seq[Token] =
         recordingIndent = false
 
     if w:
-      if c in {'\L', '\c'}:
-        if c == '\c' and str.len > i + 1 and str[i + 1] == '\L':
-          inc i
+      if c == '\L':
+        #if c == '\c' and str.len > i + 1 and str[i + 1] == '\L':
+        #  inc i
         let r = high(result)
         for xi in countdown(r, 0):
           if result[xi].kind == tkWhitespace:
@@ -351,6 +371,7 @@ proc tokenize*(str: string): seq[Token] =
           break
         if r == high(result):
           addTokenOf(tkNewLine)
+        recordingIndent = true
       elif lastKind != tkWhitespace:
         addTokenOf(tkWhitespace)
     elif c.isAlpha:
@@ -393,11 +414,4 @@ when isMainModule:
     let b = cpuTime()
     echo "took ", b - a
 
-  echo tokenize("hello: \"aaaa\\u{28483} ğpppppp \\t \\u99 \\ux{99} \\ub{0101010100\\ub{0101010100} a\\\" oo\")()")
-  echo tokenize("title: about gluggers")
-  echo tokenize("""title: CLAUDE
-style: "
-  body {
-    background-color: #FF0000;
-  }
-"""")
+  echo tokenize(readFile("concepts/binarysearch.lang"))

@@ -11,6 +11,10 @@ class KismetBoolean implements IKismetObject<Boolean> {
 		this.inner = inner
 	}
 
+	static KismetBoolean from(boolean val) {
+		val ? TRUE : FALSE
+	}
+
 	Boolean inner() { Boolean.valueOf(inner) }
 
 	boolean asBoolean() { inner }

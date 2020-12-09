@@ -4,8 +4,10 @@ import groovy.transform.CompileStatic
 import hlaaftana.kismet.Kismet
 import hlaaftana.kismet.call.*
 import hlaaftana.kismet.exceptions.UndefinedVariableException
+import hlaaftana.kismet.lib.CollectionsIterators
+import hlaaftana.kismet.lib.Strings
+import hlaaftana.kismet.lib.Syntax
 import hlaaftana.kismet.scope.Context
-import hlaaftana.kismet.scope.Prelude
 import hlaaftana.kismet.vm.IKismetObject
 
 import static hlaaftana.kismet.call.ExprBuilder.*
@@ -134,7 +136,7 @@ class Optimizer {
 						branches.add call(ses)
 					} else if (a instanceof NameExpression) {
 						final text = ((NameExpression) a).text
-						branches.add call(name(Prelude.isAlpha(text) ? text + '?' : text), name(name))
+						branches.add call(name(Strings.isAlphaNum(text) ? text + '?' : text), name(name))
 					} else if (a instanceof BlockExpression) {
 						addBranches(((BlockExpression) a).members)
 						continue
@@ -279,16 +281,16 @@ class Optimizer {
 			final size = exprs.size()
 			this.collect = collect
 			if (size == 1) {
-				final atom = Prelude.toAtom(exprs[0])
+				final atom = Syntax.toAtom(exprs[0])
 				if (atom == null) nameExpr = exprs[0]
 				else name = atom
 			} else if (size == 2) {
-				final atom = Prelude.toAtom(exprs[0])
+				final atom = Syntax.toAtom(exprs[0])
 				if (atom == null) nameExpr = exprs[0]
 				else name = atom
 
 				if (exprs[1] instanceof ConstantExpression)
-					iterator = Prelude.toIterator(c.eval(exprs[1]).inner())
+					iterator = CollectionsIterators.toIterator(c.eval(exprs[1]).inner())
 				else iterExpr = exprs[1]
 			} else if (size >= 3) {
 				final f = exprs[0]
@@ -298,12 +300,12 @@ class Optimizer {
 					indexStart(c, fc.arguments.size() > 1 ? fc.arguments[0] : fc.callValue)
 				} else indexName(f)
 
-				final atom = Prelude.toAtom(exprs[1])
+				final atom = Syntax.toAtom(exprs[1])
 				if (atom == null) nameExpr = exprs[1]
 				else name = atom
 
 				if (exprs[2] instanceof ConstantExpression)
-					iterator = Prelude.toIterator(c.eval(exprs[2]).inner())
+					iterator = CollectionsIterators.toIterator(c.eval(exprs[2]).inner())
 				else iterExpr = exprs[2]
 			}
 			def tail = arguments.tail()
@@ -311,7 +313,7 @@ class Optimizer {
 		}
 
 		private void indexName(Expression expr) {
-			final atom = Prelude.toAtom(expr)
+			final atom = Syntax.toAtom(expr)
 			if (atom == null) indexNameExpr = expr
 			else indexName = atom
 		}
@@ -324,7 +326,7 @@ class Optimizer {
 
 		IKismetObject evaluate(Context c) {
 			int i = indexStartExpr == null ? indexStart : indexStartExpr.evaluate(c).inner() as int
-			final iter = iterExpr == null ? iterator : Prelude.toIterator(iterExpr.evaluate(c).inner())
+			final iter = iterExpr == null ? iterator : CollectionsIterators.toIterator(iterExpr.evaluate(c).inner())
 			final iName = indexNameExpr == null ? indexName : indexNameExpr.evaluate(c).toString()
 			final name = nameExpr == null ? name : nameExpr.evaluate(c).toString()
 			def result = collect ? new ArrayList() : (ArrayList) null

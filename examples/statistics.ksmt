@@ -2,8 +2,8 @@ defn [mean (l: List[Number]) (returns Number)] [/ [sum l] [size l]]
 
 defn [median (l: List[Number]) (returns Number)] {
   s: size l
-  d: div s 2
-  or? [odd? s] l[d] [div [+ l[d] l[prev d]] 2]
+  d: int32 [div s 2]
+  or? [odd? s] l[d] [div [+ l[d] l[int32 [prev d]]] 2]
 }
 
 defn [standard_deviation (l: List[Number]) (returns Number)] {

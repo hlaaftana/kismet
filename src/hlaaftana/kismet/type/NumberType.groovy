@@ -60,6 +60,7 @@ enum NumberType implements WeakableType {
 		else if (val instanceof Long) Int64
 		else if (val instanceof Short) Int16
 		else if (val instanceof Byte) Int8
+		else if (val instanceof KismetNumber) val.type
 		else Number
 	}
 

@@ -2,7 +2,7 @@ defn [intlist n: Int] [cast List[Int] [new_list n]]
 
 defn [fibonacci n: Int] [
   let [f: 0, s: 1, each i: range< 0 n, result res: intlist n]
-    res[i]: f: + s s: f]
+    res[int32 i]: f: + s s: f]
 
 defn [fibonacci_collect n: Int] {
   f: 0; s: 1

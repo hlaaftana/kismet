@@ -4,14 +4,14 @@ import groovy.transform.CompileStatic
 
 @CompileStatic
 @SuppressWarnings("GroovyUnusedDeclaration")
-class KismetTuple implements IKismetObject<IKismetObject[]>, List<IKismetObject> {
+class KismetTuple implements IKismetObject<Tuple<IKismetObject>>, List<IKismetObject> {
 	IKismetObject[] inner
 
 	KismetTuple(int length) { this(new IKismetObject[length]) }
 
 	KismetTuple(IKismetObject[] inner) { this.inner = inner }
 
-	IKismetObject[] inner() { inner }
+	Tuple<IKismetObject> inner() { new Tuple(inner) }
 
 	int size() { inner.length }
 
@@ -66,6 +66,7 @@ class KismetTuple implements IKismetObject<IKismetObject[]>, List<IKismetObject>
 
 	IKismetObject get(int i) { inner[i] }
 
+	@Override
 	IKismetObject set(int index, IKismetObject element) {
 		inner[index] = element
 	}
@@ -102,7 +103,16 @@ class KismetTuple implements IKismetObject<IKismetObject[]>, List<IKismetObject>
 
 	String toString() { inner.toString() }
 
-	int hashCode() { inner.hashCode() }
+	int hashCode() {
+		Arrays.hashCode(inner)
+	}
+
+	boolean equals(obj) {
+		if (obj !instanceof KismetTuple || ((KismetTuple) obj).size() != size()) return false
+		for (int i = 0; i < inner.length; ++i)
+			if (get(i) != ((KismetTuple) obj).get(i)) return false
+		true
+	}
 
 	def asType(Class type) { inner().asType(type) }
 }

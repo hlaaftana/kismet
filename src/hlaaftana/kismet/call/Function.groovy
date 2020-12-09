@@ -4,8 +4,11 @@ import groovy.transform.CompileStatic
 import hlaaftana.kismet.Kismet
 import hlaaftana.kismet.exceptions.CheckFailedException
 import hlaaftana.kismet.exceptions.UnexpectedSyntaxException
+import hlaaftana.kismet.lib.CollectionsIterators
+import hlaaftana.kismet.lib.Functions
+import hlaaftana.kismet.lib.Syntax
+import hlaaftana.kismet.lib.Types
 import hlaaftana.kismet.scope.Context
-import hlaaftana.kismet.scope.Prelude
 import hlaaftana.kismet.scope.TypedContext
 import hlaaftana.kismet.type.GenericType
 import hlaaftana.kismet.type.TupleType
@@ -225,7 +228,7 @@ class Arguments {
 			else if (e instanceof StringExpression) p.name = e.value.inner()
 			else if (e instanceof BlockExpression) block = e
 			else if (e instanceof ColonExpression) {
-				p.name = Prelude.toAtom(e.left)
+				p.name = Syntax.toAtom(e.left)
 				if (null == p.name) throw new UnexpectedSyntaxException("Weird left hand side of colon expression " +
 						"for method parameter " + e.left)
 				p.typeExpression = e.right
@@ -236,10 +239,7 @@ class Arguments {
 	}
 
 	void setArgs(Context c, IKismetObject[] args) {
-		def args2 = new Object[args.length]
-		System.arraycopy(args, 0, args2, 0, args2.length)
-		final lis = new Tuple(args2)
-		c.set('_all', Kismet.model(lis))
+		c.set('_all', new KismetTuple(args))
 		if (enforceLength && parameters.size() != args.length)
 			throw new CheckFailedException("Got argument length $args.length which wasn't ${parameters.size()}")
 		for (int i = 0; i < parameters.size(); ++i) {
@@ -257,7 +257,7 @@ class Arguments {
 			tc.addVariable('_all', new TupleType(pt))
 			pt
 		} else {
-			tc.addVariable('_all', Prelude.LIST_TYPE)
+			tc.addVariable('_all', CollectionsIterators.LIST_TYPE)
 			null
 		}
 	}
@@ -276,7 +276,7 @@ class Arguments {
 		Type getType(TypedContext tc) {
 			if (null == typeExpression) return Type.ANY
 			def expr = typeExpression.type(tc)
-			if (!expr.type.relation(Prelude.META_TYPE).assignableTo) expr.type
+			if (!expr.type.relation(Types.META_TYPE).assignableTo) expr.type
 			else (Type) expr.instruction.evaluate(tc).inner()
 		}
 
@@ -330,7 +330,7 @@ class FunctionDefineExpression extends Expression {
 		def fnb = tc.child()
 		fnb.label = "function " + name
 		def args = arguments.fill(fnb)
-		def typ = Prelude.func(Type.ANY, args)
+		def typ = Functions.func(Type.ANY, args)
 		def expr = body
 		if (null != arguments.result) {
 			def returnType = arguments.result.getType(fnb)
@@ -403,8 +403,8 @@ class FunctionExpression extends Expression {
 		fnb.label = null == name ? "anonymous function" : "function " + name
 		def args = arguments.fill(fnb)
 		def typ = null == args ?
-			new GenericType(Prelude.FUNCTION_TYPE, TupleType.BASE, Type.ANY) :
-				Prelude.func(Type.ANY, args)
+			new GenericType(Functions.FUNCTION_TYPE, TupleType.BASE, Type.ANY) :
+				Functions.func(Type.ANY, args)
 		def expr = expression
 		if (null != arguments.result) {
 			def returnType = arguments.result.getType(fnb)
@@ -447,7 +447,7 @@ class TypedFunction extends Function implements Nameable {
 	IKismetObject call(IKismetObject... args) {
 		def mem = new RuntimeMemory(context, stackSize)
 		System.arraycopy(args, 0, mem.memory, 0, args.length)
-		mem.memory[noArgs ? 0 : args.length] = Kismet.model(new Tuple(args))
+		mem.memory[noArgs ? 0 : args.length] = new KismetTuple(args)
 		instruction.evaluate(mem)
 	}
 

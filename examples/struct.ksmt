@@ -1,0 +1,51 @@
+static struct: tmpl {
+  name: cast Expression exprs[0]
+  props: (cast Expression exprs[1]).members
+  type_args: cast List[Expression] [new_list [size props]]
+  let (each prop: props) {
+    add type_args ([cast Expression prop].[1])
+  }
+  type: subscript_expr [name_expr "Tuple"] [tuple_expr type_args]
+  stmts: cast List[Expression] [new_list [+ [* [size props] 2] 2]]
+  add stmts [call_expr (& [name_expr "static"] [colon_expr name type])]
+  let (each i: range< 0 [size props]) {
+    prop: (cast Expression props[i]).members
+    add stmts [call_expr (&
+      [name_expr "defn"]
+      [call_expr (&
+        [name_expr string(".", repr_expr prop[0])]
+        [colon_expr [name_expr "it"] name]
+        [call_expr (& [name_expr "returns"] prop[1])])]
+      [call_expr (&
+        [name_expr "cast"]
+        type_args[i]
+        [subscript_expr [name_expr "it"] [number_expr i]])])]
+    add stmts [call_expr (&
+      [name_expr "defn"]
+      [call_expr (&
+        [name_expr string(".", repr_expr prop[0], "=")]
+        [colon_expr [name_expr "it"] name]
+        [colon_expr [name_expr "val"] type_args[i]]
+        [call_expr (& [name_expr "returns"] prop[1])])]
+      [colon_expr
+        [subscript_expr [name_expr "it"] [number_expr i]]
+        [name_expr "val"]])]
+  }
+  add stmts [call_expr (&
+    [name_expr "defn"]
+    [call_expr (&
+      [name_expr string("init", repr_expr name)]
+      [call_expr (& [name_expr "returns"] name)])]
+    [tuple_expr [collect [range 1 [size props]] [fn [name_expr "null"]]]])]
+  block_expr stmts
+}
+
+struct Person {
+  name: String
+  age: Int
+}
+
+john: initPerson()
+john.age: 30
+john.name: "John"
+assert_is john ("John", 30)
