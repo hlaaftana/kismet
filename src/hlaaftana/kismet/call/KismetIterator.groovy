@@ -21,6 +21,12 @@ defiter [range a b] {
 for it [range 1 5] {
   echo it
 }
+;; new scope for { echo it }, add `it`
+;; type { echo it }
+;; new scope for iterator block
+;; add `yield` template to iterator, injects the typed { echo it }
+;; instantiate iterator block
+;; this will probably not work at runtime because the scopes are alien
 
 let [a: 1, b: 1] {
   i: a
@@ -38,7 +44,7 @@ dive {
 
   i: a
   while [<= i b] {
-    dive {
+    {
       it: i
       echo it
     }

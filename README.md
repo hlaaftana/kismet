@@ -45,6 +45,7 @@ a.(b)    ;; [a b]
 a.(b, c) ;; [a b c]
 a(b)     ;; [a b]
 a(b, c)  ;; [a b c]
+a.b(c)   ;; [b a c]
 a:b      ;; sets variable a to b
 
 [a, b]   ;; creates list of a and b

@@ -29,14 +29,24 @@ imperative: dive {
     x
   }
 
-  defn [combination (n: Int32) (r: Int32)] [
-    let [result x: 1i32, i: 0i32] [
+  defn [combination (n: Int32) (r: Int32)] {
+    let (result x: 1i32, i: 0i32) {
       while [< i r] {
         x: / [* x [- n i]] [- r i]
         incr i
-      }]]
+      }
+    }
+  }
 
   assert_is [factorial 5i32] 120i32
   assert_is [permutation 4i32 2i32] 12i32
   assert_is [combination 6i32 3i32] 20i32
 }
+
+defn [combination (n: Int32) (r: Int32)] {
+  let (result x: 1i32, each i: range< 0i32 r) {
+    x: / [* x [- n i]] [- r i]
+  }
+}
+
+assert_is [combination 6i32 3i32] 20i32

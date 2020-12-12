@@ -538,7 +538,7 @@ class CallExpression extends Expression {
 
 		cv = callValue.type(tc)
 		// TODO: change the 'call' signature in Prelude after all untyped functions are typed (held back by generics)
-		//println "WARNING: $this WILL USE 'call' FUNCTION"
+		// println "WARNING: $this WILL USE 'call' FUNCTION"
 		def cc = tc.find('call', -Functions.func(preferred.type, new TupleType(cv.type, new TupleType(argtypes))))
 		if (null == cc) throw new UndefinedSymbolException('Could not find overload for ' + repr() + ' as ' + argtypes + ': ' + preferred)
 		new TypedCallExpression(new VariableExpression(cc), [cv, new TupleExpression.Typed(args)] as TypedExpression[], cc.variable.type instanceof SingleType ? Type.ANY : ((GenericType) cc.variable.type)[1])
@@ -572,6 +572,10 @@ class ListExpression extends CollectionExpression {
 	}
 
 	SingleType getBaseType() { CollectionsIterators.LIST_TYPE }
+
+	Expression join(List<Expression> exprs) {
+		new ListExpression(exprs)
+	}
 
 	TypedExpression type(TypedContext tc, TypeBound preferred) {
 		final bound = match(preferred)
@@ -634,6 +638,10 @@ class TupleExpression extends CollectionExpression {
 	}
 
 	String repr() { "(${members.join(', ')})" }
+
+	Expression join(List<Expression> exprs) {
+		new TupleExpression(exprs)
+	}
 
 	IKismetObject evaluate(Context c) {
 		def arr = new IKismetObject[members.size()]
@@ -706,6 +714,10 @@ class SetExpression extends CollectionExpression {
 
 	String repr() { "{${members.join(', ')}}" }
 
+	Expression join(List<Expression> exprs) {
+		new SetExpression(exprs)
+	}
+
 	IKismetObject evaluate(Context c) {
 		def arr = new HashSet<IKismetObject>(members.size())
 		for (m in members) arr.add(m.evaluate(c))
@@ -775,6 +787,15 @@ class MapExpression extends CollectionExpression {
 	}
 
 	String repr() { "{#${members.join(', ')}}" }
+
+	Expression join(List<Expression> exprs) {
+		def arr = new ArrayList<ColonExpression>()
+		for (e in exprs)
+			if (e instanceof ColonExpression)
+				arr.add((ColonExpression) e)
+			else throw new UnexpectedSyntaxException('tried to join non colon expression')
+		new MapExpression(arr)
+	}
 
 	IKismetObject evaluate(Context c) {
 		def arr = new HashMap<Object, IKismetObject>(members.size())

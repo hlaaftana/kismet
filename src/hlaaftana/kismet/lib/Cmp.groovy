@@ -20,7 +20,7 @@ class Cmp extends LibraryModule {
 
     Cmp() {
         define 'is?', func(Logic.BOOLEAN_TYPE, Type.ANY, Type.ANY), funcc { ... args -> args.inject { a, b -> a == b } }
-        negated 'is?', 'isn\'t?'
+        negated 'is?', 'is_not?'
         define 'same?',  funcc { ... a -> a[0].is(a[1]) }
         negated 'same?', 'not_same?'
         define 'empty?',  funcc { ... a -> a[0].invokeMethod('isEmpty', null) }

@@ -19,6 +19,9 @@ import hlaaftana.kismet.vm.WrapperKismetObject
 
 import static hlaaftana.kismet.call.ExprBuilder.*
 import static hlaaftana.kismet.lib.Functions.*
+import static hlaaftana.kismet.lib.Functions.TEMPLATE_TYPE
+import static hlaaftana.kismet.lib.Functions.TEMPLATE_TYPE
+import static hlaaftana.kismet.lib.Functions.TYPE_CHECKER_TYPE
 import static hlaaftana.kismet.lib.Logic.BOOLEAN_TYPE
 
 @CompileStatic
@@ -177,6 +180,25 @@ class Syntax extends LibraryModule {
         alias ':=', 'define'
         alias '::=', 'set_to'
         alias ':::=', 'change'
+        define 'declare', TYPE_CHECKER_TYPE, new TypeChecker() {
+            @Override
+            TypedExpression transform(TypedContext context, Expression... args) {
+                def type = Type.ANY
+                if (args.length > 1) {
+                    def ex = args[args.length - 1]
+                    def t = ex.type(context).instruction.evaluate(context)
+                    if (t !instanceof Type)
+                        throw new UnexpectedTypeException('value of ' + ex + ' not a type, instead got ' + t)
+                    type = (Type) t
+                }
+                for (final name : args) {
+                    if (name !instanceof NameExpression)
+                        throw new UnexpectedSyntaxException('decl must take name argument')
+                    context.addVariable(((NameExpression) name).text, type)
+                }
+                TypedNoExpression.INSTANCE
+            }
+        }
         define '+=', TEMPLATE_TYPE, new Template() {
             Expression transform(Parser parser, Expression... args) {
                 call([name('='), args[0],
@@ -238,17 +260,8 @@ class Syntax extends LibraryModule {
                 new FunctionDefineExpression(name, args, exprs.size() == 1 ? exprs[0] : block(exprs))
             }
         }
-        define 'defmcr', new Template() {
-            @CompileStatic
-            Expression transform(Parser parser, Expression... args) {
-                def a = new ArrayList<Expression>(args.length + 1)
-                a.add(name('mcr'))
-                for (int i = 1; i < args.length; ++i)
-                    a.add(args[i])
-                var(AssignmentType.DEFINE, toAtom(args[0]), call(a))
-            }
-        }
-        define 'tmpl', TYPE_CHECKER_TYPE, new TypeChecker() {
+        // TODO: deftmpl
+        define 'template', TYPE_CHECKER_TYPE, new TypeChecker() {
             TypedExpression transform(TypedContext context, Expression... args) {
                 def c = context.child()
                 c.label = "anonymous template"
@@ -265,6 +278,7 @@ class Syntax extends LibraryModule {
                 })
             }
         }
+        alias 'template', 'tmpl'
         define 'fn*', new Template() {
             @Override
             Expression transform(Parser parser, Expression... args) {
@@ -546,45 +560,29 @@ class Syntax extends LibraryModule {
                 infixLTR(args.toList())
             }
         }
-        /*define 'try',  macr { Context c, Expression... exprs ->
-            try {
-                exprs[0].evaluate(c)
-            } catch (ex) {
-                c = c.child()
-                c.set(resolveName(exprs[1], c, 'try'), Kismet.model(ex))
-                exprs[2].evaluate(c)
-            }
-        }
-        define '??',  macr { Context c, Expression... exprs ->
-            def p = (PathExpression) exprs[0]
-            if (null == p.root) {
-                call([name('fn'), call([
-                        name('??'), new PathExpression(name('$0'),
-                        p.steps)])]).evaluate(c)
-            } else {
-                IKismetObject result = p.root.evaluate(c)
-                def iter = p.steps.iterator()
-                while (result.inner() != null && iter.hasNext()) {
-                    final b = iter.next()
-                    result = b.get(c, result)
+        define '??', TEMPLATE_TYPE, new Template() {
+            Expression transform(Parser parser, Expression... args) {
+                def p = (PathExpression) args[0]
+                if (null == p.root) {
+                    call([name('fn'),
+                          call([
+                              name('??'), new PathExpression(name('$0'),
+                              p.steps)])])
+                } else {
+                    def temp = name('_temp_??')
+                    def expr = temp
+                    for (int i = 0; i < p.steps.size(); ++i) {
+                        def step = p.steps.get(p.steps.size() - i - 1)
+                        expr = call(name('or?'),
+                            call(name('null?'), new ColonExpression(temp, new PathExpression(temp, [step]))),
+                                name('null'), expr)
+                    }
+                    call(name('or?'),
+                        call(name('null?'), new ColonExpression(temp, p.root)),
+                            name('null'), expr)
                 }
-                result
             }
         }
-        define 'set_at', TEMPLATE_TYPE, new Template() {
-            Expression transform(Parser parser, Expression... args) {
-                def path = args[0] instanceof PathExpression ?
-                    new PathExpression(((PathExpression) args[0]).root, ((PathExpression) args[0]).steps +
-                        [new PathExpression.SubscriptStep(args[1])]) :
-                    new PathExpression(args[0], [new PathExpression.SubscriptStep(args[1])])
-                colon(path, args[2])
-            }
-        }
-        define 'at', TEMPLATE_TYPE, new Template() {
-            Expression transform(Parser parser, Expression... args) {
-                new PathExpression(args[0], [(PathExpression.Step) new PathExpression.SubscriptStep(args[1])])
-            }
-        }*/
     }
 
     // unused:

@@ -1,5 +1,24 @@
+;; recursion
 defn [foo (a: Int) (returns Int)] {
   or? [< a 5] [foo [+ a 1]] a
 }
 
 assert_is 5 [foo 1]
+
+;; syntax
+assert_is [1, 2, 3].[0] 1
+assert "aa".<=("ab")
+
+;; ??
+dive {
+  defn [`.property` x y] [cast Map x].[y]
+  defn [`.property=` x y z] [cast Map x].[y]: z
+  a: null
+  assert_is [?? a.b.c] null
+  a: {#"b": null}
+  assert_is [?? a.b.c] null
+  a.b: {#"c": null}
+  assert_is [?? a.b.c] null
+  a.b.c: 3
+  assert_is [?? a.b.c] 3
+}

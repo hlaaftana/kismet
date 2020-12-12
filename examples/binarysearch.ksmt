@@ -5,7 +5,6 @@ defn binary_search(a: List[Int], k: Int) {
     mid: int32 [half [+ i b]]
     or? [< a[mid] k] (i: next mid) (b: mid)
   }
-  echo [string "i: " i ", c: " c ", a[i]: " a[i] ", k: " k]
   unless [and [< i c] [is? a[i] k]] i: -1i32
   i
 }

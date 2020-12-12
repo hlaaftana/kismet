@@ -1,16 +1,10 @@
 package hlaaftana.kismet.parser
 
 import groovy.transform.CompileStatic
-import hlaaftana.kismet.Kismet
 import hlaaftana.kismet.call.*
 import hlaaftana.kismet.exceptions.UndefinedVariableException
-import hlaaftana.kismet.lib.CollectionsIterators
-import hlaaftana.kismet.lib.Strings
-import hlaaftana.kismet.lib.Syntax
 import hlaaftana.kismet.scope.Context
 import hlaaftana.kismet.vm.IKismetObject
-
-import static hlaaftana.kismet.call.ExprBuilder.*
 
 @CompileStatic
 class Optimizer {
@@ -45,8 +39,7 @@ class Optimizer {
 			IKismetObject func
 			try {
 				func = parser.context?.get(text)
-			} catch (UndefinedVariableException ignored) {
-			}
+			} catch (UndefinedVariableException ignored) {}
 			if (null != func) {
 				def inner = func.inner()
 				if (template && inner instanceof Template) {
@@ -61,27 +54,8 @@ class Optimizer {
 					final result = ((Template) inner).transform(parser, arguments)
 					return tmpl.optimized ? result : optimize(result)
 				}
-				if (inner instanceof Macro) {
-					Expression currentExpression = expr
-					//noinspection GroovyFallthrough
-					switch (text) {
-						case "for": return new ForExpression(expr, parser.context, false, false)
-						case "for<": return new ForExpression(expr, parser.context, false, true)
-						case "&for": return new ForExpression(expr, parser.context, true, false)
-						case "&for<": return new ForExpression(expr, parser.context, true, true)
-						case "for:": return new ForEachExpression(expr, parser.context, false)
-						case "&for:": return new ForEachExpression(expr, parser.context, true)
-						case "check": return new CheckExpression(expr)
-						default:
-							if (closure && inner instanceof GroovyMacro)
-								currentExpression = new ClosureMacroExpression(expr, inner)
-					}
-					return currentExpression
-				} else if (inner instanceof Function) {
-					Expression currentExpression = expr
-					if (closure && inner instanceof GroovyFunction)
-						currentExpression = new ClosureCallExpression(expr, inner)
-					return currentExpression
+				if (closure && inner instanceof GroovyFunction) {
+					return new ClosureCallExpression(expr, inner)
 				}
 			}
 		}
@@ -112,7 +86,22 @@ class Optimizer {
 		}
 	}
 
-	static class CheckExpression extends FakeCallExpression {
+	static class ClosureCallExpression extends FakeCallExpression {
+		GroovyFunction function
+
+		ClosureCallExpression(CallExpression original, GroovyFunction function) {
+			super(original)
+			this.function = function
+		}
+
+		IKismetObject evaluate(Context c) {
+			function.call(c, arguments as Expression[])
+		}
+
+		String repr() { "gfunc[$callValue](${arguments.join(', ')})" }
+	}
+
+	/*static class CheckExpression extends FakeCallExpression {
 		Expression value
 		Collection<Expression> branches
 		String name = 'it'
@@ -159,36 +148,6 @@ class Optimizer {
 			}
 			Kismet.NULL
 		}
-	}
-
-	static class ClosureCallExpression extends FakeCallExpression {
-		GroovyFunction function
-
-		ClosureCallExpression(CallExpression original, GroovyFunction function) {
-			super(original)
-			this.function = function
-		}
-
-		IKismetObject evaluate(Context c) {
-			function.call(c, arguments as Expression[])
-		}
-
-		String repr() { "gfunc[$callValue](${arguments.join(', ')})" }
-	}
-
-	static class ClosureMacroExpression extends FakeCallExpression {
-		GroovyMacro macro
-
-		ClosureMacroExpression(CallExpression original, GroovyMacro macro) {
-			super(original)
-			this.macro = macro
-		}
-
-		IKismetObject evaluate(Context c) {
-			Kismet.model(arguments.empty ? macro.x.call(c) : macro.x.call(c, arguments as Expression[]))
-		}
-
-		String repr() { "gmacro[$callValue](${arguments.join(', ')})" }
 	}
 
 	static class ForExpression extends FakeCallExpression {
@@ -343,5 +302,5 @@ class Optimizer {
 		}
 
 		String repr() { (collect ? '&' : '') + 'for:(' + arguments.join(', ') + ')' }
-	}
+	}*/
 }

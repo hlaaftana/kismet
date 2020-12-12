@@ -12,6 +12,7 @@ import hlaaftana.kismet.type.*
 import hlaaftana.kismet.vm.IKismetObject
 import hlaaftana.kismet.vm.KInt
 import hlaaftana.kismet.vm.KInt32
+import hlaaftana.kismet.vm.KismetNumber
 import hlaaftana.kismet.vm.KismetTuple
 
 import java.util.Collections as JCollections
@@ -123,8 +124,29 @@ class CollectionsIterators extends LibraryModule {
         define 'in?',  funcc { ... a -> a[0] in a[1] }
         negated 'in?', 'not_in?'
         define 'immutable',  funcc { ... args -> args[0].invokeMethod('asImmutable', null) }
-        define 'size', func(NumberType.Int32, Type.ANY), func { IKismetObject... a ->
-            a[0].inner().invokeMethod('size', null)
+        define 'size', func(NumberType.Int32, LIST_TYPE), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                KismetNumber.from(((List) args[0].inner()).size())
+            }
+        }
+        define 'size', func(NumberType.Int32, TupleType.BASE), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                KismetNumber.from(((KismetTuple) args[0]).size())
+            }
+        }
+        define 'size', func(NumberType.Int32, MAP_TYPE), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                KismetNumber.from(((Map) args[0].inner()).size())
+            }
+        }
+        define 'size', func(NumberType.Int32, SET_TYPE), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                KismetNumber.from(((Set) args[0].inner()).size())
+            }
         }
         define 'shuffle!',  funcc { ... args ->
             def l = toList(args[0])
@@ -209,11 +231,6 @@ class CollectionsIterators extends LibraryModule {
             }
             m
         }
-        /*define '##',  macr { Context c, Expression... args ->
-            final map = new HashMap()
-            for (e in args) expressiveMap(map, c, e)
-            map
-        }*/
         define 'uncons',  funcc { ... args -> new Pair(args[0].invokeMethod('head', null), args[0].invokeMethod('tail', null)) }
         define 'cons',  funcc { ... args ->
             def y = args[1]

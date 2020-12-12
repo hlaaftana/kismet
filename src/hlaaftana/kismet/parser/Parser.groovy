@@ -6,7 +6,6 @@ import hlaaftana.kismet.call.*
 import hlaaftana.kismet.call.PathExpression.Step
 import hlaaftana.kismet.exceptions.ParseException
 import hlaaftana.kismet.scope.Context
-import hlaaftana.kismet.scope.TypedContext
 
 import static hlaaftana.kismet.call.ExprBuilder.*
 
@@ -16,6 +15,7 @@ class Parser {
 	Context context
 	int ln = 1, cl = 0
 	boolean signedNumbers = true
+	boolean inferMapFromSetExpr = false
 	String commentStart = ';;'
 
 	BlockExpression parse(String code) {
@@ -275,8 +275,16 @@ class Parser {
 				}
 				new MapExpression(result)
 			} else if (es == 0) new SetExpression(Collections.<Expression>emptyList())
-			else if (commad) new SetExpression(expressions)
-			else new BlockExpression(expressions)
+			else if (commad) {
+				if (parser.inferMapFromSetExpr) {
+					def newExprs = new ArrayList<ColonExpression>(expressions.size())
+					for (e in expressions)
+						if (e instanceof ColonExpression)
+							newExprs.add((ColonExpression) e)
+						else return new SetExpression(expressions)
+					new MapExpression(newExprs)
+				} else new SetExpression(expressions)
+			} else new BlockExpression(expressions)
 		}
 	}
 
@@ -353,8 +361,8 @@ class Parser {
 				else if (cp > 47 && cp < 58) (last = new NumberBuilder(parser)).push(cp)
 				else if (cp == ((char) '"') || cp == ((char) '\'')) last = new StringExprBuilder(parser, cp)
 				else if (cp == ((char) '`')) last = new QuoteAtomBuilder(parser)
-				else if (cp == ((char) '.')) {
-					(last = new PathBuilder(parser, whitespaced.pop())).push(cp)
+				else if (cp == ((char) '.') || cp == ((char) ':')) {
+					(last = new PathBuilder(parser, whitespaced.removeLast())).push(cp)
 				} else if (parser.signedNumbers && cp == ((char) '-')) {
 					last = new MinusBuilder(parser)
 				} else if (!NameBuilder.isNotIdentifier(cp)) (last = new NameBuilder(parser)).push(cp)

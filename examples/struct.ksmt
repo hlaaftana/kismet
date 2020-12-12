@@ -3,7 +3,7 @@ static struct: tmpl {
   props: (cast Expression exprs[1]).members
   type_args: cast List[Expression] [new_list [size props]]
   let (each prop: props) {
-    add type_args ([cast Expression prop].[1])
+    add type_args [cast Expression prop].[1]
   }
   type: subscript_expr [name_expr "Tuple"] [tuple_expr type_args]
   stmts: cast List[Expression] [new_list [+ [* [size props] 2] 2]]

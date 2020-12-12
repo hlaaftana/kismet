@@ -45,7 +45,7 @@ class Test {
 	}, explain_typed = new TypedTemplate() {
 		@Override
 		TypedExpression transform(TypedContext context, TypedExpression... args) {
-			println "FUCKING " +  args[0].toString()
+			println "TYPED EXPLANATION: " +  args[0].toString()
 			args[0]
 		}
 	}

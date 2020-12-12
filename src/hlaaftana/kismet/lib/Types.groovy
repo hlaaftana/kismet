@@ -79,5 +79,15 @@ class Types extends LibraryModule {
             }
         }
         define 'as',  func { IKismetObject... a -> a[0].invokeMethod('as', [a[1].inner()] as Object[]) }
+        define 'assignable_to?', typedTmpl(Logic.BOOLEAN_TYPE, META_TYPE, META_TYPE), new TypedTemplate() {
+            TypedExpression transform(TypedContext context, TypedExpression... args) {
+                new TypedConstantExpression<KismetBoolean>(Logic.BOOLEAN_TYPE,
+                        KismetBoolean.from(unmeta(args[0].type).relation(unmeta(args[1].type)).assignableTo))
+            }
+        }
+    }
+
+    static Type unmeta(Type t) {
+        t instanceof GenericType && t.base == META_TYPE ? t.arguments[0] : t
     }
 }

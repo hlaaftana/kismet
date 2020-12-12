@@ -8,6 +8,7 @@ import hlaaftana.kismet.scope.Context
 import hlaaftana.kismet.scope.TypedContext
 import hlaaftana.kismet.type.NumberType
 import hlaaftana.kismet.type.SingleType
+import hlaaftana.kismet.type.Type
 import hlaaftana.kismet.vm.*
 
 import java.util.regex.Pattern
@@ -20,7 +21,8 @@ import static hlaaftana.kismet.lib.Functions.funcc
 @CompileStatic
 @SuppressWarnings("ChangeToOperator")
 class Strings extends LibraryModule {
-    static final SingleType STRING_TYPE = new SingleType('String')
+    static final SingleType STRING_TYPE = new SingleType('String'),
+            REGEX_TYPE = new SingleType('Regex')
     TypedContext typed = new TypedContext("strings")
     Context defaultContext = new Context()
 
@@ -45,6 +47,12 @@ class Strings extends LibraryModule {
             for (s in a) x.append(s)
             x.toString()
         }
+        define 'size', func(NumberType.Int32, STRING_TYPE), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                KismetNumber.from(((KismetString) args[0]).size())
+            }
+        }
         define 'cmp', func(NumberType.Int32, STRING_TYPE, STRING_TYPE), new Function() {
             IKismetObject call(IKismetObject... a) {
                 new KInt32(((KismetString) a[0]).compareTo((KismetString) a[1]))
@@ -54,6 +62,14 @@ class Strings extends LibraryModule {
             args[0].toString().replace(args[1].toString(),
                     args.length > 2 ? args[2].toString() : '')
         }
+        define 'do_regex', func(REGEX_TYPE, Type.ANY), func(true) { IKismetObject... args -> ~(args[0].toString()) }
+        define 'regex', new Template() {
+            Expression transform(Parser parser, Expression... args) {
+                call(name('do_regex'), args[0] instanceof StringExpression ?
+                        new StaticExpression(((StringExpression) args[0]).raw) : args[0])
+            }
+        }
+        define REGEX_TYPE
         define 'replace_all_regex',  func { IKismetObject... args ->
             def replacement = args.length > 2 ?
                     (args[2].inner() instanceof String ? args[2].inner() : ((Function) args[2]).toClosure()) : ''
@@ -147,13 +163,6 @@ class Strings extends LibraryModule {
         define 'pad_end',  funcc { ... args ->
             args.length > 2 ? args[0].toString().padRight(args[1] as Number, args[2].toString()) :
                     args[0].toString().padRight(args[1] as Number)
-        }
-        define 'do_regex',  func(true) { IKismetObject... args -> ~(args[0].toString()) }
-        define 'regex',  new Template() {
-            Expression transform(Parser parser, Expression... args) {
-                call(name('do_regex'), args[0] instanceof StringExpression ?
-                        new StaticExpression(((StringExpression) args[0]).raw) : args[0])
-            }
         }
         define 'escape',  funcc { ... args -> StringEscaper.escape(args[0].toString()) }
         define 'unescape',  funcc { ... args -> StringEscaper.escape(args[0].toString()) }

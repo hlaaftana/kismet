@@ -1,10 +1,10 @@
 defn [fizzbuzz_imperative (n: Int)] {
-    let (result x: "", each it: range 1 n) {
-        if (d3: divs? it 3) (add x "Fizz")
-        if (d5: divs? it 5) (add x "Buzz")
-        unless (or d3 d5) (add x (string it))
-        if (isn't? it n) (add x "\n")
-    }
+  let (result x: "", each it: range 1 n) {
+    if (d3: divs? it 3) (add x "Fizz")
+    if (d5: divs? it 5) (add x "Buzz")
+    unless (or d3 d5) (add x (string it))
+    if (is_not? it n) (add x "\n")
+  }
 }
 
 defn [fizzbuzz_functional (n: Int)] {
