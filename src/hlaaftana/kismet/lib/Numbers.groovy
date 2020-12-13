@@ -6,7 +6,6 @@ import hlaaftana.kismet.exceptions.UnexpectedSyntaxException
 import hlaaftana.kismet.exceptions.UnexpectedValueException
 import hlaaftana.kismet.parser.Parser
 import hlaaftana.kismet.scope.Context
-import hlaaftana.kismet.scope.Pair
 import hlaaftana.kismet.scope.TypedContext
 import hlaaftana.kismet.type.GenericType
 import hlaaftana.kismet.type.NumberType
@@ -699,15 +698,15 @@ class Numbers extends LibraryModule {
             (a, b) = [a.intdiv(gcd), b.intdiv(gcd)]
             new Pair(a, b)
         }
-        define 'int',  func(true) { IKismetObject... a -> a[0] as BigInteger }
-        define 'int8',  func(true) { IKismetObject... a -> a[0] as byte }
-        define 'int16',  func(true) { IKismetObject... a -> a[0] as short }
+        define 'int', func(NumberType.Int, Type.ANY), func(true) { IKismetObject... a -> a[0] as BigInteger }
+        define 'int8',func(NumberType.Int8, Type.ANY), func(true) { IKismetObject... a -> a[0] as byte }
+        define 'int16', func(NumberType.Int16, Type.ANY), func(true) { IKismetObject... a -> a[0] as short }
         define 'int32', func(NumberType.Int32, Type.ANY), func(true) { IKismetObject... a -> a[0] as int }
-        define 'int64',  func(true) { IKismetObject... a -> a[0] as long }
-        define 'char',  func(true) { IKismetObject... a -> a[0] as Character }
-        define 'float',  func(true) { IKismetObject... a -> a[0] as BigDecimal }
-        define 'float32',  func(true) { IKismetObject... a -> a[0] as float }
-        define 'float64',  func(true) { IKismetObject... a -> a[0] as double }
+        define 'int64', func(NumberType.Int64, Type.ANY), func(true) { IKismetObject... a -> a[0] as long }
+        define 'char', func(NumberType.Char, Type.ANY), func(true) { IKismetObject... a -> a[0] as Character }
+        define 'float', func(NumberType.Float, Type.ANY), func(true) { IKismetObject... a -> a[0] as BigDecimal }
+        define 'float32', func(NumberType.Float32, Type.ANY), func(true) { IKismetObject... a -> a[0] as float }
+        define 'float64', func(NumberType.Float64, Type.ANY), func(true) { IKismetObject... a -> a[0] as double }
         define 'to_base', funcc { ... a -> (a[0] as BigInteger).toString(a[1] as int) }
         define 'from_base',  funcc { ... a -> new BigInteger(a[0].toString(), a[1] as int) }
         define 'hex', TEMPLATE_TYPE, new Template() {

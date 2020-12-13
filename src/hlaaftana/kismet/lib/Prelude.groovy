@@ -11,10 +11,10 @@ class Prelude extends LibraryModule {
 	TypedContext typed = new TypedContext("prelude")
 	Context defaultContext = new Context()
 	static final List<LibraryModule> defaultModules = [
-		new Syntax(), new Reflection(), new Types(),
-		new Functions(), new Logic(), new Errors(), new Numbers(),
-		new Cmp(), new Strings(), new CollectionsIterators(),
-		new RandomModule(), new Json(), new Times()
+            new Syntax(), new Reflection(), new Types(),
+            new Functions(), new Logic(), new Errors(), new Numbers(),
+            new Comparison(), new Strings(), new CollectionsIterators(),
+            new RandomModule(), new Json(), new Times()
 	].asImmutable()
 
 	Prelude() {

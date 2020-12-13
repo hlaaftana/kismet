@@ -1,0 +1,31 @@
+defiter [range a b] {
+  i: a
+  while [<= i b] {
+    yield i
+    incr i
+  }
+}
+
+for it [range 1 5] {
+  echo it
+}
+;; new scope for { echo it }, add `it`
+;; type { echo it }
+;; new scope for iterator block
+;; add `yield` template to iterator, injects the typed { echo it }
+;; instantiate iterator block
+;; this will probably not work at runtime because the scopes are alien
+
+;; alternative is do not type { echo it } and make `yield` create a untyped expression
+;; but this would make the symbols inside the iterator accessible
+;; so idk
+
+let [a: 1, b: 1] {
+  i: a
+  while [<= i b] {
+    let [it: i] {
+      echo it
+    }
+    incr i
+  }
+}

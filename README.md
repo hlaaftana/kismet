@@ -54,8 +54,8 @@ a:b      ;; sets variable a to b
 (a,)     ;; creates tuple of just a
 {a, b}   ;; creates set of a and b
 {a,}     ;; creates set of just a
-{#a: b}  ;; creates map with an entry a -> b. if a is an identifier, "a" -> b
-{#a}     ;; creates map with an entry a -> a. if a is an identifier, "a" -> a
+{#a: b}  ;; creates map with an entry a -> b
+{#a}     ;; creates map with an entry a -> a
 ```
 
 ## Program example

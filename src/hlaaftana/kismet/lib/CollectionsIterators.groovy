@@ -5,8 +5,6 @@ import hlaaftana.kismet.Kismet
 import hlaaftana.kismet.call.Function
 import hlaaftana.kismet.exceptions.UnexpectedValueException
 import hlaaftana.kismet.scope.Context
-import hlaaftana.kismet.scope.IteratorIterable
-import hlaaftana.kismet.scope.Pair
 import hlaaftana.kismet.scope.TypedContext
 import hlaaftana.kismet.type.*
 import hlaaftana.kismet.vm.IKismetObject

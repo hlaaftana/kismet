@@ -10,47 +10,7 @@ import hlaaftana.kismet.type.TypeBound
 import hlaaftana.kismet.vm.IKismetObject
 
 /*
-defiter [range a b] {
-  i: a
-  while [<= i b] {
-    yield i
-    incr i
-  }
-}
 
-for it [range 1 5] {
-  echo it
-}
-;; new scope for { echo it }, add `it`
-;; type { echo it }
-;; new scope for iterator block
-;; add `yield` template to iterator, injects the typed { echo it }
-;; instantiate iterator block
-;; this will probably not work at runtime because the scopes are alien
-
-let [a: 1, b: 1] {
-  i: a
-  while [<= i b] {
-    let [it: i] {
-      echo it
-    }
-    incr i
-  }
-}
-
-dive {
-  a: 1
-  b: 5
-
-  i: a
-  while [<= i b] {
-    {
-      it: i
-      echo it
-    }
-    incr i
-  }
-}
  */
 
 @CompileStatic

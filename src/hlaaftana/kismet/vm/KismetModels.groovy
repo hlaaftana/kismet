@@ -3,7 +3,7 @@ package hlaaftana.kismet.vm
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.Kismet
 import hlaaftana.kismet.call.GroovyFunction
-import hlaaftana.kismet.scope.IteratorIterable
+import hlaaftana.kismet.lib.IteratorIterable
 import hlaaftana.kismet.type.NumberType
 
 @CompileStatic

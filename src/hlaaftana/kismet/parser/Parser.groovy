@@ -5,6 +5,7 @@ import groovy.transform.InheritConstructors
 import hlaaftana.kismet.call.*
 import hlaaftana.kismet.call.PathExpression.Step
 import hlaaftana.kismet.exceptions.ParseException
+import hlaaftana.kismet.exceptions.UnexpectedSyntaxException
 import hlaaftana.kismet.scope.Context
 
 import static hlaaftana.kismet.call.ExprBuilder.*
@@ -15,6 +16,8 @@ class Parser {
 	Context context
 	int ln = 1, cl = 0
 	boolean signedNumbers = true
+	StringBuilder defaultIntBits, defaultFloatBits
+	boolean defaultFloat = false
 	boolean inferMapFromSetExpr = false
 	String commentStart = ';;'
 
@@ -435,7 +438,7 @@ class Parser {
 		StringBuilder[] arr = [new StringBuilder(), null, null, null, null] as StringBuilder[]
 		int stage = 0
 		boolean newlyStage = true
-		boolean type
+		boolean isFloat // true if float apparently
 
 		def init(int s) {
 			stage = s
@@ -450,24 +453,28 @@ class Parser {
 				arr[stage].appendCodePoint(cp)
 			} else if (cp == ((char) '.')) {
 				if (stage == 0) {
+					isFloat = true
 					if (newlyStage) arr[0].append((char) '0')
 					init 1
 				} else throw new NumberFormatException('Tried to put fraction after ' + stageNames[stage])
 			} else if (newlyStage && (stage == 0 || stage == 2) && cp == ((char) '-')) {
 				arr[stage].append((char) '-')
 			} else if (!newlyStage && (cp == ((char) 'e') || cp == ((char) 'E'))) {
-				if (stage < 2) init 2
-				else throw new NumberFormatException('Tried to put exponent after ' + stageNames[stage])
+				if (stage < 2) {
+					isFloat = true
+					init 2
+				} else throw new NumberFormatException('Tried to put exponent after ' + stageNames[stage])
 			} else if ((up = Character.toUpperCase(cp)) == ((char) 'I') || up == ((char) 'F')) {
 				if (stage == 3) throw new NumberFormatException('Tried to put number type bits after number type bits')
 				else {
-					type = up == ((char) 'F')
+					isFloat = up == ((char) 'F')
 					init 3
 				}
 			} else if (up == ((char) 'N')) {
 				if (stage != 4) init 4
 				arr[4].append(cp)
 			} else if (up == ((char) '%')) {
+				isFloat = true
 				arr[2] = null != arr[2] ? new StringBuilder(Integer.parseInt(arr[2].toString()) - 2) : new StringBuilder('-2')
 			} else if (newlyStage && stage != 3 && stage != 4) throw new NumberFormatException('Started number but wasnt number')
 			else {
@@ -477,7 +484,10 @@ class Parser {
 		}
 
 		NumberExpression doFinish() {
-			new NumberExpression(type, arr)
+			if (null == arr[3]) {
+				arr[3] = isFloat ? parser.defaultFloatBits : parser.defaultIntBits
+			}
+			new NumberExpression(isFloat || parser.defaultFloat, arr)
 		}
 
 		boolean isReady() { !newlyStage || stage == 3 }
@@ -687,7 +697,8 @@ class Parser {
 		Expression percentize(StringExpression x) {
 			def text = x.value.inner()
 			Expression result = x
-			for (t in text.tokenize()) switch (t) {
+			def iter = text.tokenize().iterator()
+			while (iter.hasNext()) switch (iter.next()) {
 				case 'optimize_prelude': parser.optimizer.prelude = true; break
 				case '!optimize_prelude': parser.optimizer.prelude = false; break
 				case '?optimize_prelude':
@@ -710,6 +721,40 @@ class Parser {
 							parser.optimizer.closure || parser.optimizer.prelude)
 					break
 				case 'parser': result = new StaticExpression(x, parser); break
+				case 'default_int_bits':
+					if (!iter.hasNext())
+						throw new UnexpectedSyntaxException('no argument given for default_int_bits')
+					parser.defaultIntBits = new StringBuilder(iter.next())
+					break
+				case 'default_float_bits':
+					if (!iter.hasNext())
+						throw new UnexpectedSyntaxException('no argument given for default_float_bits')
+					parser.defaultFloatBits = new StringBuilder(iter.next())
+					break
+				case '!default_int_bits':
+					parser.defaultIntBits = null
+					break
+				case '!default_float_bits':
+					parser.defaultFloatBits = null
+					break
+				case 'default_float':
+					parser.defaultFloat = true; break
+				case '!default_float':
+					parser.defaultFloat = false; break
+				case '?default_float':
+					result = new StaticExpression(x, parser.defaultFloat); break
+				case 'infer_map_from_set':
+					parser.inferMapFromSetExpr = true; break
+				case '!infer_map_from_set':
+					parser.inferMapFromSetExpr = false; break
+				case '?infer_map_from_set':
+					result = new StaticExpression(x, parser.inferMapFromSetExpr); break
+				case 'signed_numbers':
+					parser.signedNumbers = true; break
+				case '!signed_numbers':
+					parser.signedNumbers = false; break
+				case '?signed_numbers':
+					result = new StaticExpression(x, parser.signedNumbers); break
 			}
 			result
 		}

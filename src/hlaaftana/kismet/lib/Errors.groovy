@@ -2,20 +2,17 @@ package hlaaftana.kismet.lib
 
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.Kismet
-import hlaaftana.kismet.call.ExprBuilder
 import hlaaftana.kismet.call.Expression
 import hlaaftana.kismet.call.Function
 import hlaaftana.kismet.call.Instruction
 import hlaaftana.kismet.call.Instructor
 import hlaaftana.kismet.call.NameExpression
 import hlaaftana.kismet.call.NumberExpression
-import hlaaftana.kismet.call.Template
 import hlaaftana.kismet.call.TypeChecker
 import hlaaftana.kismet.call.TypedExpression
 import hlaaftana.kismet.exceptions.KismetAssertionError
 import hlaaftana.kismet.exceptions.KismetRuntimeException
 import hlaaftana.kismet.exceptions.UnexpectedSyntaxException
-import hlaaftana.kismet.parser.Parser
 import hlaaftana.kismet.scope.Context
 import hlaaftana.kismet.scope.TypedContext
 import hlaaftana.kismet.type.NumberType
@@ -25,7 +22,6 @@ import hlaaftana.kismet.vm.KInt32
 import hlaaftana.kismet.vm.Memory
 import hlaaftana.kismet.vm.WrapperKismetObject
 
-import static hlaaftana.kismet.lib.Functions.TEMPLATE_TYPE
 import static hlaaftana.kismet.lib.Functions.TYPE_CHECKER_TYPE
 import static hlaaftana.kismet.lib.Functions.func
 import static hlaaftana.kismet.call.ExprBuilder.*
