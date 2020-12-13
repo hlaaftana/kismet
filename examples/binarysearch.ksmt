@@ -1,11 +1,11 @@
 defn binary_search(a: List[Int], k: Int) {
-  c: b: size a
+  b: size a
   i: 0i32
   while [< i b] {
     mid: int32 [half [+ i b]]
     or? [< a[mid] k] (i: next mid) (b: mid)
   }
-  unless [and [< i c] [is? a[i] k]] i: -1i32
+  unless [and [< i a.size] [is? a[i] k]] i: -1i32
   i
 }
 

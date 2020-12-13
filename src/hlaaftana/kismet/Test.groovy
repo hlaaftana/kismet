@@ -30,6 +30,11 @@ class Test {
 		IKismetObject call(IKismetObject... args) {
 			println "CLASS: " + args[0].getClass()
 			println "INNER VALUE: " + args[0].inner()
+			println "INNER VALUE CLASS: " + args[0].inner().getClass()
+			if (args[0].inner() instanceof Collection) {
+				def iter = args[0].inner().iterator()
+				if (iter.hasNext()) println "ELEMENT CLASS: " + iter.next().getClass()
+			}
 			return Kismet.NULL
 		}
 	}

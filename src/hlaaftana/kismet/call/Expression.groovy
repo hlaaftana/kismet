@@ -568,7 +568,7 @@ class ListExpression extends CollectionExpression {
 	String repr() { "[${members.join(', ')}]" }
 
 	IKismetObject evaluate(Context c) {
-		new WrapperKismetObject(members*.evaluate(c))
+		Kismet.model(members*.evaluate(c)*.inner())
 	}
 
 	SingleType getBaseType() { CollectionsIterators.LIST_TYPE }
@@ -616,9 +616,9 @@ class ListExpression extends CollectionExpression {
 			}
 
 			IKismetObject evaluate(Memory context) {
-				def arr = new ArrayList<IKismetObject>(members.length)
-				for (int i = 0; i < members.length; ++i) arr.add(members[i].evaluate(context))
-				new WrapperKismetObject(arr)
+				def arr = new ArrayList<Object>(members.length)
+				for (int i = 0; i < members.length; ++i) arr.add(members[i].evaluate(context).inner())
+				Kismet.model(arr)
 			}
 		}
 
@@ -719,8 +719,8 @@ class SetExpression extends CollectionExpression {
 	}
 
 	IKismetObject evaluate(Context c) {
-		def arr = new HashSet<IKismetObject>(members.size())
-		for (m in members) arr.add(m.evaluate(c))
+		def arr = new HashSet<Object>(members.size())
+		for (m in members) arr.add(m.evaluate(c).inner())
 		Kismet.model(arr)
 	}
 
@@ -765,8 +765,8 @@ class SetExpression extends CollectionExpression {
 			}
 
 			IKismetObject evaluate(Memory context) {
-				def arr = new HashSet<IKismetObject>(members.size())
-				for (final m : members) arr.add(m.evaluate(context))
+				def arr = new HashSet<Object>(members.size())
+				for (final m : members) arr.add(m.evaluate(context).inner())
 				Kismet.model(arr)
 			}
 		}
@@ -798,8 +798,8 @@ class MapExpression extends CollectionExpression {
 	}
 
 	IKismetObject evaluate(Context c) {
-		def arr = new HashMap<Object, IKismetObject>(members.size())
-		for (m in members) arr.put(m.left.evaluate(c).inner(), m.right.evaluate(c))
+		def arr = new HashMap<Object, Object>(members.size())
+		for (m in members) arr.put(m.left.evaluate(c).inner(), m.right.evaluate(c).inner())
 		Kismet.model(arr)
 	}
 
@@ -858,8 +858,8 @@ class MapExpression extends CollectionExpression {
 			}
 
 			IKismetObject evaluate(Memory context) {
-				def arr = new HashMap<Object, IKismetObject>(keys.length)
-				for (int i = 0; i < keys.length; ++i) arr.put(keys[i].evaluate(context).inner(), values[i].evaluate(context))
+				def arr = new HashMap<Object, Object>(keys.length)
+				for (int i = 0; i < keys.length; ++i) arr.put(keys[i].evaluate(context).inner(), values[i].evaluate(context).inner())
 				Kismet.model(arr)
 			}
 		}

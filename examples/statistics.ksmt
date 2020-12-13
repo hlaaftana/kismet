@@ -1,16 +1,15 @@
-defn [mean (l: List[Number]) (returns Number)] [/ [sum l] [size l]]
+defn [mean (l: List[Number]) (returns Number)] [/ [sum l] l.size]
 
 defn [median (l: List[Number]) (returns Number)] {
-  s: size l
-  d: int32 [div s 2]
-  or? [odd? s] l[d] [div [+ l[d] l[int32 [prev d]]] 2]
+  d: int32 [half l.size]
+  or? [odd? l.size] l[d] [div [+ l[d] l[int32 [prev d]]] 2]
 }
 
 defn [standard_deviation (l: List[Number]) (returns Number)] {
   a: let (result s: 0, m: mean l, each a: l) {
     incr s [squared [- a m]]
   }
-  square_root [/ a [prev [size l]]]
+  square_root [/ a [prev l.size]]
 }
 
 defn [skewness l: List[Number]] [

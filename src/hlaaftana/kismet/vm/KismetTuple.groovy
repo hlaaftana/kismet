@@ -101,7 +101,12 @@ class KismetTuple implements IKismetObject<Tuple<IKismetObject>>, List<IKismetOb
 		Arrays.asList(inner).subList(fromIndex, toIndex)
 	}
 
-	String toString() { inner.toString() }
+	String toString() {
+		def builder = new StringBuilder(inner.toString())
+		builder.setCharAt(0, (char) '(')
+		builder.setCharAt(builder.length() - 1, (char) ')')
+		builder.toString()
+	}
 
 	int hashCode() {
 		Arrays.hashCode(inner)

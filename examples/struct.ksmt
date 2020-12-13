@@ -1,14 +1,14 @@
 static struct: tmpl {
   name: cast Expression exprs[0]
   props: (cast Expression exprs[1]).members
-  type_args: cast List[Expression] [new_list [size props]]
+  type_args: cast List[Expression] [new_list props.size]
   let (each prop: props) {
     add type_args [cast Expression prop].[1]
   }
   type: subscript_expr [name_expr "Tuple"] [tuple_expr type_args]
-  stmts: cast List[Expression] [new_list [+ [* [size props] 2] 2]]
+  stmts: cast List[Expression] [new_list [+ [* props.size 2] 2]]
   add stmts [call_expr (& [name_expr "static"] [colon_expr name type])]
-  let (each i: range< 0 [size props]) {
+  let (each i: range< 0 props.size) {
     prop: (cast Expression props[i]).members
     add stmts [call_expr (&
       [name_expr "defn"]
@@ -36,7 +36,7 @@ static struct: tmpl {
     [call_expr (&
       [name_expr string("init", repr_expr name)]
       [call_expr (& [name_expr "returns"] name)])]
-    [tuple_expr [collect [range 1 [size props]] [fn [name_expr "null"]]]])]
+    [tuple_expr [collect [range 1 props.size] [fn [name_expr "null"]]]])]
   block_expr stmts
 }
 
@@ -49,3 +49,5 @@ john: initPerson()
 john.age: 30
 john.name: "John"
 assert_is john ("John", 30)
+assert_is john.age 30
+assert_is john.name "John"

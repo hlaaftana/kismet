@@ -394,8 +394,8 @@ class Syntax extends LibraryModule {
                         final vari = eaches[i].v1
                         final val = eaches[i].v2
                         final popped = lastAdded == 0 ? Arrays.asList(args).tail() : result[-lastAdded..-1]
-                        for (int la = result.size() - 1; la >= result.size() - lastAdded; --la) {
-                            result.remove(la)
+                        for (int la = 0; la < lastAdded; ++la) {
+                            result.remove(result.size() - 1)
                         }
                         String atom1 = null
                         if (val instanceof CallExpression && 'range' == (atom1 = toAtom(val[0]))) {

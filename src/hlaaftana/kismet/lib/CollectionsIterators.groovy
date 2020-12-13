@@ -148,6 +148,7 @@ class CollectionsIterators extends LibraryModule {
                 KismetNumber.from(((Set) args[0].inner()).size())
             }
         }
+        alias 'size', '.size'
         define 'shuffle!',  funcc { ... args ->
             def l = toList(args[0])
             args[1] instanceof Random ? JCollections.shuffle(l, (Random) args[1])

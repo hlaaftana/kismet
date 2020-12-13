@@ -104,8 +104,8 @@ class Errors extends LibraryModule {
             IKismetObject call(Memory c, Instruction... exprs) {
                 IKismetObject val = exprs[0].evaluate(c), latest
                 for (e in exprs.tail()) if (val != (latest = e.evaluate(c)))
-                    throw new KismetAssertionError('Assertion failed for instruction ' +
-                            e + '. Value was expected to be ' + val +
+                    throw new KismetAssertionError('Assertion failed. Value was ' +
+                            'expected to be ' + val +
                             ' but was ' + latest)
                 val
             }
@@ -116,8 +116,8 @@ class Errors extends LibraryModule {
                 def values = [exprs[0].evaluate(c)]
                 IKismetObject r, latest
                 for (e in exprs.tail()) if ((r = values.find((latest = e.evaluate(c)).&equals)))
-                    throw new KismetAssertionError('Assertion failed for instruction ' +
-                            e + '. Value was expected NOT to be ' + r +
+                    throw new KismetAssertionError('Assertion failed. Value was ' +
+                            'expected NOT to be ' + r +
                             ' but was ' + latest)
                 new WrapperKismetObject(values)
             }
