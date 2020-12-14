@@ -6,10 +6,27 @@ import groovy.transform.EqualsAndHashCode
 @CompileStatic
 @EqualsAndHashCode
 class UnionType extends AbstractType {
-	Set<Type> members
+	List<Type> members
 
-	UnionType(Set<Type> members) {
+	UnionType(List<Type> members) {
 		this.members = members
+	}
+
+	UnionType(Type... members) {
+		this.members = members.toList()
+	}
+
+	UnionType reduced() {
+		def newMems = new ArrayList<Type>()
+		outer: for (mem in members) {
+			for (newMem in newMems) {
+				if (mem.relation(newMem).assignableTo) {
+					break outer
+				}
+			}
+			newMems.add(mem)
+		}
+		new UnionType(newMems)
 	}
 
 	String toString() {
@@ -33,17 +50,19 @@ class UnionType extends AbstractType {
 				while (iter.hasNext()) {
 					final rel = iter.next().relation((Type) other)
 					if (rel.none) return rel
-					else if (rel.toSome() < min.toSome()) min = rel
+					else if (!rel.equal && rel.toSome() < min.toSome()) min = rel
 				}
 				min
 			}
 		} else if (members.size() == 0) TypeRelation.subtype(Integer.MAX_VALUE)
 		else {
 			final iter = members.iterator()
-			def max = iter.next().relation(other)
+			def f = iter.next()
+			def max = f.relation(other)
 			while (iter.hasNext()) {
-				final rel = iter.next().relation(other)
-				if (!rel.none && rel.toSome() > max.toSome()) max = rel
+				def a = iter.next()
+				final rel = a.relation(other)
+				if (max.none || (!rel.none && (rel.equal || rel.toSome() > max.toSome()))) max = rel
 			}
 			max
 		}

@@ -15,7 +15,7 @@ defcmd tag {
   }
 
   name {
-    [or? null?(a: ?? guild_data.tags[name].content)
+    [or_else null?(a: ?? guild_data.tags[name].content)
       strip_mentions(a)
       "Invalid tag"]
   }

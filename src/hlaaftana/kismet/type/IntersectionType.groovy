@@ -6,10 +6,27 @@ import groovy.transform.EqualsAndHashCode
 @CompileStatic
 @EqualsAndHashCode
 class IntersectionType extends AbstractType {
-	Set<Type> members
+	List<Type> members
 
-    IntersectionType(Set<Type> members) {
+    IntersectionType(List<Type> members) {
 		this.members = members
+	}
+
+	IntersectionType(Type... members) {
+		this.members = members.toList()
+	}
+
+	IntersectionType reduced() {
+		def newMems = new ArrayList<Type>()
+		outer: for (mem in members) {
+			for (newMem in newMems) {
+				if (mem.relation(newMem).assignableFrom) {
+					break outer
+				}
+			}
+			newMems.add(mem)
+		}
+		new IntersectionType(newMems)
 	}
 
 	String toString() {
@@ -32,7 +49,7 @@ class IntersectionType extends AbstractType {
 				def max = iter.next().relation((Type) other)
 				while (iter.hasNext()) {
 					final rel = iter.next().relation((Type) other)
-					if (!rel.none && rel.toSome() > max.toSome()) max = rel
+					if (max.none || (!rel.none && (rel.equal || rel.toSome() > max.toSome()))) max = rel
 				}
 				max
 			}
@@ -43,7 +60,7 @@ class IntersectionType extends AbstractType {
 			while (iter.hasNext()) {
 				final rel = iter.next().relation(other)
 				if (rel.none) return rel
-				else if (rel.toSome() > min.toSome()) min = rel
+				else if (!rel.equal && rel.toSome() > min.toSome()) min = rel
 			}
 			min
 		}

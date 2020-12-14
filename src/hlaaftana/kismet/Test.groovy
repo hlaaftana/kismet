@@ -2,9 +2,12 @@ package hlaaftana.kismet
 
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.call.Function
+import hlaaftana.kismet.call.TypedConstantExpression
 import hlaaftana.kismet.call.TypedExpression
+import hlaaftana.kismet.call.TypedNoExpression
 import hlaaftana.kismet.call.TypedStringExpression
 import hlaaftana.kismet.call.TypedTemplate
+import hlaaftana.kismet.exceptions.UnexpectedTypeException
 import hlaaftana.kismet.lib.Functions
 import hlaaftana.kismet.lib.Strings
 import hlaaftana.kismet.lib.Types
@@ -12,7 +15,11 @@ import hlaaftana.kismet.parser.Parser
 import hlaaftana.kismet.scope.Context
 import hlaaftana.kismet.scope.TypedContext
 import hlaaftana.kismet.type.GenericType
+import hlaaftana.kismet.type.ParameterType
+
+import hlaaftana.kismet.type.SingleType
 import hlaaftana.kismet.type.Type
+import hlaaftana.kismet.type.UnionType
 import hlaaftana.kismet.vm.IKismetObject
 import hlaaftana.kismet.vm.Memory
 import hlaaftana.kismet.vm.RuntimeMemory
@@ -53,6 +60,46 @@ class Test {
 			println "TYPED EXPLANATION: " +  args[0].toString()
 			args[0]
 		}
+	}, parameter_type = new TypedTemplate() {
+		@Override
+		TypedExpression transform(TypedContext context, TypedExpression... args) {
+			def t = args.length > 0 ? (Type) args[0].instruction.evaluate(context) : Type.ANY
+			def pt = new ParameterType(t)
+			new TypedConstantExpression(Types.META_TYPE.generic(pt), pt)
+		}
+	}, parametrize = new TypedTemplate() {
+		static void analyze(Type a, Type b) {
+			if (a instanceof ParameterType) a.trySet(b)
+			else if (!a.relation(b).assignableFrom)
+				throw new UnexpectedTypeException('types ' + a + ' and ' + b + ' do not match')
+			else if (a instanceof GenericType) {
+				if (b instanceof SingleType || (b instanceof GenericType && b.arguments == null)) {
+					// do nothing
+				} else if (b instanceof GenericType) {
+					for (int i = 0; i < a.arguments.length; ++i) {
+						analyze(a.arguments[i], b.arguments[i])
+					}
+				} else {
+					throw new UnexpectedTypeException('dont know where i am')
+				}
+			} else if (b instanceof GenericType) {
+				for (int i = 0; i < b.arguments.length; ++i) {
+					analyze(Type.ANY, b.arguments[i])
+				}
+			}
+		}
+
+		@Override
+		TypedExpression transform(TypedContext context, TypedExpression... args) {
+			analyze((Type) args[0].instruction.evaluate(context), (Type) args[1].instruction.evaluate(context))
+			TypedNoExpression.INSTANCE
+		}
+	}, unparam = new TypedTemplate() {
+		@Override
+		TypedExpression transform(TypedContext context, TypedExpression... args) {
+			def t = ((ParameterType) args[0].instruction.evaluate(context)).inner
+			new TypedConstantExpression(Types.META_TYPE.generic(t), t)
+		}
 	}
 
 	static void run(Parser parser, String text) {
@@ -62,6 +109,12 @@ class Test {
 		tc.addVariable('analyze', analyze, Functions.func(Type.NONE, Type.ANY))
 		tc.addVariable('type_relation', type_relation, Functions.typedTmpl(Strings.STRING_TYPE, Types.META_TYPE, Types.META_TYPE))
 		tc.addVariable('explain_typed', explain_typed, Functions.typedTmpl(Type.NONE, Type.ANY))
+		tc.addVariable('parameter_type', parameter_type,
+				new UnionType(Functions.typedTmpl(Types.META_TYPE), Functions.typedTmpl(Types.META_TYPE, Types.META_TYPE)))
+		tc.addVariable('parametrize', parametrize,
+				Functions.typedTmpl(Type.NONE, Types.META_TYPE, Types.META_TYPE))
+		tc.addVariable('unparam', unparam,
+				Functions.typedTmpl(Types.META_TYPE, Types.META_TYPE))
 		def t = p.type(tc)
 		def i = t.instruction
 		def mem = new RuntimeMemory([Kismet.PRELUDE.typed] as Memory[], tc.size())
@@ -69,6 +122,9 @@ class Test {
 		mem.memory[1] = analyze
 		mem.memory[2] = type_relation
 		mem.memory[3] = explain_typed
+		mem.memory[4] = parameter_type
+		mem.memory[5] = parametrize
+		mem.memory[6] = unparam
 		i.evaluate(mem)
 	}
 

@@ -402,7 +402,8 @@ class FunctionExpression extends Expression {
 		def fnb = tc.child()
 		fnb.label = null == name ? "anonymous function" : "function " + name
 		def args = arguments.fill(fnb)
-		def typ = null == args ?
+		def nullArgs = null == args
+		def typ = nullArgs ?
 			new GenericType(Functions.FUNCTION_TYPE, TupleType.BASE, Type.ANY) :
 				Functions.func(Type.ANY, args)
 		def expr = expression
@@ -416,13 +417,14 @@ class FunctionExpression extends Expression {
 			}
 		}
 		def block = expr.type(fnb, new TypeBound(typ.arguments[1]))
+		final fnbSize = fnb.size()
+		final instr = block.instruction
 		new BasicTypedExpression(typ, new Instruction() {
-			final Instruction inner = block.instruction
-			final int stackSize = fnb.size()
-			final boolean noArgs = args == null
+			final Instruction inner = instr
+			final int stackSize = fnbSize
 
 			IKismetObject evaluate(Memory context) {
-				new TypedFunction([context] as Memory[], inner, stackSize, name, noArgs)
+				new TypedFunction([context] as Memory[], inner, stackSize, name, nullArgs)
 			}
 		}, false)
 	}

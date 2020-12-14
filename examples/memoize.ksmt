@@ -17,7 +17,7 @@ static our_memoize: tmpl {
 }
 
 defn [nth_fibonacci (n: Int) (returns Int)] {
-  or? [< n 2] 1 [sum [collect [decr n, decr n] nth_fibonacci]]
+  or_else [< n 2] 1 [sum [collect [decr n, decr n] nth_fibonacci]]
 }
 
 our_memoize nth_fibonacci

@@ -516,7 +516,10 @@ class CallExpression extends Expression {
 		final typedTmpl = Functions.typedTmpl(preferred.type, argtypes)
 		try {
 			cv = callValue.type(tc, -typedTmpl)
-		} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {}
+		} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {
+			if (callValue.repr() == 'parameter_type')
+				((Exception) ignored).printStackTrace()
+		}
 		if (null != cv) {
 			def x = ((TypedTemplate) cv.instruction.evaluate(tc))
 			return x.transform(tc, args)
@@ -941,6 +944,12 @@ class ColonExpression extends Expression {
 @CompileStatic
 class ConstantExpression<T> extends Expression {
 	IKismetObject<T> value
+
+	ConstantExpression() {}
+
+	ConstantExpression(IKismetObject<T> value) {
+		this.value = value
+	}
 
 	String repr() { "const($value)" }
 

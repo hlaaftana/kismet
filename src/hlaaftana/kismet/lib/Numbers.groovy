@@ -361,12 +361,12 @@ class Numbers extends LibraryModule {
                 KismetBoolean.from(((KismetNumber) args[0]).divisibleBy((KismetNumber) args[1]))
             }
         }
-        define 'integer?', func(Logic.BOOLEAN_TYPE, new UnionType([NumberType.Number, NumberType.Float32, NumberType.Float64, NumberType.Float] as Set<Type>)), new Function() {
+        define 'integer?', func(Logic.BOOLEAN_TYPE, new UnionType(NumberType.Number, NumberType.Float32, NumberType.Float64, NumberType.Float)), new Function() {
             IKismetObject call(IKismetObject... args) {
                 KismetBoolean.from(((KismetNumber) args[0]).divisibleBy(KInt32.ONE))
             }
         }
-        define 'integer?', func(Logic.BOOLEAN_TYPE, new UnionType([NumberType.Int8, NumberType.Int16, NumberType.Int32, NumberType.Int64, NumberType.Int] as Set<Type>)), new Function() {
+        define 'integer?', func(Logic.BOOLEAN_TYPE, new UnionType(NumberType.Int8, NumberType.Int16, NumberType.Int32, NumberType.Int64, NumberType.Int)), new Function() {
             IKismetObject call(IKismetObject... args) {
                 KismetBoolean.TRUE
             }
