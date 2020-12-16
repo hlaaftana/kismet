@@ -31,43 +31,40 @@ class Times extends LibraryModule {
         define 'average_time_nanos', instr(NumberType.Float, NumberType.Number, Type.ANY), new Instructor() {
             IKismetObject call(Memory c, Instruction... args) {
                 int iterations = args[0].evaluate(c).inner() as int
-                long sum = 0, size = 0
+                long sum = 0
                 for (int i = 0; i < iterations; ++i) {
                     long a = System.nanoTime()
                     args[1].evaluate(c)
                     long b = System.nanoTime()
                     sum += b - a
-                    --size
                 }
-                new KFloat(sum / size)
+                new KFloat(sum / iterations)
             }
         }
         define 'average_time_millis', instr(NumberType.Float, NumberType.Number, Type.ANY), new Instructor() {
             IKismetObject call(Memory c, Instruction... args) {
                 int iterations = args[0].evaluate(c).inner() as int
-                long sum = 0, size = 0
+                long sum = 0
                 for (int i = 0; i < iterations; ++i) {
                     long a = System.currentTimeMillis()
                     args[1].evaluate(c)
                     long b = System.currentTimeMillis()
                     sum += b - a
-                    --size
                 }
-                new KFloat(sum / size)
+                new KFloat(sum / iterations)
             }
         }
         define 'average_time_seconds', instr(NumberType.Float, NumberType.Number, Type.ANY), new Instructor() {
             IKismetObject call(Memory c, Instruction... args) {
                 int iterations = args[0].evaluate(c).inner() as int
-                long sum = 0, size = 0
+                long sum = 0
                 for (int i = 0; i < iterations; ++i) {
                     long a = System.currentTimeSeconds()
                     args[1].evaluate(c)
                     long b = System.currentTimeSeconds()
                     sum += b - a
-                    --size
                 }
-                new KFloat(sum / size)
+                new KFloat(sum / iterations)
             }
         }
         define 'list_time_nanos', instr(new GenericType(CollectionsIterators.LIST_TYPE, NumberType.Int64),

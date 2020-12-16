@@ -144,6 +144,8 @@ proc recordNumber(str: string, i: var int): Expression =
     result.numNeg = true
     inc i
 
+proc recordLine(str: string, i: var int): Expression
+
 proc recordLine(str: string, i: var int): Expression =
   result = Expression(kind: ekCall)
   defer:

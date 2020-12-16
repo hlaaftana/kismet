@@ -1,6 +1,6 @@
 ;; recursion
 defn [foo (a: Int) (returns Int)] {
-  or_else [< a 5] [foo [+ a 1]] a
+  if [< a 5] [foo [+ a 1]] a
 }
 
 assert_is 5 [foo 1]
@@ -41,4 +41,14 @@ dive {
   parametrize Tuple[Tuple[T, U], Int32] Tuple[Tuple[Int, String], Int32]
   static [assert_is [unparam T] Int]
   static [assert_is [unparam U] String]
+}
+
+;; colon syntax
+dive {
+a:
+3
+b:
+  3
+
+  assert_is a b 3
 }

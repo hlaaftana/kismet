@@ -9,9 +9,9 @@ defn [fizzbuzz_imperative (n: Int)] {
 
 defn [fizzbuzz_functional (n: Int)] {
   |> [collect [range 1 n] [fn [i: Int]
-    [or_else [divs? i 15] "FizzBuzz"
-      [or_else [divs? i 3] "Fizz"
-        [or_else [divs? i 5] "Buzz"
+    [if [divs? i 15] "FizzBuzz"
+      [if [divs? i 3] "Fizz"
+        [if [divs? i 5] "Buzz"
           [string i]]]]]] [join "\n"]
 }
 

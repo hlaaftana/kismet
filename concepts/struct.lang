@@ -10,7 +10,7 @@ object TVShow
   cast: Map[Person, String]
   *seasons: List[Season] # * implies spreading in the constructor
 
-into TVShow
+scope TVShow
   to String =
     "\name starring:\n", cast |> {
       pairs

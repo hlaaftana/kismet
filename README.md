@@ -65,7 +65,7 @@ let (each i: range 1 100) {
   tu: reduce (0, 5, 3) [fn [a b]
     [bit_and 
       [left_shift a 1]
-      [or_else [divs? i b] 1 0]]]
+      [if [divs? i b] 1 0]]]
   echo [i, "Fizz", "Buzz", "FizzBuzz"][tu]
 }
 ```

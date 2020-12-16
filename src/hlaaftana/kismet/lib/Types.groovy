@@ -11,6 +11,7 @@ import hlaaftana.kismet.vm.KismetBoolean
 import hlaaftana.kismet.vm.KismetNumber
 import hlaaftana.kismet.vm.KismetTuple
 
+import static hlaaftana.kismet.lib.Functions.TYPED_TEMPLATE_TYPE
 import static hlaaftana.kismet.lib.Functions.func
 import static hlaaftana.kismet.lib.Functions.typedTmpl
 
@@ -70,6 +71,34 @@ class Types extends LibraryModule {
                 final base = (SingleType) args[0].instruction.evaluate(context)
                 final arg = (Type[]) args[1].instruction.evaluate(context).inner()
                 final typ = new GenericType(base, arg)
+                new TypedConstantExpression<Type>(new GenericType(META_TYPE, typ), typ)
+            }
+        }
+        define 'union_type', TYPED_TEMPLATE_TYPE.generic(new TupleType().withVarargs(META_TYPE), META_TYPE), new TypedTemplate() {
+            @Override
+            TypedExpression transform(TypedContext context, TypedExpression... args) {
+                final types = new Type[args.length]
+                for (int i = 0; i < args.length; ++i)
+                    types[i] = (Type) args[i].instruction.evaluate(context)
+                final typ = new UnionType(types)
+                new TypedConstantExpression<Type>(new GenericType(META_TYPE, typ), typ)
+            }
+        }
+        define 'intersection_type', TYPED_TEMPLATE_TYPE.generic(new TupleType().withVarargs(META_TYPE), META_TYPE), new TypedTemplate() {
+            @Override
+            TypedExpression transform(TypedContext context, TypedExpression... args) {
+                final types = new Type[args.length]
+                for (int i = 0; i < args.length; ++i)
+                    types[i] = (Type) args[i].instruction.evaluate(context)
+                final typ = new IntersectionType(types)
+                new TypedConstantExpression<Type>(new GenericType(META_TYPE, typ), typ)
+            }
+        }
+        define 'distinct', typedTmpl(META_TYPE, META_TYPE), new TypedTemplate() {
+            @Override
+            TypedExpression transform(TypedContext context, TypedExpression... args) {
+                final base = (Type) args[0].instruction.evaluate(context)
+                final typ = new DistinctType(base)
                 new TypedConstantExpression<Type>(new GenericType(META_TYPE, typ), typ)
             }
         }

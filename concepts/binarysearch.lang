@@ -30,17 +30,15 @@ block functional
 
 block imperative
   factorial n is x = 1 in
-    for each i = 2..n
+    for each i in 2..n
       x *= i
 
   permutation n r is x = 1 for i = n - r in
     while i < n
       x *= i .= next
 
-  combination n r is x = 1 for i = 0 in
-    while i < r
-      x = x * (n - i) / (r - i)
-      incr i
+  combination n r is x = 1 for i in 0..<r in
+    x = x * (n - i) / (r - i)
 
 assert
   (functional.factorial 5) is (imperative.factorial 5) is 120

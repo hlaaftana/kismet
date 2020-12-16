@@ -48,7 +48,10 @@ class Parser {
 				throw new ParseException(ex, ln, cl)
 			}
 		}
-		builder.finish()
+		def res = builder.finish()
+		ln = 1
+		cl = 0
+		res
 	}
 
 	static BlockExpression toBlock(Expression expr) {
@@ -554,7 +557,7 @@ class Parser {
 		List<Step> steps = []
 		Kind kind
 		ExprBuilder last = null
-		boolean inPropertyQueue
+		boolean inPropertyQueue, colonWaitingWhitespace
 
 		PathBuilder(Parser p, Expression root) {
 			super(p)
@@ -589,6 +592,15 @@ class Parser {
 					return (PathExpression) null
 				}
 			}
+			if (colonWaitingWhitespace) {
+				if (Character.isWhitespace(cp))
+					return null
+				else {
+					colonWaitingWhitespace = false
+					(last = new LineBuilder(parser, true)).eagerEnd = true
+					last.goBack = true
+				}
+			}
 			if (null != last) {
 				def e = last.push(cp)
 				if (null != e) {
@@ -608,8 +620,7 @@ class Parser {
 					last = new ParenBuilder(parser)
 				} else if (cp == ((char) ':')) {
 					kind = Kind.COLON
-					(last = new LineBuilder(parser, true)).eagerEnd = true
-					last.goBack = true
+					colonWaitingWhitespace = true
 				} else {
 					goBack = true
 					return steps.empty ? root : new PathExpression(root, steps)
@@ -640,7 +651,7 @@ class Parser {
 			} else steps.add(kind.toStep(e))
 		}
 
-		boolean isReady() { !inPropertyQueue && (null == last || last.ready) }
+		boolean isReady() { !colonWaitingWhitespace && !inPropertyQueue && (null == last || last.ready) }
 
 		Expression doFinish() {
 			if (null != last) {

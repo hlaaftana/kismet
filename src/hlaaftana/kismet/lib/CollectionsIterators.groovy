@@ -2,8 +2,18 @@ package hlaaftana.kismet.lib
 
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.Kismet
+import hlaaftana.kismet.call.BasicTypedExpression
+import hlaaftana.kismet.call.Expression
 import hlaaftana.kismet.call.Function
+import hlaaftana.kismet.call.Instruction
+import hlaaftana.kismet.call.ListExpression
+import hlaaftana.kismet.call.SetExpression
+import hlaaftana.kismet.call.Template
+import hlaaftana.kismet.call.TupleExpression
+import hlaaftana.kismet.call.TypeChecker
+import hlaaftana.kismet.call.TypedExpression
 import hlaaftana.kismet.exceptions.UnexpectedValueException
+import hlaaftana.kismet.parser.Parser
 import hlaaftana.kismet.scope.Context
 import hlaaftana.kismet.scope.TypedContext
 import hlaaftana.kismet.type.*
@@ -12,6 +22,8 @@ import hlaaftana.kismet.vm.KInt
 import hlaaftana.kismet.vm.KInt32
 import hlaaftana.kismet.vm.KismetNumber
 import hlaaftana.kismet.vm.KismetTuple
+import hlaaftana.kismet.vm.Memory
+import hlaaftana.kismet.vm.RuntimeMemory
 
 import java.util.Collections as JCollections
 
@@ -71,22 +83,22 @@ class CollectionsIterators extends LibraryModule {
         define CLOSURE_ITERATOR_TYPE
         define '.[]', func(Type.ANY, LIST_TYPE, NumberType.Int32), new Function() {
             IKismetObject call(IKismetObject... args) {
-                Kismet.model(((List) args[0].inner()).get(((KInt32) args[1]).inner))
+                Kismet.model(((List) args[0].inner()).get(((KismetNumber) args[1]).intValue()))
             }
         }
         define '.[]', func(Type.ANY, LIST_TYPE, NumberType.Int), new Function() {
             IKismetObject call(IKismetObject... args) {
-                Kismet.model(((List) args[0].inner()).get(((KInt) args[1]).intValue()))
+                Kismet.model(((List) args[0].inner()).get(((KismetNumber) args[1]).intValue()))
             }
         }
         define '.[]', func(Type.ANY, TupleType.BASE, NumberType.Int32), new Function() {
             IKismetObject call(IKismetObject... args) {
-                Kismet.model(((KismetTuple) args[0]).get(((KInt32) args[1]).inner))
+                Kismet.model(((KismetTuple) args[0]).get(((KismetNumber) args[1]).intValue()))
             }
         }
         define '.[]', func(Type.ANY, TupleType.BASE, NumberType.Int), new Function() {
             IKismetObject call(IKismetObject... args) {
-                Kismet.model(((KismetTuple) args[0]).get(((KInt) args[1]).intValue()))
+                Kismet.model(((KismetTuple) args[0]).get(((KismetNumber) args[1]).intValue()))
             }
         }
         define '.[]', func(Type.ANY, MAP_TYPE, Type.ANY), new Function() {
@@ -188,15 +200,26 @@ class CollectionsIterators extends LibraryModule {
         define 'has_prev?',  funcc { ... args -> args[0].invokeMethod('hasPrevious', null) }
         define 'prev',  funcc { ... args -> args[0].invokeMethod('previous', null) }
         define 'new_list',  funcc { ... args -> new ArrayList(args[0] as int) }
-        define 'list',  funcc { ... args -> args.toList() }
+        define 'list', Functions.TEMPLATE_TYPE, new Template() {
+            @Override
+            Expression transform(Parser parser, Expression... args) {
+                new ListExpression(args.toList())
+            }
+        }
         define 'new_set',  funcc { ... args -> args.length > 1 ? new HashSet(args[0] as int, args[1] as float) : new HashSet(args[0] as int) }
-        define 'set',  funcc { ... args ->
-            Set x = new HashSet()
-            for (a in args) x.add(a)
-            x
+        define 'set', Functions.TEMPLATE_TYPE, new Template() {
+            @Override
+            Expression transform(Parser parser, Expression... args) {
+                new SetExpression(args.toList())
+            }
         }
         define 'pair',  funcc { ... args -> new Pair(args[0], args[1]) }
-        define 'tuple',  func(true) { IKismetObject... args -> new KismetTuple(args) }
+        define 'tuple', Functions.TEMPLATE_TYPE, new Template() {
+            @Override
+            Expression transform(Parser parser, Expression... args) {
+                new TupleExpression(args.toList())
+            }
+        }
         // assert_is x [+ [bottom_half x] [top_half x]]
         define 'bottom_half', funcc { ... args ->
             args[0] instanceof Number ? ((Number) args[0]).intdiv(2) :
@@ -213,10 +236,10 @@ class CollectionsIterators extends LibraryModule {
                                     args[0] instanceof Map ? ((Map) args[0]).keySet() :
                                             args[0]
         }
-        define 'to_list',  funcc { ... args -> toList(args[0]) }
-        define 'to_set',  funcc { ... args -> toSet(args[0]) }
-        define 'to_pair',  funcc { ... args -> new Pair(args[0].invokeMethod('getAt', 0), args[0].invokeMethod('getAt', 1)) }
-        define 'to_tuple',  funcc(true) { ... args -> new KismetTuple(args[0] as IKismetObject[]) }
+        define 'to_list', func(LIST_TYPE, Type.ANY), funcc { ... args -> toList(args[0]) }
+        define 'to_set', func(SET_TYPE, Type.ANY), funcc { ... args -> toSet(args[0]) }
+        define 'to_pair', funcc { ... args -> new Pair(args[0].invokeMethod('getAt', 0), args[0].invokeMethod('getAt', 1)) }
+        define 'to_tuple', func(TupleType.BASE, Type.ANY), funcc(true) { ... args -> new KismetTuple(args[0] as IKismetObject[]) }
         define 'pairs', func(LIST_TYPE, MAP_TYPE), funcc { ... args ->
             def r = []
             for (x in (args[0] as Map)) r.add(new Pair(x.key, x.value))
@@ -585,10 +608,35 @@ class CollectionsIterators extends LibraryModule {
         alias 'concat_tuple', '$/'
         alias 'indexed', 'with_index'
         define 'times_do',  func { IKismetObject... args ->
-            def n = (Number) args[0].inner()
-            def l = new ArrayList(n.intValue())
-            for (def i = n.minus(n); i < n; i += 1) l.add(((Function) args[1]).call(NumberType.from(i).instantiate(i)))
+            def n = ((Number) args[0].inner()).intValue()
+            def l = new ArrayList(n)
+            for (int i = 0; i < n; ++i) l.add(((Function) args[1]).call(new KInt32(i)))
             l
+        }
+        define 'times_do_it', Functions.TYPE_CHECKER_TYPE, new TypeChecker() {
+            @Override
+            TypedExpression transform(TypedContext context, Expression... args) {
+                def tc = context.child()
+                tc.addVariable('it', NumberType.Int32)
+                def nTyped = args[0].type(tc, TypeBound.co(NumberType.Number))
+                def nTypedInstr = nTyped.instruction
+                def ex = args[1].type(tc)
+                int exSize = tc.size()
+                def exInstr = ex.instruction
+                new BasicTypedExpression(LIST_TYPE.generic(ex.type), new Instruction() {
+                    @Override
+                    IKismetObject evaluate(Memory mem) {
+                        def newMem = new RuntimeMemory([mem] as Memory[], exSize)
+                        int n = ((Number) nTypedInstr.evaluate(newMem)).intValue()
+                        def l = new ArrayList(n)
+                        for (int i = 0; i < n; ++i) {
+                            newMem.set(0, new KInt32(i))
+                            l.add(exInstr.evaluate(newMem))
+                        }
+                        Kismet.model(l)
+                    }
+                })
+            }
         }
         define 'sum_range',  funcc { ... args ->
             Range r = args[0] as Range

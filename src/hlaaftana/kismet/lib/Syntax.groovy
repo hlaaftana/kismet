@@ -442,7 +442,7 @@ class Syntax extends LibraryModule {
                 def onc = name('internal`get_or_set')
                 def res = block(
                         var(AssignmentType.SHADOW, 'internal`get_or_set', args[0]),
-                        call(name('or_else'),
+                        call(name('if'),
                                 call(name('null?'), onc),
                                 colon(args[0], args[1]),
                                 onc))
@@ -452,14 +452,8 @@ class Syntax extends LibraryModule {
         define 'if', TYPE_CHECKER_TYPE, new TypeChecker() {
             @Override
             TypedExpression transform(TypedContext context, Expression... args) {
-                new IfElseExpression(args[0].type(context, +BOOLEAN_TYPE), args[1].type(context), TypedNoExpression.INSTANCE)
-            }
-
-            @Override
-            IKismetObject call(Context c, Expression... args) {
-                if (args[0].evaluate(c)) {
-                    args[1].evaluate(c)
-                } else Kismet.NULL
+                new IfElseExpression(args[0].type(context, +BOOLEAN_TYPE), args[1].type(context),
+                        args.length > 2 ? args[2].type(context) : TypedNoExpression.INSTANCE)
             }
         }
         define 'unless', TEMPLATE_TYPE, new Template() {
@@ -468,7 +462,7 @@ class Syntax extends LibraryModule {
                 call(name('if'), call(name('not'), args[0]), args[1])
             }
         }
-        define 'or_else', TYPE_CHECKER_TYPE, new TypeChecker() {
+        /*define 'if', TYPE_CHECKER_TYPE, new TypeChecker() {
             @Override
             TypedExpression transform(TypedContext context, Expression... args) {
                 new IfElseExpression(args[0].type(context, +BOOLEAN_TYPE), args[1].type(context), args[2].type(context))
@@ -479,12 +473,12 @@ class Syntax extends LibraryModule {
                 args[0].evaluate(c) ? args[1].evaluate(c) : args[2].evaluate(c)
             }
         }
-        define 'not_or_else', TEMPLATE_TYPE, new Template() {
+        define 'not_if', TEMPLATE_TYPE, new Template() {
             @Override
             Expression transform(Parser parser, Expression... args) {
-                call(name('or_else'), call(name('not'), args[0]), args[1], args[2])
+                call(name('if'), call(name('not'), args[0]), args[1], args[2])
             }
-        }
+        }*/
         define 'while', TYPE_CHECKER_TYPE, new TypeChecker() {
             @Override
             TypedExpression transform(TypedContext context, Expression... args) {
@@ -573,11 +567,11 @@ class Syntax extends LibraryModule {
                     def expr = temp
                     for (int i = 0; i < p.steps.size(); ++i) {
                         def step = p.steps.get(p.steps.size() - i - 1)
-                        expr = call(name('or_else'),
+                        expr = call(name('if'),
                             call(name('null?'), new ColonExpression(temp, new PathExpression(temp, [step]))),
                                 name('null'), expr)
                     }
-                    call(name('or_else'),
+                    call(name('if'),
                         call(name('null?'), new ColonExpression(temp, p.root)),
                             name('null'), expr)
                 }

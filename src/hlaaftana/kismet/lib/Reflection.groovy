@@ -193,13 +193,13 @@ class Reflection extends LibraryModule {
         define '.[]', func(EXPRESSION_TYPE, EXPRESSION_TYPE, NumberType.Int32), new Function() {
             @Override
             IKismetObject call(IKismetObject... args) {
-                ((Expression) args[0]).members.get(((KInt32) args[1]).inner)
+                ((Expression) args[0]).members.get(((KismetNumber) args[1]).intValue())
             }
         }
         define '.[]', func(EXPRESSION_TYPE, EXPRESSION_TYPE, NumberType.Int), new Function() {
             @Override
             IKismetObject call(IKismetObject... args) {
-                ((Expression) args[0]).members.get(((KInt) args[1]).intValue())
+                ((Expression) args[0]).members.get(((KismetNumber) args[1]).intValue())
             }
         }
         define 'expr_type',  funcc { ... args ->
@@ -207,15 +207,10 @@ class Reflection extends LibraryModule {
                     (args[0].class.simpleName - 'Expression').uncapitalize() : null
         }
         define 'repr_expr',  funcc { ... args -> ((Expression) args[0]).repr() }
-        define 'quote', TEMPLATE_TYPE, new Template() {
-            @CompileStatic
-            Expression transform(Parser parser, Expression... args) {
-                def slowdown = new ArrayList<Expression>(args.length + 1)
-                slowdown.add(name('quote'))
-                slowdown.addAll(args)
-                new StaticExpression(call(slowdown),
-                        args.length == 1 ? args[0] :
-                                block(args.toList()))
+        define 'quote', TYPE_CHECKER_TYPE, new TypeChecker() {
+            @Override
+            TypedExpression transform(TypedContext context, Expression... args) {
+                new TypedConstantExpression(EXPRESSION_TYPE, args.length == 1 ? args[0] : block(args.toList()))
             }
         }
         define 'variable', TYPE_CHECKER_TYPE, new TypeChecker() {

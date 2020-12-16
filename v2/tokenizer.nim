@@ -24,6 +24,7 @@ type
       num*: NumberToken
     of tkWord, tkSymbol:
       raw*: string
+      quoted*: bool
     #of tkNewLine:
     #  ampersand*: bool
     else: discard
@@ -392,7 +393,7 @@ proc tokenize*(str: string): seq[Token] =
       of '\'', '"', '`':
         let s = recordString(str, i, ch)
         if c == '`':
-          addToken(Token(kind: tkSymbol, raw: s))
+          addToken(Token(kind: tkSymbol, raw: s, quoted: true))
         else:
           addToken(Token(kind: tkString, content: s))
       of '0'..'9':

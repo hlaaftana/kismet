@@ -80,7 +80,10 @@ class VariableInstruction extends Instruction {
 	}
 
 	byte[] getBytes() {
-		def res = ByteBuffer.allocate(9 + path.length * 4).put((byte) 1).putInt(id).putInt(path.length)
+		def res = ByteBuffer.allocate(9 + path.length * 4)
+			.put((byte) 1)
+			.putInt(id)
+			.putInt(path.length)
 		for (int i = 0; i < path.length; ++i) res.putInt(path[i])
 		res.array()
 	}
@@ -131,7 +134,10 @@ class VariableSetInstruction extends Instruction {
 
 	byte[] getBytes() {
 		def valueBytes = value.bytes
-		def res = ByteBuffer.allocate(9 + 4 * path.length + valueBytes.length).put((byte) 2).putInt(id).putInt(path.length)
+		def res = ByteBuffer.allocate(9 + 4 * path.length + valueBytes.length)
+			.put((byte) 2)
+			.putInt(id)
+			.putInt(path.length)
 		for (final p : path) res = res.putInt(p)
 		res.put(valueBytes).array()
 	}
@@ -181,7 +187,10 @@ class DiveInstruction extends Instruction {
 
 	byte[] getBytes() {
 		final o = other.bytes
-		ByteBuffer.allocate(5 + o.length).put((byte) 5).putInt(stackSize).put(o).array()
+		ByteBuffer.allocate(5 + o.length)
+			.put((byte) 5)
+			.putInt(stackSize)
+			.put(o).array()
 	}
 
 	String toString() { "dive $stackSize $other" }
