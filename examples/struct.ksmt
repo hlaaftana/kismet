@@ -49,7 +49,7 @@ static struct: tmpl {
       [name_expr "cast"]
       name
       [tuple_expr
-        [collect [range 1 props.size] [fn [name_expr "null"]]]])])])]
+        [collect [range 1 props.size] [fn [name_expr "null"]]]])])]
   block_expr stmts
 }
 

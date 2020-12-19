@@ -23,7 +23,8 @@ block imperative {
   }
 
   def combination(n, r) is Int, Int
-    for result x = 1, each i in 0..<r in while i < r {
+  for result x = 1, each i in 0..<r in
+    while i < r {
       x = x * (n - i) / (r - i)
     }
 }

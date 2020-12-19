@@ -52,6 +52,8 @@ const
 
 proc `$`*(number: NumberToken): string =
   result = newStringOfCap(number.base.len + 2)
+  if number.negative:
+    result.add('-')
   for d in number.base:
     result.add(('0'.byte + d).char)
   if number.floating and -number.exp < number.base.len:
@@ -289,7 +291,7 @@ proc recordNumber*(str: string, i: var int, negative = false): NumberToken =
 proc recordWord*(str: string, i: var int): string =
   dec i
   for c in runes(i, str):
-    if c == Rune('_') or c.isAlpha:
+    if c == Rune('_') or (c.int < 128 and c.char.isDigit) or c.isAlpha:
       result.add(c)
     else:
       dec i
@@ -299,6 +301,15 @@ proc recordSymbol*(str: string, i: var int): string =
   dec i
   for c in runes(i, str):
     if c notin (Whitespace + Digits + SpecialCharacterSet + {'_', '\'', '"', '`', '#'}) and not c.isAlpha:
+      result.add(c)
+    else:
+      dec i
+      return
+
+proc recordSymbolPlus*(str: string, i: var int, extra: char): string =
+  dec i
+  for c in runes(i, str):
+    if c == extra or (c notin (Whitespace + Digits + SpecialCharacterSet + {'_', '\'', '"', '`', '#'}) and not c.isAlpha):
       result.add(c)
     else:
       dec i
@@ -375,7 +386,7 @@ proc tokenize*(str: string): seq[Token] =
         recordingIndent = true
       elif lastKind != tkWhitespace:
         addTokenOf(tkWhitespace)
-    elif c.isAlpha:
+    elif c.isAlpha or c == Rune('_'):
       addToken(Token(kind: tkWord, raw: recordWord(str, i)))
     elif c.int32 > 127:
       addToken(Token(kind: tkSymbol, raw: recordSymbol(str, i)))
@@ -387,7 +398,7 @@ proc tokenize*(str: string): seq[Token] =
         let kind = TokenKind(low(SpecialCharacterKind).ord + find(SpecialCharacters, ch))
         if kind in {tkDot, tkColon, tkSemicolon} and lastKind == kind:
           dropLast
-          addToken(Token(kind: tkSymbol, raw: ch & recordSymbol(str, i)))
+          addToken(Token(kind: tkSymbol, raw: ch & recordSymbolPlus(str, i, ch)))
         else:
           addTokenOf(kind)
       of '\'', '"', '`':
@@ -400,7 +411,7 @@ proc tokenize*(str: string): seq[Token] =
         let n = recordNumber(str, i)
         addToken(Token(kind: tkNumber, num: n))
       of '+', '-':
-        if i + 1 < str.len and str[i + 1] in {'0'..'9'}:
+        if i < str.len and str[i] in {'0'..'9'}:
           inc i
           addToken(Token(kind: tkNumber, num: recordNumber(str, i, ch == '-')))
         else:
@@ -415,4 +426,5 @@ when isMainModule:
     let b = cpuTime()
     echo "took ", b - a
 
-  echo tokenize(readFile("concepts/binarysearch.lang"))
+  echo tokenize(";;")
+  #echo tokenize(readFile("concepts/binarysearch.lang"))

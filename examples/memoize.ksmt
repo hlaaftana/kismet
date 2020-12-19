@@ -1,5 +1,6 @@
 defn [memoized f] {
   cache: cast Map[Tuple, Any] {#}
+;;}
   fn {
     get_or_set cache[_all] [call f _all]
   }
