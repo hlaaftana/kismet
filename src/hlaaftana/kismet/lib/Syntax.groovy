@@ -13,6 +13,7 @@ import hlaaftana.kismet.scope.TypedContext
 import hlaaftana.kismet.type.GenericType
 import hlaaftana.kismet.type.TupleType
 import hlaaftana.kismet.type.Type
+import hlaaftana.kismet.type.TypeBound
 import hlaaftana.kismet.vm.IKismetObject
 import hlaaftana.kismet.vm.Memory
 import hlaaftana.kismet.vm.WrapperKismetObject
@@ -22,6 +23,7 @@ import static hlaaftana.kismet.lib.Functions.*
 import static hlaaftana.kismet.lib.Functions.TEMPLATE_TYPE
 import static hlaaftana.kismet.lib.Functions.TEMPLATE_TYPE
 import static hlaaftana.kismet.lib.Functions.TYPE_CHECKER_TYPE
+import static hlaaftana.kismet.lib.Logic.BOOLEAN_TYPE
 import static hlaaftana.kismet.lib.Logic.BOOLEAN_TYPE
 
 @CompileStatic
@@ -460,6 +462,18 @@ class Syntax extends LibraryModule {
             @Override
             Expression transform(Parser parser, Expression... args) {
                 call(name('if'), call(name('not'), args[0]), args[1])
+            }
+        }
+        define 'case', TYPE_CHECKER_TYPE, new TypeChecker() {
+            @Override
+            TypedExpression transform(TypedContext context, Expression... args) {
+                def up = args.length - 1
+                def res = up % 2 == 0 ? args[up--].type(context) : TypedNoExpression.INSTANCE
+                for (int i = up; i >= 0; i -= 2) {
+                    res = new IfElseExpression(args[i - 1].type(context, +BOOLEAN_TYPE),
+                        args[i].type(context), res)
+                }
+                res
             }
         }
         /*define 'if', TYPE_CHECKER_TYPE, new TypeChecker() {

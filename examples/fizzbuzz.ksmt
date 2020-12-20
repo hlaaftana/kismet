@@ -8,11 +8,14 @@ defn [fizzbuzz_imperative (n: Int)] {
 }
 
 defn [fizzbuzz_functional (n: Int)] {
-  |> [collect [range 1 n] [fn [i: Int]
-    [if [divs? i 15] "FizzBuzz"
-      [if [divs? i 3] "Fizz"
-        [if [divs? i 5] "Buzz"
-          [string i]]]]]] [join "\n"]
+  |> [range 1 n] {
+    collect [fn (i: Int) [case
+      [divs? i 15] "FizzBuzz"
+      [divs? i 3] "Fizz"
+      [divs? i 5] "Buzz"
+      [string i]]]
+    join "\n"
+  }
 }
 
 assert_is fizzbuzz_functional(100) fizzbuzz_imperative(100)
