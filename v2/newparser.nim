@@ -83,28 +83,35 @@ proc repr*(ex: Expr | ExprObj): string =
   of ekDotCurly:
     result = repr(ex.left) & ".(curly)" & repr(ex.right)
 
-proc recordLine*(tokens: seq[Token], i: var int, ignoreNewline = false): Expr
+type Parser* = object
+  tokens*: seq[Token]
+  pos*: int
 
-proc recordWideLine*(tokens: seq[Token], i: var int, ignoreNewline = true): Expr =
+iterator nextTokens*(p: var Parser): Token =
+  while p.pos < p.tokens.len:
+    yield p.tokens[p.pos]
+    inc p.pos
+
+proc recordLine*(p: var Parser, ignoreNewline = false): Expr
+
+proc recordWideLine*(p: var Parser, ignoreNewline = true): Expr =
   var s: seq[Expr]
   var semicoloned = false
-  while i < tokens.len:
-    let t = tokens[i]
+  for t in p.nextTokens:
     case t.kind
     of tkSemicolon:
       semicoloned = true
       #inc i
-      #s.add(recordLine(tokens, i, true))
+      #s.add(recordLine(p, true))
     of tkComma, tkCloseParen, tkCloseBrack, tkCloseCurly:
-      dec i
+      dec p.pos
       break
     of tkNewline:
       if not ignoreNewline:
-        dec i
+        dec p.pos
         break
     else:
-      s.add(recordLine(tokens, i, ignoreNewline))
-    inc i
+      s.add(recordLine(p, ignoreNewline))
   if semicoloned:
     Expr(kind: ekBlock, exprs: s)
   elif s.len == 0: Expr(kind: ekNone)
@@ -128,17 +135,15 @@ template checkSequence(ar: set[TokenKind], l: int): bool =
         break
     all)]#
 
-proc recordName*(tokens: seq[Token], i: var int): Expr =
+proc recordName*(p: var Parser): Expr =
   var text: string
-  let initI = i
-  while i < tokens.len:
-    let t = tokens[i]
-    if t.kind in {tkWord, tkSymbol, tkBackslash} and (i == initI or not t.quoted):
+  let initPos = p.pos
+  for t in p.nextTokens:
+    if t.kind in {tkWord, tkSymbol, tkBackslash} and (p.pos == initPos or not t.quoted):
       text.add(t.raw)
     else:
-      dec i
+      dec p.pos
       break
-    inc i
   Expr(kind: ekName, name: text)
 
 proc tokenToExpr*(token: Token): Expr =
@@ -152,11 +157,10 @@ proc tokenToExpr*(token: Token): Expr =
       tkOpenParen, tkCloseParen, tkOpenBrack, tkCloseBrack, tkOpenCurly, tkCloseCurly
       tkString, tkNumber, tkWord, tkSymbol]#
 
-proc recordParen*(tokens: seq[Token], i: var int): Expr =
+proc recordParen*(p: var Parser): Expr =
   var commad = false
   var s: seq[Expr]
-  while i < tokens.len:
-    let t = tokens[i]
+  for t in p.nextTokens:
     case t.kind
     of tkNone, tkWhitespace, tkIndent, tkIndentBack, tkNewline: discard
     of tkComma: commad = true
@@ -166,18 +170,16 @@ proc recordParen*(tokens: seq[Token], i: var int): Expr =
     of tkCloseCurly, tkCloseBrack:
       error "error wwrong token"
     else:
-      s.add(recordWideLine(tokens, i))
-    inc i
+      s.add(recordWideLine(p))
   if commad:
     Expr(kind: ekParenList, exprs: s)
   elif s.len == 0: Expr(kind: ekParenList, exprs: @[])
   else: s[0]
 
-proc recordBrack*(tokens: seq[Token], i: var int): Expr =
+proc recordBrack*(p: var Parser): Expr =
   var commad = false
   var s: seq[Expr]
-  while i < tokens.len:
-    let t = tokens[i]
+  for t in p.nextTokens:
     case t.kind
     of tkNone, tkWhitespace, tkIndent, tkIndentBack, tkNewline: discard
     of tkComma: commad = true
@@ -187,46 +189,42 @@ proc recordBrack*(tokens: seq[Token], i: var int): Expr =
     of tkCloseCurly, tkCloseParen:
       error "error wwrong token for brack"
     else:
-      s.add(recordWideLine(tokens, i))
-    inc i
+      s.add(recordWideLine(p))
   if commad:
     Expr(kind: ekBrackList, exprs: s)
   elif s.len == 0: Expr(kind: ekBrackList, exprs: @[])
   elif s[0].kind == ekCall: s[0]
   else: Expr(kind: ekCall, exprs: @[s[0]])
 
-proc recordCurly*(tokens: seq[Token], i: var int): Expr =
+proc recordCurly*(p: var Parser): Expr =
   var commad = false
   var s: seq[Expr]
-  while i < tokens.len:
-    let t = tokens[i]
+  for t in p.nextTokens:
     case t.kind
     of tkNone, tkWhitespace, tkIndent, tkIndentBack, tkNewline: discard
     of tkComma: commad = true
     of tkCloseCurly:
-      #inc i
+      #inc p.pos
       break
     of tkCloseParen, tkCloseBrack:
       error "error wwrong token for curly"
     else:
-      s.add(recordWideLine(tokens, i, commad))
-    inc i
+      s.add(recordWideLine(p, commad))
   if commad:
     Expr(kind: ekCurlyList, exprs: s)
   else: Expr(kind: ekBlock, exprs: s)
 
-proc recordDot*(tokens: seq[Token], i: var int, previous: Expr): Expr =
+proc recordDot*(p: var Parser, previous: Expr): Expr =
   template finish(val: Expr, k = ekProperty) =
     return Expr(kind: k, left: previous, right: val)
-  while i < tokens.len:
-    let t = tokens[i]
+  for t in p.nextTokens:
     case t.kind
     of tkNone, tkWhitespace, tkIndent, tkIndentBack, tkNewline: discard
     of tkWord, tkSymbol, tkBackslash:
-      finish(recordName(tokens, i))
+      finish(recordName(p))
     of tkOpenParen:
-      inc i
-      let p = recordParen(tokens, i)
+      inc p.pos
+      let p = recordParen(p)
       var exprs = @[previous]
       if p.kind == ekParenList:
         exprs.add(p.exprs)
@@ -234,66 +232,61 @@ proc recordDot*(tokens: seq[Token], i: var int, previous: Expr): Expr =
         exprs.add(p)
       return Expr(kind: ekCall, exprs: exprs)
     of tkOpenBrack:
-      inc i
-      var rec = recordBrack(tokens, i)
+      inc p.pos
+      var rec = recordBrack(p)
       case rec.kind
       of ekCall: rec = if rec.exprs.len > 1: rec else: rec.exprs[0]
       of ekBrackList: rec = Expr(kind: ekParenList, exprs: rec.exprs)
       else: discard
       finish(rec, ekSubscript)
     of tkOpenCurly:
-      inc i
-      finish(recordCurly(tokens, i), ekDotCurly)
+      inc p.pos
+      finish(recordCurly(p), ekDotCurly)
     of tkNumber, tkString: finish(tokenToExpr(t))
     else: error "error invalid token after dot"
-    inc i
   error "error no valid token after dot"
 
-proc recordSingle*(tokens: seq[Token], i: var int): Expr =
-  while i < tokens.len:
-    let t = tokens[i]
+proc recordSingle*(p: var Parser): Expr =
+  for t in p.nextTokens:
     case t.kind
     of tkNone, tkWhitespace, tkIndent, tkIndentBack, tkNewline: discard
-    of tkWord, tkSymbol, tkBackslash: return recordName(tokens, i)
+    of tkWord, tkSymbol, tkBackslash: return recordName(p)
     of tkNumber, tkString: return tokenToExpr(t)
-    of tkOpenParen: inc i; return recordParen(tokens, i)
-    of tkOpenBrack: inc i; return recordBrack(tokens, i)
-    of tkOpenCurly: inc i; return recordCurly(tokens, i)
-    of tkDot: return recordDot(tokens, i, nil)
-    of tkColon: inc i; return Expr(kind: ekColon, left: nil, right: recordLine(tokens, i, false))
+    of tkOpenParen: inc p.pos; return recordParen(p)
+    of tkOpenBrack: inc p.pos; return recordBrack(p)
+    of tkOpenCurly: inc p.pos; return recordCurly(p)
+    of tkDot: return recordDot(p, nil)
+    of tkColon: inc p.pos; return Expr(kind: ekColon, left: nil, right: recordLine(p, false))
     of tkComma, tkSemicolon,
       tkCloseParen, tkCloseBrack, tkCloseCurly:
-      dec i
+      dec p.pos
       return nil
-    inc i
 
-proc recordLine*(tokens: seq[Token], i: var int, ignoreNewline = false): Expr =
+proc recordLine*(p: var Parser, ignoreNewline = false): Expr =
   var s: seq[Expr]
-  while i < tokens.len:
-    let t = tokens[i]
+  for t in p.nextTokens:
     case t.kind
     of tkNone, tkWhitespace, tkIndent, tkIndentBack: discard
     of tkNewline:
       if not ignoreNewline:
-        dec i
+        dec p.pos
         break
     of tkComma, tkSemicolon, tkCloseParen, tkCloseBrack, tkCloseCurly:
-      dec i
+      dec p.pos
       break
     of tkOpenParen, tkOpenBrack, tkOpenCurly:
-      if s.len > 0 and i > 0 and tokens[i - 1].kind notin {tkNone, tkWhitespace, tkIndent, tkIndentBack, tkNewline}:
-        s.add(recordDot(tokens, i, s.pop))
+      if s.len > 0 and p.pos > 0 and p.tokens[p.pos - 1].kind notin {tkNone, tkWhitespace, tkIndent, tkIndentBack, tkNewline}:
+        s.add(recordDot(p, s.pop))
       else:
-        s.add(recordSingle(tokens, i))
+        s.add(recordSingle(p))
     of tkDot:
-      inc i
-      s.add(recordDot(tokens, i, if s.len > 0: s.pop else: nil))
+      inc p.pos
+      s.add(recordDot(p, if s.len > 0: s.pop else: nil))
     of tkColon:
-      inc i
-      s.add(Expr(kind: ekColon, left: if s.len > 0: s.pop else: nil, right: recordLine(tokens, i, false)#[recordSingle(tokens, i)]#))
+      inc p.pos
+      s.add(Expr(kind: ekColon, left: if s.len > 0: s.pop else: nil, right: recordLine(p, false)#[recordSingle(tokens, i)]#))
     else:
-      s.add(recordSingle(tokens, i))
-    inc i
+      s.add(recordSingle(p))
   case s.len
   of 0:
     Expr(kind: ekNone)
@@ -302,20 +295,21 @@ proc recordLine*(tokens: seq[Token], i: var int, ignoreNewline = false): Expr =
   else:
     Expr(kind: ekCall, exprs: s)
 
-proc recordOpenBlock*(tokens: seq[Token]): Expr =
+proc recordOpenBlock*(p: var Parser): Expr =
   var s: seq[Expr]
-  var i = 0
-  while i < tokens.len:
-    let t = tokens[i]
+  for t in p.nextTokens:
     case t.kind
     of tkNone, tkWhitespace, tkIndent, tkIndentBack, tkNewline: discard
     of tkComma, tkCloseCurly, tkCloseParen, tkCloseBrack:
-      error "wrong tokens at: " & $i
+      error "wrong tokens at: " & $p.pos
     else:
-      s.add(recordWideLine(tokens, i, false))
-    inc i
+      s.add(recordWideLine(p, false))
   if s.len == 1: s[0]
   else: Expr(kind: ekBlock, exprs: s)
+
+proc recordOpenBlock*(tokens: seq[Token]): Expr =
+  var parser = Parser(tokens: tokens, pos: 0)
+  recordOpenBlock(parser)
 
 when isMainModule:
   import os, strutils

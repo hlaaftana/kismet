@@ -41,7 +41,13 @@ class Strings extends LibraryModule {
 
     Strings() {
         define STRING_TYPE
-        define 'string',  func(true) { IKismetObject... a ->
+        define 'string', new GenericType(Functions.FUNCTION_TYPE, TupleType.BASE, STRING_TYPE), func(true) { IKismetObject... a ->
+            if (a.length == 1) return a[0].toString()
+            StringBuilder x = new StringBuilder()
+            for (s in a) x.append(s)
+            x.toString()
+        }
+        define 'call', new GenericType(Functions.FUNCTION_TYPE, new TupleType(STRING_TYPE).withVarargs(Type.ANY), STRING_TYPE), func(true) { IKismetObject... a ->
             if (a.length == 1) return a[0].toString()
             StringBuilder x = new StringBuilder()
             for (s in a) x.append(s)

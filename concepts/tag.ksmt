@@ -9,10 +9,8 @@ defcmd tag {
     "Successful"
   }
 
-  "author" name {
-    [string "Author for tag " name " is "
-      user guild_data.tags[name].author]
-  }
+  "author" name ("Author for tag " name " is "
+    guild_data.tags[name].author.user())
 
   name {
     [if null?(a: ?? guild_data.tags[name].content)
