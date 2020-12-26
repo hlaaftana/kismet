@@ -1,8 +1,8 @@
 defn strip_mentions(content) content.replace("@", "@\u{200b}")
 
-defcmd tag {
+cmd tag {
   "set" name [content] {
-    guild_data[tags].get_or_set({#}).[args[1]]: {#
+    guild_data[tags].get_or_set({#}).[args[1]]: {:
       "content": args[2],
       "author": message.author.id
     }
@@ -13,7 +13,7 @@ defcmd tag {
     guild_data.tags[name].author.user())
 
   name {
-    [if null?(a: ?? guild_data.tags[name].content)
+    [if (null? a: ?? guild_data.tags[name].content)
       strip_mentions(a)
       "Invalid tag"]
   }

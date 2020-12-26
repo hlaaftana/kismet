@@ -6,20 +6,21 @@ import hlaaftana.kismet.call.*
 import hlaaftana.kismet.call.PathExpression.Step
 import hlaaftana.kismet.exceptions.ParseException
 import hlaaftana.kismet.exceptions.UnexpectedSyntaxException
-import hlaaftana.kismet.scope.Context
+import hlaaftana.kismet.vm.Memory
 
 import static hlaaftana.kismet.call.ExprBuilder.*
 
 @CompileStatic
 class Parser {
 	Optimizer optimizer = new Optimizer(this)
-	Context context
+	Memory memory
 	int ln = 1, cl = 0
 	boolean signedNumbers = true
 	StringBuilder defaultIntBits, defaultFloatBits
 	boolean defaultFloat = false
 	boolean inferMapFromSetExpr = false
 	String commentStart = ';;'
+	char mapStartChar = ':'
 
 	BlockExpression parse(String code) {
 		toBlock(optimizer.optimize(parseAST(code)))
@@ -230,7 +231,7 @@ class Parser {
 		Expression doPush(int cp) {
 			if (first) {
 				first = false
-				if ((map = commad = cp == ((char) '#'))) return (Expression) null
+				if ((map = commad = cp == parser.mapStartChar)) return (Expression) null
 			}
 			final lastNull = null == last
 			if (cp == ((char) '}') && (lastNull || last.ready)) {

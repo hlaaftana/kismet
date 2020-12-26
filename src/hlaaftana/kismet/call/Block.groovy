@@ -3,13 +3,14 @@ package hlaaftana.kismet.call
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.scope.Context
 import hlaaftana.kismet.vm.IKismetObject
+import hlaaftana.kismet.vm.Memory
 
 @CompileStatic
 class Block {
 	Expression expression
-	Context context
+	Memory context
 
-	Block(Expression expr, Context context = new Context()) {
+	Block(Expression expr, Memory context = new Context()) {
 		expression = expr
 		this.context = context
 	}

@@ -1,13 +1,13 @@
 package hlaaftana.kismet.lib
 
 import groovy.transform.CompileStatic
+import hlaaftana.kismet.Kismet
 import hlaaftana.kismet.call.*
 import hlaaftana.kismet.parser.Parser
 import hlaaftana.kismet.parser.StringEscaper
-import hlaaftana.kismet.scope.Context
-import hlaaftana.kismet.scope.TypedContext
 import hlaaftana.kismet.type.NumberType
 import hlaaftana.kismet.type.SingleType
+import hlaaftana.kismet.type.TupleType
 import hlaaftana.kismet.type.Type
 import hlaaftana.kismet.vm.*
 
@@ -15,16 +15,13 @@ import java.util.regex.Pattern
 
 import static hlaaftana.kismet.call.ExprBuilder.call
 import static hlaaftana.kismet.call.ExprBuilder.name
-import static hlaaftana.kismet.lib.Functions.func
-import static hlaaftana.kismet.lib.Functions.funcc
+import static hlaaftana.kismet.lib.Functions.*
 
 @CompileStatic
 @SuppressWarnings("ChangeToOperator")
-class Strings extends LibraryModule {
+class Strings extends NativeModule {
     static final SingleType STRING_TYPE = new SingleType('String'),
             REGEX_TYPE = new SingleType('Regex')
-    TypedContext typed = new TypedContext("strings")
-    Context defaultContext = new Context()
 
     static boolean isAlphaNum(char ch) {
         (ch >= ((char) 'a') && ch <= ((char) 'z')) ||
@@ -40,18 +37,72 @@ class Strings extends LibraryModule {
     }
 
     Strings() {
+        super("strings")
         define STRING_TYPE
-        define 'string', new GenericType(Functions.FUNCTION_TYPE, TupleType.BASE, STRING_TYPE), func(true) { IKismetObject... a ->
-            if (a.length == 1) return a[0].toString()
-            StringBuilder x = new StringBuilder()
-            for (s in a) x.append(s)
-            x.toString()
+        define '.[]', func(NumberType.Char, STRING_TYPE, NumberType.Int32), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                new KChar(((KismetString) args[0]).charAt(((KismetNumber) args[1]).intValue()))
+            }
         }
-        define 'call', new GenericType(Functions.FUNCTION_TYPE, new TupleType(STRING_TYPE).withVarargs(Type.ANY), STRING_TYPE), func(true) { IKismetObject... a ->
-            if (a.length == 1) return a[0].toString()
-            StringBuilder x = new StringBuilder()
-            for (s in a) x.append(s)
-            x.toString()
+        define '.[]=', func(NumberType.Char, STRING_TYPE, NumberType.Int32, NumberType.Char), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                ((KismetString) args[0]).setCharAt(((KismetNumber) args[1]).intValue(), ((KChar) args[2]).inner)
+                args[2]
+            }
+        }
+        define 'codepoint_at', func(NumberType.Rune, STRING_TYPE, NumberType.Int32), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                ((KismetString) args[0]).codePointAt(((KismetNumber) args[1]).intValue())
+            }
+        }
+        alias 'codepoint_at', 'rune_at'
+        define 'add', func(STRING_TYPE, STRING_TYPE, Type.ANY), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                ((KismetString) args[0]).add(args[1].toString())
+            }
+        }
+        define 'insert', func(STRING_TYPE, STRING_TYPE, NumberType.Int32, NumberType.Char), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                ((KismetString) args[0]).insert(((KismetNumber) args[1]).intValue(), ((KChar) args[2]).inner)
+            }
+        }
+        define 'insert', func(STRING_TYPE, STRING_TYPE, NumberType.Int32, STRING_TYPE), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                ((KismetString) args[0]).insert(((KismetNumber) args[1]).intValue(), args[2].toString())
+            }
+        }
+        define 'delete_chars', func(STRING_TYPE, STRING_TYPE, NumberType.Int32, NumberType.Int32), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                ((KismetString) args[0]).delete(((KismetNumber) args[1]).intValue(), ((KismetNumber) args[2]).intValue())
+            }
+        }
+        define 'string', FUNCTION_TYPE.generic(TupleType.BASE, STRING_TYPE), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                def result = new KismetString()
+                for (final a : args) {
+                    result.add(a.toString())
+                }
+                result
+            }
+        }
+        define 'call', func(STRING_TYPE, STRING_TYPE, new TupleType().withVarargs(Type.ANY)), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                def result = (KismetString) args[0]
+                def tup = (KismetTuple) args[1]
+                for (x in tup) {
+                    result.add(x.toString())
+                }
+                result
+            }
         }
         define 'size', func(NumberType.Int32, STRING_TYPE), new Function() {
             @Override
@@ -64,9 +115,92 @@ class Strings extends LibraryModule {
                 new KInt32(((KismetString) a[0]).compareTo((KismetString) a[1]))
             }
         }
-        define 'replace',  funcc { ... args ->
-            args[0].toString().replace(args[1].toString(),
-                    args.length > 2 ? args[2].toString() : '')
+        define 'set_chars', func(STRING_TYPE, STRING_TYPE, NumberType.Int32, NumberType.Int32, STRING_TYPE), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                def res = (KismetString) args[0]
+                res.inner.replace(((KismetNumber) args[1]).intValue(), ((KismetNumber) args[2]).intValue(), args[3].toString())
+                res
+            }
+        }
+        define 'replace', func(STRING_TYPE, STRING_TYPE, STRING_TYPE), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                new KismetString(args[0].toString().replace(args[1].toString(), args[2].toString()))
+            }
+        }
+        define 'replace_first', func(STRING_TYPE, STRING_TYPE, STRING_TYPE), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                def res = new KismetString(args[0].toString())
+                def pat = args[1].toString()
+                def ind = res.indexOf(pat)
+                res.inner.replace(ind, ind + pat.length(), args[2].toString())
+                res
+            }
+        }
+        define 'replace!', func(STRING_TYPE, STRING_TYPE, STRING_TYPE), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                ((KismetString) args[0]).inner = new StringBuilder(args[0].toString().replace(args[1].toString(), args[2].toString()))
+                args[0]
+            }
+        }
+        define 'replace_first!', func(STRING_TYPE, STRING_TYPE, STRING_TYPE), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                def res = (KismetString) args[0]
+                def pat = args[1].toString()
+                def ind = res.indexOf(pat)
+                res.inner.replace(ind, ind + pat.length(), args[2].toString())
+                res
+            }
+        }
+        define 'replace', func(STRING_TYPE, NumberType.Char, NumberType.Char,), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                new KismetString(args[0].toString().replace(((KChar) args[1]).inner, ((KChar) args[2]).inner))
+            }
+        }
+        define 'replace_first', func(STRING_TYPE, NumberType.Char, NumberType.Char), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                def res = new KismetString(args[0].toString())
+                def ind = res.indexOf(args[1].toString())
+                res.inner.replace(ind, ind + 1, args[2].toString())
+                res
+            }
+        }
+        define 'replace!', func(STRING_TYPE, NumberType.Char, NumberType.Char), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                ((KismetString) args[0]).inner = new StringBuilder(args[0].toString().replace(
+                    ((KChar) args[1]).inner, ((KChar) args[2]).inner))
+                args[0]
+            }
+        }
+        define 'replace_first!', func(STRING_TYPE, NumberType.Char, NumberType.Char), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                def res = (KismetString) args[0]
+                def pat = args[1].toString()
+                def ind = res.indexOf(pat)
+                res.inner.replace(ind, ind + 1, args[2].toString())
+                res
+            }
+        }
+        define 'replace', func(STRING_TYPE, CollectionsIterators.MAP_TYPE.generic(STRING_TYPE, STRING_TYPE)), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                new KismetString(args[0].toString().replace((Map<CharSequence, CharSequence>) args[1].inner()))
+            }
+        }
+        define 'replace!', func(STRING_TYPE, CollectionsIterators.MAP_TYPE.generic(STRING_TYPE, STRING_TYPE)), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                ((KismetString) args[0]).inner = new StringBuilder(args[0].toString().replace((Map<CharSequence, CharSequence>) args[1].inner()))
+                args[0]
+            }
         }
         define 'do_regex', func(REGEX_TYPE, Type.ANY), func(true) { IKismetObject... args -> ~(args[0].toString()) }
         define 'regex', new Template() {
@@ -90,6 +224,66 @@ class Strings extends LibraryModule {
             def pattern = args[1].inner() instanceof Pattern ? (Pattern) args[1].inner() : args[1].inner().toString()
             str.invokeMethod('replaceFirst', [pattern, replacement] as Object[])
         }
+        define 'replace', func(STRING_TYPE, REGEX_TYPE, STRING_TYPE), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                new KismetString(args[0].toString().replaceAll((Pattern) args[1].inner(), args[2].toString()))
+            }
+        }
+        define 'replace_first', func(STRING_TYPE, REGEX_TYPE, STRING_TYPE), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                new KismetString(args[0].toString().replaceFirst((Pattern) args[1].inner(), args[2].toString()))
+            }
+        }
+        define 'replace!', func(STRING_TYPE, REGEX_TYPE, STRING_TYPE), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                ((KismetString) args[0]).inner = new StringBuilder(
+                    args[0].toString().replaceAll((Pattern) args[1].inner(), args[2].toString()))
+                args[0]
+            }
+        }
+        define 'replace_first!', func(STRING_TYPE, REGEX_TYPE, STRING_TYPE), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                ((KismetString) args[0]).inner = new StringBuilder(
+                    args[0].toString().replaceFirst((Pattern) args[1].inner(), args[2].toString()))
+                args[0]
+            }
+        }
+        define 'replace', func(STRING_TYPE, REGEX_TYPE, func(STRING_TYPE, CollectionsIterators.LIST_TYPE.generic(STRING_TYPE))), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                def f = (Function) args[2]
+                new KismetString(args[0].toString().replaceAll((Pattern) args[1].inner()) { List<String> it -> f.call(Kismet.model(it)) })
+            }
+        }
+        define 'replace_first', func(STRING_TYPE, REGEX_TYPE, func(STRING_TYPE, CollectionsIterators.LIST_TYPE.generic(STRING_TYPE))), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                def f = (Function) args[2]
+                new KismetString(args[0].toString().replaceFirst((Pattern) args[1].inner()) { List<String> it -> f.call(Kismet.model(it)) })
+            }
+        }
+        define 'replace!', func(STRING_TYPE, REGEX_TYPE, func(STRING_TYPE, CollectionsIterators.LIST_TYPE.generic(STRING_TYPE))), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                def f = (Function) args[2]
+                ((KismetString) args[0]).inner = new StringBuilder(
+                    args[0].toString().replaceAll((Pattern) args[1].inner()) { List<String> it -> f.call(Kismet.model(it)) })
+                args[0]
+            }
+        }
+        define 'replace_first!', func(STRING_TYPE, REGEX_TYPE, func(STRING_TYPE, CollectionsIterators.LIST_TYPE.generic(STRING_TYPE))), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                def f = (Function) args[2]
+                ((KismetString) args[0]).inner = new StringBuilder(
+                    args[0].toString().replaceFirst((Pattern) args[1].inner()) { List<String> it -> f.call(Kismet.model(it)) })
+                args[0]
+            }
+        }
         define 'blank?',  func(true) { IKismetObject... args -> ((String) args[0].inner() ?: "").isAllWhitespace() }
         define 'whitespace?',  func(true) { IKismetObject... args -> Character.isWhitespace((int) args[0].inner()) }
         define 'alphanumeric?', func(Logic.BOOLEAN_TYPE, NumberType.Char), new Function() {
@@ -103,10 +297,16 @@ class Strings extends LibraryModule {
             }
         }
         define 'quote_regex',  func(true) { IKismetObject... args -> Pattern.quote((String) args[0].inner()) }
-        define 'codepoints~',  func { IKismetObject... args -> ((CharSequence) args[0].inner()).codePoints().iterator() }
+        define 'codepoints~', func(Type.ANY, STRING_TYPE), func { IKismetObject... args -> ((CharSequence) args[0].inner()).codePoints().iterator() }
         define 'chars~',  func { IKismetObject... args -> ((CharSequence) args[0].inner()).chars().iterator() }
         define 'chars',  func { IKismetObject... args -> ((CharSequence) args[0].inner()).chars.toList() }
-        define 'codepoint_to_chars',  funcc { ... args -> Character.toChars((int) args[0]).toList() }
+        define 'codepoint_to_chars', func(CollectionsIterators.LIST_TYPE.generic(NumberType.Char), NumberType.Rune), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                Kismet.model(Character.toChars(((KismetNumber) args[0]).intValue()).toList())
+            }
+        }
+        alias 'codepoint_to_chars', 'rune_to_chars'
         define 'upper',  funcc(true) { ... args ->
             args[0] instanceof Character ? Character.toUpperCase((char) args[0]) :
                     args[0] instanceof Integer ? Character.toUpperCase((int) args[0]) :

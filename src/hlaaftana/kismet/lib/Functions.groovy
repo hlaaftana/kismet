@@ -2,36 +2,29 @@ package hlaaftana.kismet.lib
 
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.Kismet
-import hlaaftana.kismet.call.Expression
-import hlaaftana.kismet.call.Function
-import hlaaftana.kismet.call.GroovyFunction
-import hlaaftana.kismet.call.ListExpression
-import hlaaftana.kismet.call.Template
+import hlaaftana.kismet.call.*
 import hlaaftana.kismet.parser.Parser
-import hlaaftana.kismet.scope.Context
-import hlaaftana.kismet.scope.TypedContext
 import hlaaftana.kismet.type.*
 import hlaaftana.kismet.vm.IKismetObject
 
 import static hlaaftana.kismet.call.ExprBuilder.call
 
 @CompileStatic
-class Functions extends LibraryModule {
+class Functions extends NativeModule {
     static final SingleType TEMPLATE_TYPE = new SingleType('Template'),
         TYPE_CHECKER_TYPE = new SingleType('TypeChecker'),
         INSTRUCTOR_TYPE = new SingleType('Instructor', [+TupleType.BASE, -Type.NONE] as TypeBound[]),
         TYPED_TEMPLATE_TYPE = new SingleType('TypedTemplate', [+TupleType.BASE, -Type.NONE] as TypeBound[]),
         FUNCTION_TYPE = new SingleType('Function', [+TupleType.BASE, -Type.NONE] as TypeBound[])
-    TypedContext typed = new TypedContext("functions")
-    Context defaultContext = new Context()
 
     Functions() {
+        super("functions")
         define FUNCTION_TYPE
         define TEMPLATE_TYPE
         define INSTRUCTOR_TYPE
         define TYPE_CHECKER_TYPE
         define TYPED_TEMPLATE_TYPE
-        define 'call',  func { IKismetObject... args ->
+        define 'call', FUNCTION_TYPE.generic(new TupleType(FUNCTION_TYPE).withVarargs(Type.ANY), Type.NONE), func { IKismetObject... args ->
             def x = args[1].inner() as Object[]
             def ar = new IKismetObject[x.length]
             for (int i = 0; i < ar.length; ++i) {

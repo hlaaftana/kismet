@@ -4,8 +4,6 @@ import groovy.transform.CompileStatic
 import hlaaftana.kismet.call.Function
 import hlaaftana.kismet.call.Instruction
 import hlaaftana.kismet.call.Instructor
-import hlaaftana.kismet.scope.Context
-import hlaaftana.kismet.scope.TypedContext
 import hlaaftana.kismet.type.GenericType
 import hlaaftana.kismet.type.NumberType
 import hlaaftana.kismet.type.Type
@@ -16,11 +14,9 @@ import java.text.SimpleDateFormat
 import static hlaaftana.kismet.lib.Functions.*
 
 @CompileStatic
-class Times extends LibraryModule {
-    TypedContext typed = new TypedContext("times")
-    Context defaultContext = new Context()
-
+class Times extends NativeModule {
     Times() {
+        super("times")
         define 'parse_date_millis_from_format', func(NumberType.Int64, Strings.STRING_TYPE), new Function() {
             @Override
             IKismetObject call(IKismetObject... args) {

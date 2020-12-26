@@ -4,8 +4,6 @@ import groovy.transform.CompileStatic
 import hlaaftana.kismet.call.Function
 import hlaaftana.kismet.call.Instruction
 import hlaaftana.kismet.call.Instructor
-import hlaaftana.kismet.scope.Context
-import hlaaftana.kismet.scope.TypedContext
 import hlaaftana.kismet.type.GenericType
 import hlaaftana.kismet.type.SingleType
 import hlaaftana.kismet.type.TupleType
@@ -18,13 +16,11 @@ import static hlaaftana.kismet.lib.Functions.func
 import static hlaaftana.kismet.lib.Functions.instr
 
 @CompileStatic
-class Logic extends LibraryModule {
+class Logic extends NativeModule {
     static final SingleType BOOLEAN_TYPE = new SingleType('Boolean')
 
-    TypedContext typed = new TypedContext("logic")
-    Context defaultContext = new Context()
-
     Logic() {
+        super("logic")
         define BOOLEAN_TYPE
         define 'true', BOOLEAN_TYPE, KismetBoolean.TRUE
         define 'false', BOOLEAN_TYPE, KismetBoolean.FALSE

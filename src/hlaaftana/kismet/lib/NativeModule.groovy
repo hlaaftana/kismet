@@ -5,11 +5,13 @@ import hlaaftana.kismet.call.Expression
 import hlaaftana.kismet.call.Template
 import hlaaftana.kismet.parser.Parser
 import hlaaftana.kismet.scope.Context
+import hlaaftana.kismet.scope.Module
 import hlaaftana.kismet.scope.TypedContext
 import hlaaftana.kismet.type.GenericType
 import hlaaftana.kismet.type.SingleType
 import hlaaftana.kismet.type.Type
 import hlaaftana.kismet.vm.IKismetObject
+import hlaaftana.kismet.vm.Memory
 
 import static hlaaftana.kismet.call.ExprBuilder.call
 import static hlaaftana.kismet.call.ExprBuilder.name
@@ -17,9 +19,21 @@ import static hlaaftana.kismet.lib.Functions.TEMPLATE_TYPE
 import static hlaaftana.kismet.lib.Types.inferType
 
 @CompileStatic
-abstract class LibraryModule {
-    abstract TypedContext getTyped()
-    abstract Context getDefaultContext()
+class NativeModule extends Module {
+    String name
+    TypedContext typedContext
+    Context defaultContext
+
+    NativeModule(String name) {
+        this.name = name
+        typedContext = new TypedContext(name)
+        typedContext.module = this
+        defaultContext = new Context()
+    }
+
+    Memory run(Memory[] heritage) {
+        typedContext
+    }
 
     void define(SingleType type) {
         define(type.name, new GenericType(Types.META_TYPE, type), type)
@@ -35,16 +49,16 @@ abstract class LibraryModule {
     }
 
     void typed(String name, Type type, IKismetObject object) {
-        typed.addVariable(name, object, type)
+        typedContext.addVariable(name, object, type)
     }
 
     void alias(String old, String... news) {
         final dyn = defaultContext.get(old)
-        final typ = typed.getAll(old)
+        final typ = typedContext.getAll(old)
         for (final n : news) {
             defaultContext.add(n, dyn)
             for (final t : typ) {
-                typed.addVariable(n, t.variable.value, t.variable.type)
+                typedContext.addVariable(n, t.variable.value, t.variable.type)
             }
         }
     }
@@ -61,7 +75,7 @@ abstract class LibraryModule {
         }
         for (final n : news) {
             defaultContext.add(n, temp)
-            typed.addVariable(n, temp, TEMPLATE_TYPE)
+            typedContext.addVariable(n, temp, TEMPLATE_TYPE)
         }
     }
 }

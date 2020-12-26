@@ -1,0 +1,15 @@
+;; alternative im considering to generics, every function can
+;; have its own bounds and then receive the actual type of the arguments
+;; and return type bound then operate on them
+
+defn_generic [memoized (f: Function) (returns Function)
+  (type {
+    F: type_of f
+    fn_type (F,): F
+    ;; Function[Tuple[F], F]
+  })] {
+  cache: cast Map[arguments F, result F] {:}
+  fn [args: varargs (arguments F)] {
+    get_or_set cache[args] [call f args]
+  }
+}

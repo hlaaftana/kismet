@@ -21,10 +21,10 @@ import static hlaaftana.kismet.call.ExprBuilder.*
 @CompileStatic
 abstract class Expression implements IKismetObject<Expression> {
 	int ln, cl
-	abstract IKismetObject evaluate(Context c)
+	abstract IKismetObject evaluate(Memory c)
 
 	TypedExpression type(TypedContext tc, TypeBound preferred) {
-		throw new UnsupportedOperationException('Cannot turn ' + this + ' to typed')
+		throw new UnsupportedOperationException('Cannot turn ' + this + ' to typedContext')
 	}
 
 	TypedExpression type(TypedContext tc) { type(tc, +Type.ANY) }
@@ -40,7 +40,7 @@ abstract class Expression implements IKismetObject<Expression> {
 	}
 
 	Expression percentize(Parser p) {
-		new StaticExpression(this, p.context)
+		new StaticExpression(this, p.memory)
 	}
 
 	Expression inner() { this }
@@ -61,7 +61,7 @@ class PathExpression extends Expression {
 		this.steps = steps
 	}
 
-	IKismetObject evaluate(Context c) {
+	IKismetObject evaluate(Memory c) {
 		if (null == root || root instanceof NoExpression) {
 			new PathFunction(c, steps)
 		} else {
@@ -70,10 +70,10 @@ class PathExpression extends Expression {
 	}
 
 	static class PathFunction extends Function {
-		Context context
+		Memory context
 		List<Step> steps
 
-		PathFunction(Context context, List<Step> steps) {
+		PathFunction(Memory context, List<Step> steps) {
 			this.context = context
 			this.steps = steps
 		}
@@ -83,7 +83,7 @@ class PathExpression extends Expression {
 		}
 	}
 
-	static IKismetObject applySteps(Context c, IKismetObject object, List<Step> steps) {
+	static IKismetObject applySteps(Memory c, IKismetObject object, List<Step> steps) {
 		for (step in steps) object = step.get(c, object)
 		object
 	}
@@ -109,8 +109,8 @@ class PathExpression extends Expression {
 	}
 
 	interface Step {
-		IKismetObject get(Context c, IKismetObject object)
-		IKismetObject set(Context c, IKismetObject object, IKismetObject value)
+		IKismetObject get(Memory c, IKismetObject object)
+		IKismetObject set(Memory c, IKismetObject object, IKismetObject value)
 		Expression asExpr()
 		Step borrow(Expression expr)
 		TypedExpression type(TypedContext ctx, TypedExpression before)
@@ -124,13 +124,13 @@ class PathExpression extends Expression {
 			this.name = name
 		}
 
-		IKismetObject get(Context c, IKismetObject object) {
+		IKismetObject get(Memory c, IKismetObject object) {
 			final n = Function.callOrNull(c, getterName(name), object)
 			if (null != n) return n
 			Function.tryCall(c, '.property', object, new KismetString(name))
 		}
 
-		IKismetObject set(Context c, IKismetObject object, IKismetObject value) {
+		IKismetObject set(Memory c, IKismetObject object, IKismetObject value) {
 			final n = Function.callOrNull(c, setterName(name), object, value)
 			if (null != n) return n
 			Function.tryCall(c, '.property=', object, new KismetString(name), value)
@@ -177,11 +177,11 @@ class PathExpression extends Expression {
 			this.expression = expression
 		}
 
-		IKismetObject get(Context c, IKismetObject object) {
+		IKismetObject get(Memory c, IKismetObject object) {
 			Function.tryCall(c, '.[]', object, expression.evaluate(c))
 		}
 
-		IKismetObject set(Context c, IKismetObject object, IKismetObject value) {
+		IKismetObject set(Memory c, IKismetObject object, IKismetObject value) {
 			Function.tryCall(c, '.[]=', object, expression.evaluate(c), value)
 		}
 
@@ -208,14 +208,14 @@ class PathExpression extends Expression {
 			this.expression = expression
 		}
 
-		IKismetObject get(Context c, IKismetObject object) {
-			def ec = new EnterContext(c)
+		IKismetObject get(Memory c, IKismetObject object) {
+			def ec = new EnterContext((Context) c)
 			ec.set('it', ec.object = object)
 			expression.evaluate(ec)
 		}
 
-		IKismetObject set(Context c, IKismetObject object, IKismetObject value) {
-			throw new UnsupportedOperationException('unsupported')
+		IKismetObject set(Memory c, IKismetObject object, IKismetObject value) {
+			throw new UnsupportedOperationException('unsupported curly dots')
 		}
 
 		String toString() { ".{$expression}" }
@@ -263,7 +263,7 @@ class TypedWrapperExpression extends Expression {
 		this.inner = inner
 	}
 
-	IKismetObject evaluate(Context c) {
+	IKismetObject evaluate(Memory c) {
 		inner.instruction.evaluate(c)
 	}
 
@@ -272,7 +272,7 @@ class TypedWrapperExpression extends Expression {
 	}
 
 	String repr() {
-		"typed($inner)"
+		"typedContext($inner)"
 	}
 }
 
@@ -285,7 +285,7 @@ class OnceExpression extends Expression {
 		this.inner = inner
 	}
 
-	IKismetObject evaluate(Context c) {
+	IKismetObject evaluate(Memory c) {
 		if (null == value) value = inner.evaluate(c)
 		value
 	}
@@ -311,7 +311,7 @@ class NameExpression extends Expression {
 
 	NameExpression(String text) { this.text = text }
 
-	IKismetObject evaluate(Context c) {
+	IKismetObject evaluate(Memory c) {
 		c.get(text)
 	}
 
@@ -332,8 +332,8 @@ class DiveExpression extends Expression {
 
 	String repr() { "dive[$inner]" }
 
-	IKismetObject evaluate(Context c) {
-		c = c.child()
+	IKismetObject evaluate(Memory c) {
+		c = new Context(c)
 		inner.evaluate(c)
 	}
 
@@ -364,9 +364,9 @@ class VariableModifyExpression extends Expression {
 		new VariableSetExpression(type.set(tc, name, v.type), v)
 	}
 
-	IKismetObject evaluate(Context c) {
+	IKismetObject evaluate(Memory c) {
 		def v = expression.evaluate(c)
-		type.set(c, name, v)
+		type.set((Context) c, name, v)
 		v
 	}
 }
@@ -381,7 +381,7 @@ class BlockExpression extends Expression {
 
 	BlockExpression(List<Expression> exprs) { members = exprs }
 
-	IKismetObject evaluate(Context c) {
+	IKismetObject evaluate(Memory c) {
 		IKismetObject a = Kismet.NULL
 		for (e in members) a = e.evaluate(c)
 		a
@@ -433,7 +433,7 @@ class CallExpression extends Expression {
 		i < 0 ? this[arguments.size() + i + 1] : i == 0 ? callValue : arguments[i - 1]
 	}
 
-	IKismetObject evaluate(Context c) {
+	IKismetObject evaluate(Memory c) {
 		if (null == callValue) return Kismet.NULL
 		IKismetObject obj = callValue.evaluate(c)
 		if (obj.inner() instanceof KismetCallable) {
@@ -512,7 +512,7 @@ class CallExpression extends Expression {
 		def argtypes = new Type[args.length]
 		for (int i = 0; i < args.length; ++i) argtypes[i] = (args[i] = arguments.get(i).type(tc)).type
 
-		// typed template
+		// typedContext template
 		final typedTmpl = Functions.typedTmpl(preferred.type, argtypes)
 		try {
 			cv = callValue.type(tc, -typedTmpl)
@@ -540,10 +540,11 @@ class CallExpression extends Expression {
 		if (null != cv) return new TypedCallExpression(cv, args, cv.type instanceof SingleType ? Type.ANY : ((GenericType) cv.type)[1])
 
 		cv = callValue.type(tc)
-		// TODO: change the 'call' signature in Prelude after all untyped functions are typed (held back by generics)
+		// TODO: change the 'call' signature in Prelude after all untyped functions are typedContext (held back by generics)
 		// println "WARNING: $this WILL USE 'call' FUNCTION"
-		def cc = tc.find('call', -Functions.func(preferred.type, new TupleType(cv.type, new TupleType(argtypes))))
-		if (null == cc) throw new UndefinedSymbolException('Could not find overload for ' + repr() + ' as ' + argtypes + ': ' + preferred)
+		def callFnType = Functions.FUNCTION_TYPE.generic(new TupleType(cv.type, new TupleType(argtypes)), preferred.type)
+		def cc = tc.find('call', -callFnType)
+		if (null == cc) throw new UndefinedSymbolException('Could not find overload for ' + repr() + ' as (' + argtypes.join(', ') + ') -> ' + preferred)
 		new TypedCallExpression(new VariableExpression(cc), [cv, new TupleExpression.Typed(args)] as TypedExpression[], cc.variable.type instanceof SingleType ? Type.ANY : ((GenericType) cc.variable.type)[1])
 	}
 }
@@ -570,7 +571,7 @@ class ListExpression extends CollectionExpression {
 
 	String repr() { "[${members.join(', ')}]" }
 
-	IKismetObject evaluate(Context c) {
+	IKismetObject evaluate(Memory c) {
 		Kismet.model(members*.evaluate(c)*.inner())
 	}
 
@@ -646,7 +647,7 @@ class TupleExpression extends CollectionExpression {
 		new TupleExpression(exprs)
 	}
 
-	IKismetObject evaluate(Context c) {
+	IKismetObject evaluate(Memory c) {
 		def arr = new IKismetObject[members.size()]
 		for (int i = 0; i < arr.length; ++i) arr[i] = members.get(i).evaluate(c)
 		new KismetTuple(arr)
@@ -721,7 +722,7 @@ class SetExpression extends CollectionExpression {
 		new SetExpression(exprs)
 	}
 
-	IKismetObject evaluate(Context c) {
+	IKismetObject evaluate(Memory c) {
 		def arr = new HashSet<Object>(members.size())
 		for (m in members) arr.add(m.evaluate(c).inner())
 		Kismet.model(arr)
@@ -800,7 +801,7 @@ class MapExpression extends CollectionExpression {
 		new MapExpression(arr)
 	}
 
-	IKismetObject evaluate(Context c) {
+	IKismetObject evaluate(Memory c) {
 		def arr = new HashMap<Object, Object>(members.size())
 		for (m in members) arr.put(m.left.evaluate(c).inner(), m.right.evaluate(c).inner())
 		Kismet.model(arr)
@@ -883,12 +884,12 @@ class ColonExpression extends Expression {
 		this.right = right
 	}
 
-	IKismetObject evaluate(Context c) {
+	IKismetObject evaluate(Memory c) {
 		def value = right.evaluate(c)
 		if (left instanceof StringExpression)
-			AssignmentType.ASSIGN.set(c, ((StringExpression) left).value.inner(), value)
+			AssignmentType.ASSIGN.set((Context) c, ((StringExpression) left).value.inner(), value)
 		else if (left instanceof NameExpression)
-			AssignmentType.ASSIGN.set(c, ((NameExpression) left).text, value)
+			AssignmentType.ASSIGN.set((Context) c, ((NameExpression) left).text, value)
 		else if (left instanceof PathExpression) {
 			def steps = ((PathExpression) left).steps
 			def toApply = steps.init()
@@ -957,7 +958,7 @@ class ConstantExpression<T> extends Expression {
 		value = Kismet.model(obj)
 	}
 
-	IKismetObject<T> evaluate(Context c) {
+	IKismetObject<T> evaluate(Memory c) {
 		value
 		//Kismet.model(value.inner())
 	}
@@ -1048,8 +1049,8 @@ class NumberExpression extends ConstantExpression<Number> {
 		}
 
 		@Override
-		IKismetObject evaluate(Context c) {
-			final x = c.@variables[index]
+		IKismetObject evaluate(Memory c) {
+			final x = ((Context) c).@variables[index]
 			if (x) x.value
 			else throw new KismetEvaluationException(this, "No variable at index $index")
 		}
@@ -1100,7 +1101,7 @@ class StringExpression extends ConstantExpression<String> {
 		new NameExpression(raw)
 	}
 
-	IKismetObject<String> evaluate(Context c) {
+	IKismetObject<String> evaluate(Memory c) {
 		if (null == exception) value
 		else throw exception
 	}
@@ -1129,7 +1130,7 @@ class StaticExpression<T extends Expression> extends ConstantExpression<Object> 
 		setValue(val)
 	}
 
-	StaticExpression(T ex = null, Context c) {
+	StaticExpression(T ex = null, Memory c) {
 		this(ex, ex.evaluate(c))
 	}
 
@@ -1143,7 +1144,7 @@ class StaticExpression<T extends Expression> extends ConstantExpression<Object> 
 class NoExpression extends Expression {
 	String repr() { "noexpr" }
 
-	IKismetObject evaluate(Context c) {
+	IKismetObject evaluate(Memory c) {
 		Kismet.NULL
 	}
 

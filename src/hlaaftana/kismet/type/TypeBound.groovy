@@ -2,10 +2,11 @@ package hlaaftana.kismet.type
 
 import groovy.transform.CompileStatic
 import groovy.transform.EqualsAndHashCode
+import hlaaftana.kismet.vm.IKismetObject
 
 @CompileStatic
 @EqualsAndHashCode
-class TypeBound {
+class TypeBound implements IKismetObject<TypeBound> {
 	Type type
 	Variance variance
 
@@ -49,6 +50,11 @@ class TypeBound {
 
 	String toString() {
 		variance.name().toLowerCase() + ' ' + type.toString()
+	}
+
+	@Override
+	TypeBound inner() {
+		this
 	}
 
 	enum Variance {

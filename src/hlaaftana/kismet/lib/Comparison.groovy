@@ -6,8 +6,6 @@ import hlaaftana.kismet.call.Expression
 import hlaaftana.kismet.call.NameExpression
 import hlaaftana.kismet.call.Template
 import hlaaftana.kismet.parser.Parser
-import hlaaftana.kismet.scope.Context
-import hlaaftana.kismet.scope.TypedContext
 import hlaaftana.kismet.type.NumberType
 import hlaaftana.kismet.type.Type
 
@@ -15,11 +13,9 @@ import static hlaaftana.kismet.lib.Functions.func
 import static hlaaftana.kismet.lib.Functions.funcc
 
 @CompileStatic
-class Comparison extends LibraryModule {
-    TypedContext typed = new TypedContext("comparison")
-    Context defaultContext = new Context()
-
+class Comparison extends NativeModule {
     Comparison() {
+        super("comparison")
         define 'is?', func(Logic.BOOLEAN_TYPE, Type.ANY, Type.ANY), funcc { ... args -> args.inject { a, b -> a == b } }
         negated 'is?', 'is_not?'
         alias 'is?', '=='

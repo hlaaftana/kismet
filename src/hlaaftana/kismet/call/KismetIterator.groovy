@@ -3,11 +3,11 @@ package hlaaftana.kismet.call
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.lib.Functions
 import hlaaftana.kismet.parser.Parser
-import hlaaftana.kismet.scope.Context
 import hlaaftana.kismet.scope.TypedContext
 import hlaaftana.kismet.type.Type
 import hlaaftana.kismet.type.TypeBound
 import hlaaftana.kismet.vm.IKismetObject
+import hlaaftana.kismet.vm.Memory
 
 /*
 
@@ -17,7 +17,7 @@ import hlaaftana.kismet.vm.IKismetObject
 class KismetIterator {
 	Expression inner
 
-	IKismetObject iterate(Context c, Expression toCall) {
+	IKismetObject iterate(Memory c, Expression toCall) {
 		c.set('yield', new YieldTemplate(toCall))
 		inner.evaluate(c)
 	}

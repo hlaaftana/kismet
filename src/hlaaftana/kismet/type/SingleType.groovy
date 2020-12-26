@@ -12,7 +12,7 @@ class SingleType extends AbstractType {
 		this.bounds = bounds
 	}
 
-	Type generic(Type... genericArgs) {
+	AbstractType generic(Type... genericArgs) {
 		if (!boundsMatch(genericArgs)) null
 		else if (null == bounds) this
 		else new GenericType(this, genericArgs)

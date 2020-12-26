@@ -63,7 +63,7 @@ abstract class Function implements KismetCallable, IKismetObject<Function> {
 		IKismetObject call(IKismetObject... args) { Kismet.NULL }
 	}
 
-	IKismetObject call(Context c, Expression... args) {
+	IKismetObject call(Memory c, Expression... args) {
 		final arr = new IKismetObject[args.length]
 		for (int i = 0; i < arr.length; ++i) {
 			arr[i] = args[i].evaluate(c)
@@ -238,7 +238,7 @@ class Arguments {
 		else for (c in block.members) parseCall(p.clone(), ((CallExpression) c).members)
 	}
 
-	void setArgs(Context c, IKismetObject[] args) {
+	void setArgs(Memory c, IKismetObject[] args) {
 		c.set('_all', new KismetTuple(args))
 		if (enforceLength && parameters.size() != args.length)
 			throw new CheckFailedException("Got argument length $args.length which wasn't ${parameters.size()}")
@@ -317,11 +317,11 @@ class FunctionDefineExpression extends Expression {
 		this.body = body
 	}
 
-	IKismetObject evaluate(Context c) {
+	IKismetObject evaluate(Memory c) {
 		def result = new KismetFunction()
 		result.name = name
 		result.arguments = arguments
-		result.block = c.child(body)
+		result.block = new Block(body, new Context(c))
 		c.set(name, result)
 		result
 	}
@@ -367,7 +367,7 @@ class FunctionExpression extends Expression {
 
 	FunctionExpression(boolean named, Expression[] args) {
 		final first = args[0]
-		final f = first.members ?: [first]
+		final f = first instanceof ColonExpression ? [(Expression) first] : first.members ?: [first]
 		def len = args.length
 		if (named) {
 			name = ((NameExpression) f[0]).text
@@ -390,11 +390,11 @@ class FunctionExpression extends Expression {
 
 	FunctionExpression() {}
 
-	IKismetObject evaluate(Context c) {
+	IKismetObject evaluate(Memory c) {
 		def result = new KismetFunction()
 		result.name = name
 		result.arguments = arguments
-		result.block = c.child(expression)
+		result.block = new Block(expression, new Context(c))
 		result
 	}
 
@@ -453,7 +453,7 @@ class TypedFunction extends Function implements Nameable {
 		instruction.evaluate(mem)
 	}
 
-	String toString() { "typed function $name" }
+	String toString() { "typedContext function $name" }
 }
 
 @CompileStatic

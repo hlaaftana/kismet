@@ -18,18 +18,16 @@ import hlaaftana.kismet.vm.*
 
 import static hlaaftana.kismet.call.ExprBuilder.*
 import static hlaaftana.kismet.lib.Functions.*
-import static hlaaftana.kismet.lib.Functions.TYPED_TEMPLATE_TYPE
 import static hlaaftana.kismet.lib.Logic.BOOLEAN_TYPE
 
 @CompileStatic
-class Reflection extends LibraryModule {
+class Reflection extends NativeModule {
     static final SingleType INSTRUCTION_TYPE = new SingleType('Instruction'),
                             MEMORY_TYPE = new SingleType('Memory'),
                             EXPRESSION_TYPE = new SingleType('Expression')
-    TypedContext typed = new TypedContext("reflection")
-    Context defaultContext = new Context()
 
     Reflection() {
+        super("reflection")
         define EXPRESSION_TYPE
         define INSTRUCTION_TYPE
         define MEMORY_TYPE
@@ -218,7 +216,7 @@ class Reflection extends LibraryModule {
                 new TypedConstantExpression(Type.ANY, new WrapperKismetObject(tc.find(Syntax.toAtom(args[0]))))
             }
 
-            IKismetObject call(Context c, Expression... args) {
+            IKismetObject call(Memory c, Expression... args) {
                 if (args.length == 0) throw new UnexpectedSyntaxException('No arguments for variable function')
                 final first = args[0].evaluate(c)
                 if (first.inner() instanceof String) {
@@ -240,8 +238,8 @@ class Reflection extends LibraryModule {
                 new TypedConstantExpression(Type.ANY, new WrapperKismetObject(context.variables))
             }
 
-            IKismetObject call(Context c, Expression... args) {
-                new WrapperKismetObject(c.variables)
+            IKismetObject call(Memory c, Expression... args) {
+                new WrapperKismetObject(((Context) c).variables)
             }
         }
         define 'current_context', TYPE_CHECKER_TYPE, new TypeChecker() {
@@ -249,7 +247,7 @@ class Reflection extends LibraryModule {
                 new TypedConstantExpression(Type.ANY, new WrapperKismetObject(context))
             }
 
-            IKismetObject call(Context c, Expression... args) {
+            IKismetObject call(Memory c, Expression... args) {
                 new WrapperKismetObject(c)
             }
         }
@@ -273,7 +271,7 @@ class Reflection extends LibraryModule {
                 }
             }
 
-            IKismetObject call(Context c, Expression... exprs) {
+            IKismetObject call(Memory c, Expression... exprs) {
                 try {
                     c.get(resolveName(exprs[0], c, "defined?"))
                     KismetBoolean.TRUE
@@ -284,19 +282,20 @@ class Reflection extends LibraryModule {
         }
         negated 'defined?', 'undefined?'
         alias 'defined?', 'variable?'
+        // TODO: change to submodule
         define 'parse_independent_kismet',  func { IKismetObject... args ->
             def parser = new Parser()
-            parser.context = new Context(Kismet.DEFAULT_CONTEXT)
+            parser.memory = new Context(Kismet.DEFAULT_CONTEXT)
             def p = parser.parse(args[0].toString())
-            def tc = Kismet.PRELUDE.typed.child()
+            def tc = Kismet.PRELUDE.typedContext.child()
             def t = p.type(tc)
             def i = t.instruction
-            def mem = new RuntimeMemory([Kismet.PRELUDE.typed] as Memory[], tc.size())
+            def mem = new RuntimeMemory([Kismet.PRELUDE.typedContext] as Memory[], tc.size())
             i.evaluate(mem)
         }
     }
 
-    static String resolveName(Expression n, Context c, String op) {
+    static String resolveName(Expression n, Memory c, String op) {
         String name
         if (n instanceof NameExpression) name = ((NameExpression) n).text
         else if (n instanceof NumberExpression) throw new UnexpectedSyntaxException("Name in $op was a number, not allowed")

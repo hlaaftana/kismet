@@ -2,8 +2,6 @@ package hlaaftana.kismet.lib
 
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.call.Function
-import hlaaftana.kismet.scope.Context
-import hlaaftana.kismet.scope.TypedContext
 import hlaaftana.kismet.type.NumberType
 import hlaaftana.kismet.vm.IKismetObject
 import hlaaftana.kismet.vm.KismetBoolean
@@ -13,11 +11,9 @@ import static hlaaftana.kismet.lib.Functions.func
 import static hlaaftana.kismet.lib.Functions.funcc
 
 @CompileStatic
-class RandomModule extends LibraryModule {
-    TypedContext typed = new TypedContext("random")
-    Context defaultContext = new Context()
-
+class RandomModule extends NativeModule {
     RandomModule() {
+        super("random")
         define 'new_rng', funcc { ... args -> args.length > 0 ? new Random(args[0] as long) : new Random() }
         define 'random_int8_list_from_reference', funcc { ... args ->
             byte[] bytes = args[1] as byte[]

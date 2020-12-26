@@ -131,7 +131,14 @@ class KismetString implements IKismetObject<String>, CharSequence {
 
 	KismetString add(CharSequence seq) { inner.append(seq.toString()); this }
 
-	KismetString add(List<CharSequence> seq) {
+	KismetString add(Collection<CharSequence> seq) {
+		for (s in seq) add(s)
+		this
+	}
+
+	KismetString call(CharSequence seq) { inner.append(seq.toString()); this }
+
+	KismetString call(Collection<CharSequence> seq) {
 		for (s in seq) add(s)
 		this
 	}
@@ -159,6 +166,8 @@ class KismetString implements IKismetObject<String>, CharSequence {
 	KismetString deleteCharAt(int i) { inner.deleteCharAt(i); this }
 
 	KismetString insert(int i, CharSequence seq) { inner.insert(i, seq); this }
+
+	KismetString insert(int i, char ch) { inner.insert(i, ch); this }
 
 	KismetString reverse() {
 		new KismetString(inner().reverse())

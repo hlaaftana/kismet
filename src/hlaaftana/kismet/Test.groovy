@@ -1,25 +1,17 @@
 package hlaaftana.kismet
 
 import groovy.transform.CompileStatic
-import hlaaftana.kismet.call.Function
-import hlaaftana.kismet.call.TypedConstantExpression
-import hlaaftana.kismet.call.TypedExpression
-import hlaaftana.kismet.call.TypedNoExpression
-import hlaaftana.kismet.call.TypedStringExpression
-import hlaaftana.kismet.call.TypedTemplate
+import hlaaftana.kismet.call.*
 import hlaaftana.kismet.exceptions.UnexpectedTypeException
 import hlaaftana.kismet.lib.Functions
 import hlaaftana.kismet.lib.Strings
 import hlaaftana.kismet.lib.Types
 import hlaaftana.kismet.parser.Parser
 import hlaaftana.kismet.scope.Context
+import hlaaftana.kismet.scope.KismetModule
+import hlaaftana.kismet.scope.KismetModuleSpace
 import hlaaftana.kismet.scope.TypedContext
-import hlaaftana.kismet.type.GenericType
-import hlaaftana.kismet.type.ParameterType
-
-import hlaaftana.kismet.type.SingleType
-import hlaaftana.kismet.type.Type
-import hlaaftana.kismet.type.UnionType
+import hlaaftana.kismet.type.*
 import hlaaftana.kismet.vm.IKismetObject
 import hlaaftana.kismet.vm.Memory
 import hlaaftana.kismet.vm.RuntimeMemory
@@ -104,20 +96,20 @@ class Test {
 
 	static void run(Parser parser, String text) {
 		def p = parser.parse(text)
-		def tc = Kismet.PRELUDE.typed.child()
+		def tc = Kismet.PRELUDE.typedContext.child()
 		tc.addVariable('echo', echo, Functions.func(Type.NONE, Type.ANY))
 		tc.addVariable('analyze', analyze, Functions.func(Type.NONE, Type.ANY))
 		tc.addVariable('type_relation', type_relation, Functions.typedTmpl(Strings.STRING_TYPE, Types.META_TYPE, Types.META_TYPE))
 		tc.addVariable('explain_typed', explain_typed, Functions.typedTmpl(Type.NONE, Type.ANY))
 		tc.addVariable('parameter_type', parameter_type,
-				new UnionType(Functions.typedTmpl(Types.META_TYPE), Functions.typedTmpl(Types.META_TYPE, Types.META_TYPE)))
+			new UnionType(Functions.typedTmpl(Types.META_TYPE), Functions.typedTmpl(Types.META_TYPE, Types.META_TYPE)))
 		tc.addVariable('parametrize', parametrize,
-				Functions.typedTmpl(Type.NONE, Types.META_TYPE, Types.META_TYPE))
+			Functions.typedTmpl(Type.NONE, Types.META_TYPE, Types.META_TYPE))
 		tc.addVariable('unparam', unparam,
-				Functions.typedTmpl(Types.META_TYPE, Types.META_TYPE))
+			Functions.typedTmpl(Types.META_TYPE, Types.META_TYPE))
 		def t = p.type(tc)
 		def i = t.instruction
-		def mem = new RuntimeMemory([Kismet.PRELUDE.typed] as Memory[], tc.size())
+		def mem = new RuntimeMemory([Kismet.PRELUDE.typedContext] as Memory[], tc.size())
 		mem.memory[0] = echo
 		mem.memory[1] = analyze
 		mem.memory[2] = type_relation
@@ -128,15 +120,45 @@ class Test {
 		i.evaluate(mem)
 	}
 
+	static KismetModuleSpace<File> modules = new KismetModuleSpace<>()
+
+	static void run(Parser parser, File file) {
+		def mod = KismetModule.from(modules, file)
+		mod.parse(parser)
+		def tc = Kismet.PRELUDE.typedContext.child(mod)
+		tc.addVariable('echo', echo, Functions.func(Type.NONE, Type.ANY))
+		tc.addVariable('analyze', analyze, Functions.func(Type.NONE, Type.ANY))
+		tc.addVariable('type_relation', type_relation, Functions.typedTmpl(Strings.STRING_TYPE, Types.META_TYPE, Types.META_TYPE))
+		tc.addVariable('explain_typed', explain_typed, Functions.typedTmpl(Type.NONE, Type.ANY))
+		tc.addVariable('parameter_type', parameter_type,
+			new UnionType(Functions.typedTmpl(Types.META_TYPE), Functions.typedTmpl(Types.META_TYPE, Types.META_TYPE)))
+		tc.addVariable('parametrize', parametrize,
+			Functions.typedTmpl(Type.NONE, Types.META_TYPE, Types.META_TYPE))
+		tc.addVariable('unparam', unparam,
+			Functions.typedTmpl(Types.META_TYPE, Types.META_TYPE))
+		mod.typedContext = tc
+		mod.type()
+		def mem = new RuntimeMemory([Kismet.PRELUDE.typedContext] as Memory[], tc.size())
+		mem.memory[0] = echo
+		mem.memory[1] = analyze
+		mem.memory[2] = type_relation
+		mem.memory[3] = explain_typed
+		mem.memory[4] = parameter_type
+		mem.memory[5] = parametrize
+		mem.memory[6] = unparam
+		mod.memory = mem
+		mod.run()
+	}
+
 	static main(args) {
 		def parser = new Parser()
-		parser.context = new Context(Kismet.DEFAULT_CONTEXT, [echo: (IKismetObject) echo, analyze: (IKismetObject) analyze])
+		parser.memory = new Context(Kismet.DEFAULT_CONTEXT, [echo: (IKismetObject) echo, analyze: (IKismetObject) analyze])
 		def passed = [], failed = []
 		for (f in new File('examples').list()) {
 			println "file: $f"
 			final file = new File("examples/" + f)
 			try {
-				run(parser, file.text)
+				run(parser, file)
 				println "passed: $f"
 				passed.add(f)
 			} catch (ex) {

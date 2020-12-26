@@ -12,15 +12,15 @@ import hlaaftana.kismet.vm.Memory
 
 @CompileStatic
 class Context extends Memory {
-	Context parent
+	Memory parent
 	List<Address> variables
 
-	Context(Context parent = null, Map<String, IKismetObject> variables) {
+	Context(Memory parent = null, Map<String, IKismetObject> variables) {
 		this.parent = parent
 		setVariables variables
 	}
 
-	Context(Context parent = null, List<Address> variables = []) {
+	Context(Memory parent = null, List<Address> variables = []) {
 		this.parent = parent
 		setVariables variables
 	}
@@ -60,7 +60,7 @@ class Context extends Memory {
 	Address getSafe(String name) {
 		final v = getVariable(name)
 		if (null != v) v
-		else if (null != parent) parent.getSafe(name)
+		else if (null != parent && parent instanceof Context) parent.getSafe(name)
 		else null
 	}
 

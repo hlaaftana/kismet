@@ -11,6 +11,9 @@ class RuntimeMemory extends Memory {
 	RuntimeMemory(TypedContext contxt) {
 		heritage = new Memory[contxt.heritage.size()]
 		memory = new IKismetObject[contxt.size()]
+		for (int i = 0; i < memory.length; ++i) {
+			memory[i] = contxt.get(i)
+		}
 	}
 
 	RuntimeMemory(Memory[] heritage, int stackSize) {

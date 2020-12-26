@@ -12,6 +12,7 @@ import hlaaftana.kismet.vm.Memory
 @CompileStatic
 class TypedContext extends Memory {
 	String label
+	Module module
 	List<TypedContext> heritage = new ArrayList<>()
 	List<Variable> variables = new ArrayList<>()
 
@@ -20,9 +21,10 @@ class TypedContext extends Memory {
 		label = name
 	}
 
-	TypedContext child() {
+	TypedContext child(Module module = this.module) {
 		def result = new TypedContext()
 		result.heritage.add(this)
+		result.module = module
 		result
 	}
 

@@ -1,10 +1,10 @@
 package hlaaftana.kismet.call
 
 import groovy.transform.CompileStatic
-import hlaaftana.kismet.scope.Context
 import hlaaftana.kismet.vm.IKismetObject
+import hlaaftana.kismet.vm.Memory
 
 @CompileStatic
 interface KismetCallable {
-	IKismetObject call(Context c, Expression... args)
+	IKismetObject call(Memory c, Expression... args)
 }

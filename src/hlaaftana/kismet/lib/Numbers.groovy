@@ -5,34 +5,30 @@ import hlaaftana.kismet.call.*
 import hlaaftana.kismet.exceptions.UnexpectedSyntaxException
 import hlaaftana.kismet.exceptions.UnexpectedValueException
 import hlaaftana.kismet.parser.Parser
-import hlaaftana.kismet.scope.Context
-import hlaaftana.kismet.scope.TypedContext
-import hlaaftana.kismet.type.GenericType
-import hlaaftana.kismet.type.NumberType
-import hlaaftana.kismet.type.Type
-import hlaaftana.kismet.type.UnionType
+import hlaaftana.kismet.type.*
 import hlaaftana.kismet.vm.*
 
 import java.math.RoundingMode
 
 import static hlaaftana.kismet.call.ExprBuilder.*
-import static hlaaftana.kismet.lib.Functions.func
-import static hlaaftana.kismet.lib.Functions.funcc
-import static hlaaftana.kismet.lib.Functions.TEMPLATE_TYPE
+import static hlaaftana.kismet.lib.Functions.*
 
 @CompileStatic
 @SuppressWarnings("ChangeToOperator")
-class Numbers extends LibraryModule {
+class Numbers extends NativeModule {
     private static Map<String, RoundingMode> roundingModes = [
-            '^': RoundingMode.CEILING, 'v': RoundingMode.FLOOR,
-            '^0': RoundingMode.UP, 'v0': RoundingMode.DOWN,
-            '/^': RoundingMode.HALF_UP, '/v': RoundingMode.HALF_DOWN,
-            '/2': RoundingMode.HALF_EVEN, '!': RoundingMode.UNNECESSARY
+        'ceiling': RoundingMode.CEILING, 'floor': RoundingMode.FLOOR,
+        'up': RoundingMode.UP, 'down': RoundingMode.DOWN,
+        'half_up': RoundingMode.HALF_UP, 'half_down': RoundingMode.HALF_DOWN,
+        'half_even': RoundingMode.HALF_EVEN, 'none': RoundingMode.UNNECESSARY,
+        '^': RoundingMode.CEILING, 'v': RoundingMode.FLOOR,
+        '^0': RoundingMode.UP, 'v0': RoundingMode.DOWN,
+        '/^': RoundingMode.HALF_UP, '/v': RoundingMode.HALF_DOWN,
+        '/2': RoundingMode.HALF_EVEN, '!': RoundingMode.UNNECESSARY
     ].asImmutable()
-    TypedContext typed = new TypedContext("numbers")
-    Context defaultContext = new Context()
 
     Numbers() {
+        super("numbers")
         for (final n : NumberType.values())
             define n.name(), new GenericType(Types.META_TYPE, n), n
         define 'percent',  funcc(true) { ... a -> a[0].invokeMethod 'div', 100 }
@@ -691,12 +687,16 @@ class Numbers extends LibraryModule {
         define 'number?',  funcc { ... args -> args[0] instanceof Number }
         define 'gcd',  funcc { ... args -> gcd(args[0] as Number, args[1] as Number) }
         define 'lcm',  funcc { ... args -> lcm(args[0] as Number, args[1] as Number) }
-        define 'reduce_ratio',  funcc { ... args ->
-            Pair pair = args[0] as Pair
-            def a = pair.first as Number, b = pair.second as Number
-            Number gcd = gcd(a, b)
-            (a, b) = [a.intdiv(gcd), b.intdiv(gcd)]
-            new Pair(a, b)
+        define 'reduce_ratio', func(new TupleType(NumberType.Number, NumberType.Number), new TupleType(NumberType.Number, NumberType.Number)), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                def tup = (KismetTuple) args[0]
+                def a = (KismetNumber) tup[0], b = (KismetNumber) tup[1]
+                Number gcd = gcd(a.inner(), b.inner())
+                a = a.intdiv(gcd)
+                b = b.intdiv(gcd)
+                new KismetTuple(KismetNumber.from(a), KismetNumber.from(b))
+            }
         }
         define 'int', func(NumberType.Int, Type.ANY), func(true) { IKismetObject... a -> a[0] as BigInteger }
         define 'int8',func(NumberType.Int8, Type.ANY), func(true) { IKismetObject... a -> a[0] as byte }
@@ -752,6 +752,17 @@ class Numbers extends LibraryModule {
             @Override
             IKismetObject call(IKismetObject... args) {
                 ((KismetNumber) args[0]).minus(new KInt32(1))
+            }
+        }
+        define 'call', func(NumberType.Number, NumberType.Number, new TupleType().withVarargs(NumberType.Number)), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                def result = (KismetNumber) args[0]
+                def tup = (KismetTuple) args[1]
+                for (x in tup) {
+                    result *= (KismetNumber) x
+                }
+                KismetNumber.from(result)
             }
         }
     }

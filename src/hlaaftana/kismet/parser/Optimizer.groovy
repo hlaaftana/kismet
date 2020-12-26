@@ -3,8 +3,8 @@ package hlaaftana.kismet.parser
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.call.*
 import hlaaftana.kismet.exceptions.UndefinedVariableException
-import hlaaftana.kismet.scope.Context
 import hlaaftana.kismet.vm.IKismetObject
+import hlaaftana.kismet.vm.Memory
 
 @CompileStatic
 class Optimizer {
@@ -38,7 +38,7 @@ class Optimizer {
 			def text = ((NameExpression) expr.callValue).text
 			IKismetObject func
 			try {
-				func = parser.context?.get(text)
+				func = parser.memory?.get(text)
 			} catch (UndefinedVariableException ignored) {}
 			if (null != func) {
 				def inner = func.inner()
@@ -81,7 +81,7 @@ class Optimizer {
 			toSet = set
 		}
 
-		IKismetObject evaluate(Context c) {
+		IKismetObject evaluate(Memory c) {
 			step.set(c, toSet.evaluate(c), value.evaluate(c))
 		}
 	}
@@ -94,7 +94,7 @@ class Optimizer {
 			this.function = function
 		}
 
-		IKismetObject evaluate(Context c) {
+		IKismetObject evaluate(Memory c) {
 			function.call(c, arguments as Expression[])
 		}
 

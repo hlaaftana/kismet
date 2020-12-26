@@ -275,7 +275,8 @@ proc recordLine*(p: var Parser, ignoreNewline = false): Expr =
       dec p.pos
       break
     of tkOpenParen, tkOpenBrack, tkOpenCurly:
-      if s.len > 0 and p.pos > 0 and p.tokens[p.pos - 1].kind notin {tkNone, tkWhitespace, tkIndent, tkIndentBack, tkNewline}:
+      if s.len > 0 and p.pos > 0 and p.tokens[p.pos - 1].kind notin
+        {tkNone, tkWhitespace, tkIndent, tkIndentBack, tkNewline, tkCloseParen}:
         s.add(recordDot(p, s.pop))
       else:
         s.add(recordSingle(p))

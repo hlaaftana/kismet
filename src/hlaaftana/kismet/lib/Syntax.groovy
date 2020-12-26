@@ -8,30 +8,21 @@ import hlaaftana.kismet.exceptions.UnexpectedTypeException
 import hlaaftana.kismet.parser.Optimizer
 import hlaaftana.kismet.parser.Parser
 import hlaaftana.kismet.scope.AssignmentType
-import hlaaftana.kismet.scope.Context
 import hlaaftana.kismet.scope.TypedContext
 import hlaaftana.kismet.type.GenericType
 import hlaaftana.kismet.type.TupleType
 import hlaaftana.kismet.type.Type
-import hlaaftana.kismet.type.TypeBound
 import hlaaftana.kismet.vm.IKismetObject
 import hlaaftana.kismet.vm.Memory
 import hlaaftana.kismet.vm.WrapperKismetObject
 
 import static hlaaftana.kismet.call.ExprBuilder.*
 import static hlaaftana.kismet.lib.Functions.*
-import static hlaaftana.kismet.lib.Functions.TEMPLATE_TYPE
-import static hlaaftana.kismet.lib.Functions.TEMPLATE_TYPE
-import static hlaaftana.kismet.lib.Functions.TYPE_CHECKER_TYPE
-import static hlaaftana.kismet.lib.Logic.BOOLEAN_TYPE
 import static hlaaftana.kismet.lib.Logic.BOOLEAN_TYPE
 
 @CompileStatic
 @SuppressWarnings("ChangeToOperator")
-class Syntax extends LibraryModule {
-    TypedContext typed = new TypedContext("syntax")
-    Context defaultContext = new Context()
-
+class Syntax extends NativeModule {
     static String toAtom(Expression expression) {
         if (expression instanceof StringExpression) {
             return ((StringExpression) expression).value
@@ -153,6 +144,7 @@ class Syntax extends LibraryModule {
     }
 
     Syntax() {
+        super("syntax")
         /*define '.property', func(Type.ANY, Type.ANY, Strings.STRING_TYPE), new Function() {
             IKismetObject call(IKismetObject... args) {
                 Kismet.model(args[0].getAt(((CharSequence) args[1]).toString()))
@@ -500,7 +492,7 @@ class Syntax extends LibraryModule {
             }
 
             @Override
-            IKismetObject call(Context c, Expression... args) {
+            IKismetObject call(Memory c, Expression... args) {
                 while (args[0].evaluate(c)) {
                     args[1].evaluate(c)
                 }
@@ -520,7 +512,7 @@ class Syntax extends LibraryModule {
             }
 
             @Override
-            IKismetObject call(Context c, Expression... args) {
+            IKismetObject call(Memory c, Expression... args) {
                 while (true) {
                     args[1].evaluate(c)
                     if (args[0].evaluate(c)) break
@@ -595,7 +587,7 @@ class Syntax extends LibraryModule {
 
     // unused:
 
-    static void putPathExpression(Context c, Map map, PathExpression path, value) {
+    static void putPathExpression(Memory c, Map map, PathExpression path, value) {
         final exprs = path.steps
         final key = path.root instanceof NameExpression ? ((NameExpression) path.root).text : path.root.evaluate(c)
         for (ps in exprs.reverse()) {
@@ -619,10 +611,10 @@ class Syntax extends LibraryModule {
         map.put(key, value)
     }
 
-    static void expressiveMap(Map map, Context c, Expression expr) {
+    static void expressiveMap(Map map, Memory c, Expression expr) {
         if (expr instanceof NameExpression) map.put(((NameExpression) expr).text, expr.evaluate(c))
         else if (expr instanceof PathExpression)
-            putPathExpression(c, map, (PathExpression) expr, c.eval(expr))
+            putPathExpression(c, map, (PathExpression) expr, expr.evaluate(c))
         else if (expr instanceof CallExpression) {
             final exprs = ((CallExpression) expr).members
             final value = exprs.last().evaluate(c)
@@ -641,7 +633,7 @@ class Syntax extends LibraryModule {
         }
     }
 
-    static boolean check(Context c, IKismetObject val, Expression exp) {
+    static boolean check(Memory c, IKismetObject val, Expression exp) {
         if (exp instanceof CallExpression) {
             def exprs = new ArrayList<Expression>()
             def valu = exp.callValue

@@ -4,11 +4,9 @@ import groovy.transform.CompileStatic
 import hlaaftana.kismet.Kismet
 import hlaaftana.kismet.exceptions.UnexpectedValueException
 import hlaaftana.kismet.lib.Strings
-import hlaaftana.kismet.scope.Context
 import hlaaftana.kismet.scope.TypedContext
 import hlaaftana.kismet.type.NumberType
 import hlaaftana.kismet.type.Type
-import hlaaftana.kismet.type.TypeBound
 import hlaaftana.kismet.vm.*
 
 import java.nio.ByteBuffer

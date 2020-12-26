@@ -3,24 +3,18 @@ package hlaaftana.kismet.lib
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.Kismet
 import hlaaftana.kismet.call.*
-import hlaaftana.kismet.scope.Context
 import hlaaftana.kismet.scope.TypedContext
 import hlaaftana.kismet.type.*
 import hlaaftana.kismet.vm.IKismetObject
 import hlaaftana.kismet.vm.KismetBoolean
 import hlaaftana.kismet.vm.KismetNumber
-import hlaaftana.kismet.vm.KismetTuple
 
-import static hlaaftana.kismet.lib.Functions.TYPED_TEMPLATE_TYPE
-import static hlaaftana.kismet.lib.Functions.func
-import static hlaaftana.kismet.lib.Functions.typedTmpl
+import static hlaaftana.kismet.lib.Functions.*
 
 @CompileStatic
-class Types extends LibraryModule {
-    static final SingleType META_TYPE = new SingleType('Meta', [+Type.ANY] as TypeBound[])
-
-    TypedContext typed = new TypedContext("types")
-    Context defaultContext = new Context()
+class Types extends NativeModule {
+    static final SingleType META_TYPE = new SingleType('Meta', +Type.ANY),
+        TYPE_BOUND_TYPE = new SingleType('TypeBound', +META_TYPE)
 
     static Type inferType(IKismetObject value) {
         if (value instanceof KismetNumber) value.type
@@ -34,6 +28,7 @@ class Types extends LibraryModule {
     }
 
     Types() {
+        super("types")
         define 'Any', new GenericType(META_TYPE, Type.ANY), Type.ANY
         define 'None', new GenericType(META_TYPE, Type.NONE), Type.NONE
         define 'cast', Functions.TYPE_CHECKER_TYPE, new TypeChecker() {
@@ -112,6 +107,48 @@ class Types extends LibraryModule {
             TypedExpression transform(TypedContext context, TypedExpression... args) {
                 new TypedConstantExpression<KismetBoolean>(Logic.BOOLEAN_TYPE,
                         KismetBoolean.from(unmeta(args[0].type).relation(unmeta(args[1].type)).assignableTo))
+            }
+        }
+        define 'covariant', func(TYPE_BOUND_TYPE, META_TYPE), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                TypeBound.co((Type) args[0])
+            }
+        }
+        define 'contravariant', func(TYPE_BOUND_TYPE, META_TYPE), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                TypeBound.contra((Type) args[0])
+            }
+        }
+        define 'invariant', func(TYPE_BOUND_TYPE, META_TYPE), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                TypeBound.invar((Type) args[0])
+            }
+        }
+        define 'covariant?', func(Logic.BOOLEAN_TYPE, TYPE_BOUND_TYPE), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                KismetBoolean.from(((TypeBound) args[0]).variance == TypeBound.Variance.COVARIANT)
+            }
+        }
+        define 'contravariant?', func(Logic.BOOLEAN_TYPE, TYPE_BOUND_TYPE), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                KismetBoolean.from(((TypeBound) args[0]).variance == TypeBound.Variance.CONTRAVARIANT)
+            }
+        }
+        define 'invariant?', func(Logic.BOOLEAN_TYPE, TYPE_BOUND_TYPE), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                KismetBoolean.from(((TypeBound) args[0]).variance == TypeBound.Variance.INVARIANT)
+            }
+        }
+        define 'get_type', func(META_TYPE, TYPE_BOUND_TYPE), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                ((TypeBound) args[0]).type
             }
         }
     }

@@ -3,17 +3,13 @@ package hlaaftana.kismet.lib
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 import groovy.transform.CompileStatic
-import hlaaftana.kismet.scope.Context
-import hlaaftana.kismet.scope.TypedContext
 
 import static hlaaftana.kismet.lib.Functions.funcc
 
 @CompileStatic
-class Json extends LibraryModule {
-    TypedContext typed = new TypedContext("json")
-    Context defaultContext = new Context()
-    
+class Json extends NativeModule {
     Json() {
+        super("json")
         define 'new_json_parser', funcc { ... args -> new JsonSlurper() }
         define 'parse_json', funcc { ... args ->
             String text = args.length > 1 ? args[1].toString() : args[0].toString()

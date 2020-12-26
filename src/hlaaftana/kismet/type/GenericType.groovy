@@ -40,7 +40,7 @@ class GenericType extends AbstractType {
 			} else if (null == other.arguments) {
 				TypeRelation.subtype(size())
 			} else if (indefinite || size() == other.size()) {
-				if (size() == 0) return TypeRelation.equal()
+				if (size() == 0 && !indefinite) return TypeRelation.equal()
 				TypeRelation min
 				def variance = varianceAt(0)
 				def rel = variance.apply(this[0].relation(((GenericType) other)[0]))

@@ -1,17 +1,15 @@
 # comments with #, dont know about multilines
 # `do` for indented block, inferred in indents outside parens etc.
 # calls are done like `foo a, b`, old kismet path syntax is retained so you can do `foo(a, b)` and `a.foo(b)`
-# however to call `a.foo` you have to do `(a.foo b)`
+# however to call `a.foo` you have to do `(a.foo b)` or `(a.foo)(b)` if i can make that work
 # (foo a, b) does not parse as a tuple of foo a and b, as the a after foo implies a call is being recorded
 # operators exist, always have more precedence than calls, so `foo a = b` is `foo(a = b)`
 # operators can be words
-# foo bar a, b parses as foo(bar(a, b))
+# foo bar a, b parses as foo(bar(a, b)) maybe??
 # foo bar a, b do c parses as foo(bar(a, b), c)
 
-# either this parses as def(binary_search(a: List[T], (k: T -> i: Int32))) and we just have to handle it,
-# or make -> and => the only operators to have lower precedence than calls
-# then we can even elide the `def`
-def binary_search a: List[T], k: T -> i: Int32
+# dont know a good alternative for returns in this
+def binary_search a: List[T], k: T, returns i: Int32
   i = 0
   b = size a
   while i < b
@@ -42,7 +40,7 @@ sub imperative
       x |>= * (i |>= + 1)
     x
 
-  def combination n: Int, r: Int -> x = 1 do for each i in 0..<r do while i < r do x = x * (n - i) / (r - i)
+  def combination n: Int, r: Int, returns x = 1 do for each i in 0..<r do while i < r do x = x * (n - i) / (r - i)
 
 assert
   # dont know about this, i want this to be parser level instead of semantic level

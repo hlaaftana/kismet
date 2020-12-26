@@ -1,0 +1,21 @@
+import "examples/struct.ksmt"
+
+john: initPerson()
+john.age: 40
+john.name: "Not John"
+assert_is john ("Not John", 40)
+assert_is john.age 40
+assert_is john.name "Not John"
+
+struct Message {
+  content: String
+  author: Person
+}
+
+defn to_string(message: Message) [message.author.name " said: " message.content]
+
+message: [initMessage]
+message.content: "this message is sent by john"
+message.author: john
+
+assert_is [to_string message] "Not John said: this message is sent by john"
