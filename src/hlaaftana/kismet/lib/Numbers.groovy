@@ -765,6 +765,19 @@ class Numbers extends NativeModule {
                 KismetNumber.from(result)
             }
         }
+        define 'first_half', func(NumberType.Number, NumberType.Number), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                ((KismetNumber) args[0]).intdiv(new KInt32(2))
+            }
+        }
+        alias 'first_half', 'half'
+        define 'second_half', func(NumberType.Number, NumberType.Number), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                ((KismetNumber) args[0]).minus(((KismetNumber) args[0]).intdiv(new KInt32(2)))
+            }
+        }
     }
 
     static Number gcd(Number a, Number b) {

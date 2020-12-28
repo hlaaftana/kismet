@@ -1,6 +1,6 @@
 %"default_int_bits 32"
 
-dive "functional" {
+dive { ;; functional
   defn [permutation (n: Int32) (r: Int32) (returns Int32)] [product [range [next [- n r]] n]]
   defn [factorial (n: Int32) (returns Int32)] [permutation n n]
   defn [combination (n: Int32) (r: Int32) (returns Int32)] [div [permutation n r] [factorial r]]
@@ -10,7 +10,7 @@ dive "functional" {
   assert_is [combination 6 3] 20
 }
 
-dive "imperative" {
+dive { ;; imperative
   defn [factorial (n: Int32)] {
     x: i: 1
     while [<= i n] {

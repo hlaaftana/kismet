@@ -204,19 +204,49 @@ class CollectionsIterators extends NativeModule {
                 new TupleExpression(args.toList())
             }
         }
-        // assert_is x [+ [bottom_half x] [top_half x]]
-        define 'bottom_half', funcc { ... args ->
-            args[0] instanceof Number ? ((Number) args[0]).intdiv(2) :
-                args[0] instanceof Collection ? ((Collection) args[0]).take(((Collection) args[0]).size().intdiv(2) as int) :
-                    args[0] instanceof Map ? ((Map) args[0]).values() :
-                        args[0]
+        // assert_is x [+ [first_half x] [second_half x]]
+        // not true for maps
+        define 'first_half', func(LIST_TYPE, LIST_TYPE), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                def l = (List) args[0].inner()
+                Kismet.model(l.take(l.size().intdiv(2).intValue()))
+            }
         }
-        define 'top_half',  funcc { ... args ->
-            args[0] instanceof Number ? ((Number) args[0]).minus(((Number) args[0]).intdiv(2)) :
-                args[0] instanceof Collection ? ((Collection) args[0]).takeRight(
-                    ((Collection) args[0]).size().minus(((Collection) args[0]).size().intdiv(2)) as int) :
-                    args[0] instanceof Map ? ((Map) args[0]).keySet() :
-                            args[0]
+        define 'second_half', func(LIST_TYPE, LIST_TYPE), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                def l = (List) args[0].inner()
+                Kismet.model(l.takeRight(l.size() - l.size().intdiv(2).intValue()))
+            }
+        }
+        define 'first_half', func(SET_TYPE, MAP_TYPE), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                def m = (Map) args[0].inner()
+                Kismet.model(m.keySet())
+            }
+        }
+        define 'second_half', func(LIST_TYPE, MAP_TYPE), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                def m = (Map) args[0].inner()
+                Kismet.model(m.values().toList())
+            }
+        }
+        define 'first_half', func(SET_TYPE, SET_TYPE), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                def s = new TreeSet((Set) args[0].inner())
+                Kismet.model(s.take(s.size().intdiv(2).intValue()))
+            }
+        }
+        define 'second_half', func(SET_TYPE, SET_TYPE), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                def s = new TreeSet((Set) args[0].inner())
+                Kismet.model(s.takeRight(s.size() - s.size().intdiv(2).intValue()))
+            }
         }
         define 'to_list', func(LIST_TYPE, Type.ANY), funcc { ... args -> toList(args[0]) }
         define 'to_set', func(SET_TYPE, Type.ANY), funcc { ... args -> toSet(args[0]) }
@@ -576,7 +606,7 @@ class CollectionsIterators extends NativeModule {
         alias 'has_all?', 'superset?'
         alias 'inject', 'reduce', 'fold'
         alias 'collect', 'map'
-        alias 'bottom_half', 'half'
+        alias 'first_half', 'half'
         alias 'size', 'length'
         alias 'find_all', 'select', 'filter'
         alias 'next', 'succ'

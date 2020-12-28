@@ -3,7 +3,7 @@ object Person
   middleName: Option[String]
   lastName: String
 
-  to String = "\firstName \{middleName ? "\middleName " ! ""}\lastName"
+  this to String do "\firstName \{middleName ? "\middleName " ! ""}\lastName"
 
 object TVShow
   name: String
@@ -11,7 +11,7 @@ object TVShow
   *seasons: List[Season] # * implies spreading in the constructor
 
 scope TVShow
-  to String =
+  this to String
     "\name starring:\n", cast |> {
       pairs
       collect [actor, character] => "\actor as \character"

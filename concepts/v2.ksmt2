@@ -9,7 +9,7 @@
 # foo bar a, b do c parses as foo(bar(a, b), c)
 
 # dont know a good alternative for returns in this
-def binary_search a: List[T], k: T, returns i: Int32
+def binary_search[T] a: List[T], k: T, returns i: Int32
   i = 0
   b = size a
   while i < b
@@ -23,9 +23,9 @@ assert
   -1 is binary_search [3, 5, 1, 4, 1], 1
 
 sub functional
-  def permutation(n: Int, r: Int), (product n - r + 1 .. n)
-  def factorial(n: Int), (permutation n, n)
-  def combination(n: Int, r: Int), (permutation n, r) div (factorial r)
+  def (permutation n: Int, r: Int), (product n - r + 1 .. n)
+  def (factorial n: Int), (permutation n, n)
+  def (combination n: Int, r: Int), (permutation n, r) div (factorial r)
 
 sub imperative
   def factorial n: Int

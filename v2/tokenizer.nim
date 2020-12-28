@@ -471,4 +471,4 @@ when isMainModule:
     echo "took ", b - a
 
   echo tokenize(";;")
-  #echo tokenize(readFile("concepts/binarysearch.lang"))
+  #echo tokenize(readFile("concepts/v2.ksmt2"))

@@ -4,6 +4,12 @@ defiter [range a b] {
     yield i
     incr i
   }
+  ;; doing it like this is slower than native implementation
+  ;; but we could have an optimization where we mark which native
+  ;; functions only use the arguments when dereferenced
+  ;; like <= for numbers and + therefore incr
+  ;; that way a and b would be dereferenced integers from the start
+  ;; or just make dereferenced the default
 }
 
 for it [range 1 5] {

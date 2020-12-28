@@ -2,19 +2,19 @@ defn strip_mentions(content) content.replace("@", "@\u{200b}")
 
 cmd tag {
   "set" name [content] {
-    guild_data[tags].get_or_set({#}).[args[1]]: {:
-      "content": args[2],
+    get_or_set(guild_data.tags, {:})[name]: {:
+      "content": content,
       "author": message.author.id
     }
     "Successful"
   }
 
   "author" name ("Author for tag " name " is "
-    guild_data.tags[name].author.user())
+    [get_user guild_data.tags[name].author])
 
   name {
-    [if (null? a: ?? guild_data.tags[name].content)
-      strip_mentions(a)
+    [if (not_null? c: ?? guild_data.tags[name].content)
+      strip_mentions(c)
       "Invalid tag"]
   }
 }

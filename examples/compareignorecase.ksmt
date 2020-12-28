@@ -1,6 +1,7 @@
-def compare_ignore_case?(x: List[String]) {
-  |> x to_iterator [collect lower] [consecutives 2] [every? [fn* [a b] [is? a b]]]
-}
+def compare_ignore_case?(x: List[String]) [|> x (
+  to_iterator; collect lower; consecutives 2;
+  every? [fn* [a b] [is? a b]]
+)]
 
 assert [spread compare_ignore_case? 'abcD' 'AbCD' 'ABCd' 'ABCD' 'abcd']
 assert_not [spread compare_ignore_case? ' ab CD' 'abcd']

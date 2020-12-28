@@ -9,7 +9,7 @@ defn [fizzbuzz_imperative (n: Int)] {
 
 defn [fizzbuzz_functional (n: Int)] {
   |> [range 1 n] {
-    collect [fn [(i: Int)] {
+    collect [fn (i: Int) {
       [case
       [divs? i 15] "FizzBuzz"
       [divs? i 3] "Fizz"
