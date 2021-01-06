@@ -31,7 +31,11 @@ class NativeModule extends Module {
         defaultContext = new Context()
     }
 
-    Memory run(Memory[] heritage) {
+    TypedContext typeContext() {
+        typedContext
+    }
+
+    Memory run() {
         typedContext
     }
 

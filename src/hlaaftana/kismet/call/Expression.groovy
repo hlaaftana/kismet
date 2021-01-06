@@ -248,10 +248,14 @@ class PathExpression extends Expression {
 
 	TypedExpression type(TypedContext tc, TypeBound preferred) {
 		TypedExpression result = root.type(tc)
-		for (s in steps) result = s.type(tc, result)
+		def newSteps = new ArrayList<Step>(steps.size())
+		for (s in steps) {
+			newSteps.add(s)
+			result = s.type(tc, result).withOriginal(new PathExpression(root, newSteps))
+		}
 		if (!preferred.relation(result.type).assignableFrom)
 			throw new UnexpectedTypeException("path expression $this is not $preferred")
-		result
+		result.withOriginal(this)
 	}
 }
 
@@ -291,7 +295,7 @@ class OnceExpression extends Expression {
 	}
 
 	TypedExpression type(TypedContext tc, TypeBound preferred) {
-		new TypedOnceExpression(inner.type(tc, preferred))
+		new TypedOnceExpression(inner.type(tc, preferred)).withOriginal(this)
 	}
 
 	List<Expression> getMembers() { [inner] }
@@ -318,7 +322,7 @@ class NameExpression extends Expression {
 	String repr() { text }
 
 	VariableExpression type(TypedContext tc, TypeBound preferred) {
-		new VariableExpression(tc.findThrow(text, preferred))
+		new VariableExpression(tc.findThrow(text, preferred)).<VariableExpression>withOriginal(this)
 	}
 }
 
@@ -343,7 +347,7 @@ class DiveExpression extends Expression {
 
 	TypedDiveExpression type(TypedContext tc, TypeBound preferred) {
 		final child = tc.child()
-		new TypedDiveExpression(child, inner.type(child, preferred))
+		new TypedDiveExpression(child, inner.type(child, preferred)).<TypedDiveExpression>withOriginal(this)
 	}
 }
 
@@ -361,7 +365,7 @@ class VariableModifyExpression extends Expression {
 
 	TypedExpression type(TypedContext tc, TypeBound preferred) {
 		def v = expression.type(tc, preferred)
-		new VariableSetExpression(type.set(tc, name, v.type), v)
+		new VariableSetExpression(type.set(tc, name, v.type), v).withOriginal(this)
 	}
 
 	IKismetObject evaluate(Memory c) {
@@ -396,7 +400,7 @@ class BlockExpression extends Expression {
 		int i = 0
 		for (; i < arr.length - 1; ++i) arr[i] = members.get(i).type(tc)
 		arr[i] = members.get(i).type(tc, preferred)
-		new SequentialExpression(arr)
+		new SequentialExpression(arr).<SequentialExpression>withOriginal(this)
 	}
 }
 
@@ -497,7 +501,7 @@ class CallExpression extends Expression {
 		} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {}
 		if (null != cv && cv.type == Functions.TEMPLATE_TYPE)
 			return ((Template) cv.instruction.evaluate(tc))
-					.transform(null, arguments.<Expression>toArray(new Expression[arguments.size()])).type(tc, preferred)
+					.transform(null, arguments.<Expression>toArray(new Expression[arguments.size()])).type(tc, preferred).withOriginal(this)
 
 		// type checker
 		try {
@@ -505,7 +509,7 @@ class CallExpression extends Expression {
 		} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {}
 		if (null != cv && cv.type == Functions.TYPE_CHECKER_TYPE)
 			return ((TypeChecker) cv.instruction.evaluate(tc))
-					.transform(tc, arguments.<Expression>toArray(new Expression[arguments.size()]))
+					.transform(tc, arguments.<Expression>toArray(new Expression[arguments.size()])).withOriginal(this)
 
 		// runtime args
 		def args = new TypedExpression[arguments.size()]
@@ -522,7 +526,7 @@ class CallExpression extends Expression {
 		}
 		if (null != cv) {
 			def x = ((TypedTemplate) cv.instruction.evaluate(tc))
-			return x.transform(tc, args)
+			return x.transform(tc, args).withOriginal(this)
 		}
 
 		// instructor
@@ -530,14 +534,16 @@ class CallExpression extends Expression {
 		try {
 			cv = callValue.type(tc, -inr)
 		} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {}
-		if (null != cv) return new InstructorCallExpression(cv, args, cv.type instanceof SingleType ? Type.ANY : ((GenericType) cv.type)[1])
+		if (null != cv) return new InstructorCallExpression(cv, args, cv.type instanceof SingleType ?
+			Type.ANY : ((GenericType) cv.type)[1]).withOriginal(this)
 
 		// function
 		final fn = Functions.func(preferred.type, argtypes)
 		try {
 			cv = callValue.type(tc, -fn)
 		} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {}
-		if (null != cv) return new TypedCallExpression(cv, args, cv.type instanceof SingleType ? Type.ANY : ((GenericType) cv.type)[1])
+		if (null != cv) return new TypedCallExpression(cv, args, cv.type instanceof SingleType ?
+			Type.ANY : ((GenericType) cv.type)[1]).withOriginal(this)
 
 		cv = callValue.type(tc)
 		// TODO: change the 'call' signature in Prelude after all untyped functions are typedContext (held back by generics)
@@ -545,7 +551,8 @@ class CallExpression extends Expression {
 		def callFnType = Functions.FUNCTION_TYPE.generic(new TupleType(cv.type, new TupleType(argtypes)), preferred.type)
 		def cc = tc.find('call', -callFnType)
 		if (null == cc) throw new UndefinedSymbolException('Could not find overload for ' + repr() + ' as (' + argtypes.join(', ') + ') -> ' + preferred)
-		new TypedCallExpression(new VariableExpression(cc), [cv, new TupleExpression.Typed(args)] as TypedExpression[], cc.variable.type instanceof SingleType ? Type.ANY : ((GenericType) cc.variable.type)[1])
+		new TypedCallExpression(new VariableExpression(cc), [cv, new TupleExpression.Typed(args)] as TypedExpression[],
+			cc.variable.type instanceof SingleType ? Type.ANY : ((GenericType) cc.variable.type)[1]).withOriginal(this)
 	}
 }
 
@@ -585,7 +592,7 @@ class ListExpression extends CollectionExpression {
 		final bound = match(preferred)
 		def arr = new TypedExpression[members.size()]
 		for (int i = 0; i < arr.length; ++i) arr[i] = members.get(i).type(tc, bound)
-		new Typed(arr)
+		new Typed(arr).withOriginal(this)
 	}
 
 	static class Typed extends TypedExpression {
@@ -664,7 +671,7 @@ class TupleExpression extends CollectionExpression {
 			throw new UnexpectedTypeException("Tuple expression length ${members.size()} did not match expected tuple type length $bounds.length")
 		def arr = new TypedExpression[members.size()]
 		for (int i = 0; i < arr.length; ++i) arr[i] = members.get(i).type(tc, preferred * (null == bounds ? Type.ANY : bounds[i]))
-		new Typed(arr)
+		new Typed(arr).withOriginal(this)
 	}
 
 	static class Typed extends TypedExpression {
@@ -734,7 +741,7 @@ class SetExpression extends CollectionExpression {
 		final bound = match(preferred)
 		def arr = new TypedExpression[members.size()]
 		for (int i = 0; i < arr.length; ++i) arr[i] = members.get(i).type(tc, bound)
-		new Typed(arr)
+		new Typed(arr).withOriginal(this)
 	}
 
 	static class Typed extends TypedExpression {
@@ -821,7 +828,7 @@ class MapExpression extends CollectionExpression {
 			key[i] = col.left.type(tc, kbound)
 			val[i] = col.right.type(tc, vbound)
 		}
-		new Typed(key, val)
+		new Typed(key, val).withOriginal(this)
 	}
 
 	static class Typed extends TypedExpression {
@@ -905,11 +912,12 @@ class ColonExpression extends Expression {
 		def atom = Syntax.toAtom(left)
 		if (null != atom) {
 			def var = AssignmentType.ASSIGN.set(tc, atom, val.type)
-			new VariableSetExpression(var, val)
+			new VariableSetExpression(var, val).withOriginal(this)
 		} else if (left instanceof PathExpression) {
 			final p = (PathExpression) left
 			def rh = p.steps.last()
 			rh.typeSet(tc, (p.steps.size() == 1 ? p.root : new PathExpression(p.root, p.steps.init())).type(tc), val)
+				.withOriginal(this)
 		} else if (left instanceof NumberExpression) {
 			// TODO: ranges with this syntax
 			def b = left.value.inner().intValue()
@@ -917,7 +925,7 @@ class ColonExpression extends Expression {
 			if (null == var) var = new TypedContext.Variable(null, b, preferred.type)
 			else if (!preferred.relation(var.type).assignableFrom)
 				throw new UnexpectedTypeException("Variable number $b had type $var.type, not preferred type $preferred")
-			new VariableSetExpression(var.ref(), val)
+			new VariableSetExpression(var.ref(), val).withOriginal(this)
 		} else {
 			final lh = left.type(tc), lhi = lh.instruction
 			final rhi = val.instruction
@@ -926,7 +934,7 @@ class ColonExpression extends Expression {
 				IKismetObject evaluate(Memory context) {
 					((TypedContext.VariableReference) lhi.evaluate(context).inner()).set(context, rhi.evaluate(context))
 				}
-			}, lh.runtimeOnly || val.runtimeOnly)
+			}, lh.runtimeOnly || val.runtimeOnly).withOriginal(this)
 		}
 	}
 
@@ -1034,7 +1042,7 @@ class NumberExpression extends ConstantExpression<Number> {
 			throw new UnexpectedTypeException("Preferred non-number type $preferred for literal with number $result.number")
 		else if (rel.sub)
 			result.number = ((NumberType) preferred.type).instantiate(result.number).inner()
-		result
+		result.<TypedNumberExpression>withOriginal(this)
 	}
 
 	VariableIndexExpression percentize(Parser p) {
@@ -1056,7 +1064,7 @@ class NumberExpression extends ConstantExpression<Number> {
 		}
 
 		Typed type(TypedContext tc, TypeBound preferred) {
-			new Typed(preferred.type, index)
+			new Typed(preferred.type, index).<Typed>withOriginal(this)
 		}
 
 		static class Typed extends BasicTypedExpression {
@@ -1110,7 +1118,7 @@ class StringExpression extends ConstantExpression<String> {
 		final str = evaluate(null).inner()
 		if (!preferred.relation(Strings.STRING_TYPE).assignableFrom)
 			throw new UnexpectedTypeException("Preferred non-string type $preferred for literal with string \"${StringEscaper.escape(str)}\"")
-		new TypedStringExpression(str)
+		new TypedStringExpression(str).<TypedStringExpression>withOriginal(this)
 	}
 }
 
@@ -1135,7 +1143,7 @@ class StaticExpression<T extends Expression> extends ConstantExpression<Object> 
 	}
 
 	TypedExpression type(TypedContext tc, TypeBound preferred) {
-		new TypedConstantExpression(preferred.type, value)
+		new TypedConstantExpression(preferred.type, value).withOriginal(this)
 	}
 }
 

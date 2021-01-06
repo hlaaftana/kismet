@@ -28,6 +28,13 @@ abstract class TypedExpression {
 	Expression toExpression() {
 		new TypedWrapperExpression(this)
 	}
+	
+	Expression originalExpression
+
+	def <T extends TypedExpression> T withOriginal(Expression original) {
+		originalExpression = original
+		(T) this
+	}
 }
 
 @CompileStatic
@@ -61,6 +68,7 @@ class TypedNoExpression extends TypedExpression {
 	Type getType() { Type.NONE }
 	Instruction getInstruction() { NoInstruction.INSTANCE }
 	boolean isRuntimeOnly() { false }
+	NoExpression getOriginalExpression() { NoExpression.INSTANCE }
 }
 
 @CompileStatic

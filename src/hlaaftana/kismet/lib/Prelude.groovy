@@ -17,7 +17,7 @@ class Prelude extends NativeModule {
 	Prelude() {
 		super("prelude")
 		for (Module mod : defaultModules) {
-			typedContext.heritage.add(mod.typedContext)
+			typedContext.heritage.add(mod.typeContext())
 			defaultContext = new Context(mod.defaultContext, defaultContext.getVariables())
 		}
 	}

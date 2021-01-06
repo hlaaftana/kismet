@@ -9,10 +9,7 @@ import hlaaftana.kismet.exceptions.UnexpectedSyntaxException
 import hlaaftana.kismet.scope.TypedContext
 import hlaaftana.kismet.type.NumberType
 import hlaaftana.kismet.type.Type
-import hlaaftana.kismet.vm.IKismetObject
-import hlaaftana.kismet.vm.KInt32
-import hlaaftana.kismet.vm.Memory
-import hlaaftana.kismet.vm.WrapperKismetObject
+import hlaaftana.kismet.vm.*
 
 import static hlaaftana.kismet.call.ExprBuilder.call
 import static hlaaftana.kismet.call.ExprBuilder.name
@@ -69,8 +66,8 @@ class Errors extends NativeModule {
         define 'assert', Functions.INSTRUCTOR_TYPE, new Instructor() {
             @Override
             IKismetObject call(Memory m, Instruction... args) {
-                IKismetObject val = Kismet.NULL
-                for (e in args) if (!(val = e.evaluate(m)))
+                KismetBoolean val = KismetBoolean.FALSE
+                for (e in args) if (!((val = (KismetBoolean) e.evaluate(m))).inner())
                     throw new KismetAssertionError('Assertion failed for instruction ' +
                             e + '. Value was ' + val)
                 val
@@ -79,8 +76,8 @@ class Errors extends NativeModule {
         define 'assert_not', Functions.INSTRUCTOR_TYPE, new Instructor() {
             @Override
             IKismetObject call(Memory m, Instruction... args) {
-                IKismetObject val = Kismet.NULL
-                for (e in args) if ((val = e.evaluate(m)))
+                KismetBoolean val = KismetBoolean.FALSE
+                for (e in args) if ((val = (KismetBoolean) e.evaluate(m)).inner())
                     throw new KismetAssertionError('Assertion failed for instruction ' +
                             e + '. Value was ' + val)
                 val

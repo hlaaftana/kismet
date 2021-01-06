@@ -7,7 +7,7 @@ import hlaaftana.kismet.vm.Memory
 
 @CompileStatic
 abstract class Module {
-    abstract TypedContext getTypedContext()
+    abstract TypedContext typeContext()
     abstract Context getDefaultContext()
-    abstract Memory run(Memory[] heritage)
+    abstract Memory run()
 }

@@ -12,8 +12,8 @@ import hlaaftana.kismet.vm.IKismetObject
 import hlaaftana.kismet.vm.Memory
 import hlaaftana.kismet.vm.RuntimeMemory
 
-import static hlaaftana.kismet.lib.Functions.TYPE_CHECKER_TYPE
 import static hlaaftana.kismet.lib.Functions.TYPED_TEMPLATE_TYPE
+import static hlaaftana.kismet.lib.Functions.TYPE_CHECKER_TYPE
 
 @CompileStatic
 class Modules extends NativeModule {
@@ -59,6 +59,7 @@ class Modules extends NativeModule {
                     def mod = KismetModule.from(((KismetModule<File>) context.module).space, file)
                     mod.type()
                     context.heritage.add(mod.typedContext)
+                    ((KismetModule<File>) context.module).dependencies.add(mod)
                     mods[i] = mod
                 }
                 new BasicTypedExpression(Type.NONE, new Instruction() {
