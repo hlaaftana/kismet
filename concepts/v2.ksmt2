@@ -1,21 +1,22 @@
 # comments with #, dont know about multilines
 # `do` for indented block, inferred in indents outside parens etc.
-# calls are done like `foo a, b`, old kismet path syntax is retained so you can do `foo(a, b)` and `a.foo(b)`
+# old kismet path syntax is retained so you can do `foo(a, b)` and `a.foo(b)` and a dot can go between ( and preceding token
+# calls can be done like `foo a, b`
 # however to call `a.foo` you have to do `(a.foo b)` or `(a.foo)(b)` if i can make that work
-# (foo a, b) does not parse as a tuple of foo a and b, as the a after foo implies a call is being recorded
-# operators exist, always have more precedence than calls, so `foo a = b` is `foo(a = b)`
-# operators can be words
+# (foo a, b) parses as (foo(a), b), and a, b by itself parses as (a, b)
+# operators exist, always have more precedence than open calls, so `foo a = b` is `foo(a = b)`
+# operators can be words, `is`, `div`, `and`
 # foo bar a, b parses as foo(bar(a, b)) maybe??
 # foo bar a, b do c parses as foo(bar(a, b), c)
 
-# dont know a good alternative for returns in this
-def binary_search[T] a: List[T], k: T, returns i: Int32
-  i = 0
+binary_search[T](a: List[T], k: T) = let (result i: Int32 = 0) do
   b = size a
   while i < b
     mid = half i + b # calls can be open inside infixes if they are last
     if a[mid] < k, i = mid + 1 else b = mid
-    # special syntax with keywords `then` and `else`
+    # special syntax with keyword `else` and maybe `then`
+    # or maybe `else` becomes an operator and we introduce a special rule where if an operator starts on a new
+    # line then the previous expression is its right hand side
   unless i < a.size and a[i] == k, i = -1
 
 assert
@@ -23,27 +24,28 @@ assert
   -1 is binary_search [3, 5, 1, 4, 1], 1
 
 sub functional
-  def (permutation n: Int, r: Int), (product n - r + 1 .. n)
-  def (factorial n: Int), (permutation n, n)
-  def (combination n: Int, r: Int), (permutation n, r) div (factorial r)
+  permutation(n: Int, r: Int) = product n - r + 1 .. n
+  factorial(n: Int) = permutation(n, n)
+  combination(n: Int, r: Int) = permutation(n, r) div factorial(r)
 
 sub imperative
-  def factorial n: Int
+  factorial(n: Int) =
     x = i = 1
-    while i < n, x *= (i += 1)
+    while i < n, x *= i += 1
     x
 
-  def permutation n: Int, r: Int
+  permutation(n: Int, r: Int) =
     x = 1
     i = next n - r
     while i < n
       x |>= * (i |>= + 1)
     x
 
-  def combination n: Int, r: Int, returns x = 1 do for each i in 0..<r do while i < r do x = x * (n - i) / (r - i)
+  combination(n: Int, r: Int) = let result(x = 1), each(i in 0..<r) do while i < r do x = x * (n - i) / (r - i)
 
 assert
   # dont know about this, i want this to be parser level instead of semantic level
+  # another operator might be too ugly but wrapping in parentheses is no different
   (functional.factorial)(5) is (imperative.factorial)(5) is 120
   (functional.permutation)(4, 2) is (imperative.permutation)(4, 2) is 12
   (functional.combination)(6, 3) is (imperative.combination)(6, 3) is 20
