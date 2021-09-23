@@ -11,11 +11,27 @@ import static hlaaftana.kismet.call.ExprBuilder.call
 
 @CompileStatic
 class Functions extends NativeModule {
-    static final SingleType TEMPLATE_TYPE = new SingleType('Template'),
-        TYPE_CHECKER_TYPE = new SingleType('TypeChecker'),
-        INSTRUCTOR_TYPE = new SingleType('Instructor', [+TupleType.BASE, -Type.NONE] as TypeBound[]),
-        TYPED_TEMPLATE_TYPE = new SingleType('TypedTemplate', [+TupleType.BASE, -Type.NONE] as TypeBound[]),
-        FUNCTION_TYPE = new SingleType('Function', [+TupleType.BASE, -Type.NONE] as TypeBound[])
+    static final SingleType TEMPLATE_TYPE = new SingleType('Template') {
+        boolean check(IKismetObject obj) { obj instanceof Template }
+        boolean checkGenerics(IKismetObject obj, Type... args) { true }
+    },
+        TYPE_CHECKER_TYPE = new SingleType('TypeChecker') {
+            boolean check(IKismetObject obj) { obj instanceof TypeChecker }
+            boolean checkGenerics(IKismetObject obj, Type... args) { true }
+        },
+        // todo attach types to routine values
+        INSTRUCTOR_TYPE = new SingleType('Instructor', [+TupleType.BASE, -Type.NONE] as TypeBound[]) {
+            boolean check(IKismetObject obj) { obj instanceof Instructor }
+            boolean checkGenerics(IKismetObject obj, Type... args) { true }
+        },
+        TYPED_TEMPLATE_TYPE = new SingleType('TypedTemplate', [+TupleType.BASE, -Type.NONE] as TypeBound[]) {
+            boolean check(IKismetObject obj) { obj instanceof TypedTemplate }
+            boolean checkGenerics(IKismetObject obj, Type... args) { true }
+        },
+        FUNCTION_TYPE = new SingleType('Function', [+TupleType.BASE, -Type.NONE] as TypeBound[]) {
+            boolean check(IKismetObject obj) { obj instanceof Function }
+            boolean checkGenerics(IKismetObject obj, Type... args) { true }
+        }
 
     Functions() {
         super("functions")

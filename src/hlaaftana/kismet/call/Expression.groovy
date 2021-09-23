@@ -545,6 +545,10 @@ class CallExpression extends Expression {
 		if (null != cv) return new TypedCallExpression(cv, args, cv.type instanceof SingleType ?
 			Type.ANY : ((GenericType) cv.type)[1]).withOriginal(this)
 
+		if (callValue instanceof NameExpression) {
+			// TODO: dynamic dispatch
+		}
+
 		cv = callValue.type(tc)
 		// TODO: change the 'call' signature in Prelude after all untyped functions are typedContext (held back by generics)
 		// println "WARNING: $this WILL USE 'call' FUNCTION"

@@ -3,6 +3,7 @@ package hlaaftana.kismet.type
 import groovy.transform.CompileStatic
 import groovy.transform.EqualsAndHashCode
 import hlaaftana.kismet.exceptions.WrongGenericsException
+import hlaaftana.kismet.vm.IKismetObject
 
 @CompileStatic
 @EqualsAndHashCode
@@ -71,4 +72,6 @@ class GenericType extends AbstractType {
 	TypeBound.Variance varianceAt(int i) {
 		null == base.bounds ? TypeBound.Variance.COVARIANT : base.bounds[i].variance
 	}
+
+	boolean check(IKismetObject obj) { base.check(obj) && base.checkGenerics(obj, arguments) }
 }

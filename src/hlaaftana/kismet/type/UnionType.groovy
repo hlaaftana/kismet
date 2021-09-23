@@ -2,6 +2,7 @@ package hlaaftana.kismet.type
 
 import groovy.transform.CompileStatic
 import groovy.transform.EqualsAndHashCode
+import hlaaftana.kismet.vm.IKismetObject
 
 @CompileStatic
 @EqualsAndHashCode
@@ -14,6 +15,11 @@ class UnionType extends AbstractType {
 
 	UnionType(Type... members) {
 		this.members = members.toList()
+	}
+
+	boolean check(IKismetObject obj) {
+		for (t in members) if (t.check(obj)) return true
+		false
 	}
 
 	UnionType reduced() {

@@ -1,6 +1,7 @@
 package hlaaftana.kismet.type
 
 import groovy.transform.CompileStatic
+import hlaaftana.kismet.vm.IKismetObject
 
 @CompileStatic
 class SingleType extends AbstractType {
@@ -11,6 +12,9 @@ class SingleType extends AbstractType {
 		this.name = name
 		this.bounds = bounds
 	}
+
+	boolean check(IKismetObject obj) { false }
+	boolean checkGenerics(IKismetObject obj, Type... args) { true }
 
 	AbstractType generic(Type... genericArgs) {
 		if (!boundsMatch(genericArgs)) null

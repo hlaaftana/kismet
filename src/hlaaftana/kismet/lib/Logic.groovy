@@ -4,6 +4,7 @@ import groovy.transform.CompileStatic
 import hlaaftana.kismet.call.Function
 import hlaaftana.kismet.call.Instruction
 import hlaaftana.kismet.call.Instructor
+import hlaaftana.kismet.call.TypedTemplate
 import hlaaftana.kismet.type.GenericType
 import hlaaftana.kismet.type.SingleType
 import hlaaftana.kismet.type.TupleType
@@ -17,7 +18,10 @@ import static hlaaftana.kismet.lib.Functions.instr
 
 @CompileStatic
 class Logic extends NativeModule {
-    static final SingleType BOOLEAN_TYPE = new SingleType('Boolean')
+    static final SingleType BOOLEAN_TYPE = new SingleType('Boolean')  {
+        boolean check(IKismetObject obj) { obj instanceof KismetBoolean }
+        boolean checkGenerics(IKismetObject obj, Type... args) { true }
+    }
 
     Logic() {
         super("logic")

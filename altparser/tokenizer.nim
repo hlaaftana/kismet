@@ -15,6 +15,7 @@ type
     exp*, bits*: int
 
   Token* = object
+    line*, column*: int
     case kind*: TokenKind
     of tkString:
       content*: string
@@ -107,6 +108,7 @@ iterator rev[T](a: openArray[T]): T {.inline.} =
 type Tokenizer* = object
   str*: string
   pos*: int
+  ln*, cl*: int
 
 template getChar*(tz: Tokenizer, offset: int = 0): char = tz.str[tz.pos + offset]
 

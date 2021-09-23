@@ -22,9 +22,18 @@ import static hlaaftana.kismet.lib.Logic.BOOLEAN_TYPE
 
 @CompileStatic
 class Reflection extends NativeModule {
-    static final SingleType INSTRUCTION_TYPE = new SingleType('Instruction'),
-                            MEMORY_TYPE = new SingleType('Memory'),
-                            EXPRESSION_TYPE = new SingleType('Expression')
+    static final SingleType INSTRUCTION_TYPE = new SingleType('Instruction') {
+        boolean check(IKismetObject obj) { obj instanceof Instruction }
+        boolean checkGenerics(IKismetObject obj, Type... args) { true }
+    },
+                            MEMORY_TYPE = new SingleType('Memory') {
+                                boolean check(IKismetObject obj) { obj instanceof Memory }
+                                boolean checkGenerics(IKismetObject obj, Type... args) { true }
+                            },
+                            EXPRESSION_TYPE = new SingleType('Expression')  {
+                                boolean check(IKismetObject obj) { obj instanceof Expression }
+                                boolean checkGenerics(IKismetObject obj, Type... args) { true }
+                            }
 
     Reflection() {
         super("reflection")

@@ -5,6 +5,7 @@ import hlaaftana.kismet.call.*
 import hlaaftana.kismet.exceptions.UnexpectedSyntaxException
 import hlaaftana.kismet.exceptions.UnexpectedValueException
 import hlaaftana.kismet.parser.Parser
+import hlaaftana.kismet.scope.TypedContext
 import hlaaftana.kismet.type.*
 import hlaaftana.kismet.vm.*
 
@@ -41,333 +42,6 @@ class Numbers extends NativeModule {
         }
         define 'e', NumberType.Float, new KFloat(BigDecimal.valueOf(Math.E))
         define 'pi', NumberType.Float, new KFloat(BigDecimal.valueOf(Math.PI))
-        define 'bit_not', func(NumberType.Int, NumberType.Int), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                new KInt(((KInt) args[0]).inner.not())
-            }
-        }
-        define 'bit_not', func(NumberType.Int64, NumberType.Int64), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                new KInt64(((KInt64) args[0]).inner.bitwiseNegate().longValue())
-            }
-        }
-        define 'bit_not', func(NumberType.Int32, NumberType.Int32), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                new KInt32(((KInt32) args[0]).inner.bitwiseNegate().intValue())
-            }
-        }
-        define 'bit_not', func(NumberType.Int16, NumberType.Int16), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                new KInt16(((KInt16) args[0]).inner.bitwiseNegate().shortValue())
-            }
-        }
-        define 'bit_not', func(NumberType.Int8, NumberType.Int8), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                new KInt8(((KInt8) args[0]).inner.bitwiseNegate().byteValue())
-            }
-        }
-        define 'bit_xor', func(NumberType.Int, NumberType.Int, NumberType.Int), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt) args[0]).xor((KInt) args[1])
-            }
-        }
-        define 'bit_xor', func(NumberType.Int64, NumberType.Int64, NumberType.Int64), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt64) args[0]).xor((KInt64) args[1])
-            }
-        }
-        define 'bit_xor', func(NumberType.Int32, NumberType.Int32, NumberType.Int32), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt32) args[0]).xor((KInt32) args[1])
-            }
-        }
-        define 'bit_xor', func(NumberType.Int16, NumberType.Int16, NumberType.Int16), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt16) args[0]).xor((KInt16) args[1])
-            }
-        }
-        define 'bit_xor', func(NumberType.Int8, NumberType.Int8, NumberType.Int8), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt8) args[0]).xor((KInt8) args[1])
-            }
-        }
-        define 'bit_and', func(NumberType.Int, NumberType.Int, NumberType.Int), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt) args[0]).and((KInt) args[1])
-            }
-        }
-        define 'bit_and', func(NumberType.Int64, NumberType.Int64, NumberType.Int64), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt64) args[0]).and((KInt64) args[1])
-            }
-        }
-        define 'bit_and', func(NumberType.Int32, NumberType.Int32, NumberType.Int32), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt32) args[0]).and((KInt32) args[1])
-            }
-        }
-        define 'bit_and', func(NumberType.Int16, NumberType.Int16, NumberType.Int16), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt16) args[0]).and((KInt16) args[1])
-            }
-        }
-        define 'bit_and', func(NumberType.Int8, NumberType.Int8, NumberType.Int8), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt8) args[0]).and((KInt8) args[1])
-            }
-        }
-        define 'bit_or', func(NumberType.Int, NumberType.Int, NumberType.Int), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt) args[0]).or((KInt) args[1])
-            }
-        }
-        define 'bit_or', func(NumberType.Int64, NumberType.Int64, NumberType.Int64), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt64) args[0]).or((KInt64) args[1])
-            }
-        }
-        define 'bit_or', func(NumberType.Int32, NumberType.Int32, NumberType.Int32), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt32) args[0]).or((KInt32) args[1])
-            }
-        }
-        define 'bit_or', func(NumberType.Int16, NumberType.Int16, NumberType.Int16), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt16) args[0]).or((KInt16) args[1])
-            }
-        }
-        define 'bit_or', func(NumberType.Int8, NumberType.Int8, NumberType.Int8), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt8) args[0]).or((KInt8) args[1])
-            }
-        }
-        define 'left_shift', func(NumberType.Int, NumberType.Int, NumberType.Int32), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                new KInt(((KInt) args[0]).inner.shiftLeft(((KInt32) args[1]).inner))
-            }
-        }
-        define 'left_shift', func(NumberType.Int64, NumberType.Int64, NumberType.Int64), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt64) args[0]).leftShift((KInt64) args[1])
-            }
-        }
-        define 'left_shift', func(NumberType.Int32, NumberType.Int32, NumberType.Int32), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt32) args[0]).leftShift((KInt32) args[1])
-            }
-        }
-        define 'left_shift', func(NumberType.Int16, NumberType.Int16, NumberType.Int16), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt16) args[0]).leftShift((KInt16) args[1])
-            }
-        }
-        define 'left_shift', func(NumberType.Int8, NumberType.Int8, NumberType.Int8), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt8) args[0]).leftShift((KInt8) args[1])
-            }
-        }
-        define 'right_shift', func(NumberType.Int, NumberType.Int, NumberType.Int32), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                new KInt(((KInt) args[0]).inner.shiftRight(((KInt32) args[1]).inner))
-            }
-        }
-        define 'right_shift', func(NumberType.Int64, NumberType.Int64, NumberType.Int64), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt64) args[0]).rightShift((KInt64) args[1])
-            }
-        }
-        define 'right_shift', func(NumberType.Int32, NumberType.Int32, NumberType.Int32), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt32) args[0]).rightShift((KInt32) args[1])
-            }
-        }
-        define 'right_shift', func(NumberType.Int16, NumberType.Int16, NumberType.Int16), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt16) args[0]).rightShift((KInt16) args[1])
-            }
-        }
-        define 'right_shift', func(NumberType.Int8, NumberType.Int8, NumberType.Int8), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt8) args[0]).rightShift((KInt8) args[1])
-            }
-        }
-        define 'unsigned_right_shift', func(NumberType.Int64, NumberType.Int64, NumberType.Int64), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt64) args[0]).rightShiftUnsigned((KInt64) args[1])
-            }
-        }
-        define 'unsigned_right_shift', func(NumberType.Int32, NumberType.Int32, NumberType.Int32), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt32) args[0]).rightShiftUnsigned((KInt32) args[1])
-            }
-        }
-        define 'unsigned_right_shift', func(NumberType.Int16, NumberType.Int16, NumberType.Int16), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt16) args[0]).rightShiftUnsigned((KInt16) args[1])
-            }
-        }
-        define 'unsigned_right_shift', func(NumberType.Int8, NumberType.Int8, NumberType.Int8), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt8) args[0]).rightShiftUnsigned((KInt8) args[1])
-            }
-        }
-        define '<', func(Logic.BOOLEAN_TYPE, NumberType.Number, NumberType.Number), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                KismetBoolean.from(((KismetNumber) args[0]).compareTo((KismetNumber) args[1]) < 0)
-            }
-        }
-        define '>', func(Logic.BOOLEAN_TYPE, NumberType.Number, NumberType.Number), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                KismetBoolean.from(((KismetNumber) args[0]).compareTo((KismetNumber) args[1]) > 0)
-            }
-        }
-        define '<=', func(Logic.BOOLEAN_TYPE, NumberType.Number, NumberType.Number), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                KismetBoolean.from(((KismetNumber) args[0]).compareTo((KismetNumber) args[1]) <= 0)
-            }
-        }
-        define '>=', func(Logic.BOOLEAN_TYPE, NumberType.Number, NumberType.Number), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                KismetBoolean.from(((KismetNumber) args[0]).compareTo((KismetNumber) args[1]) >= 0)
-            }
-        }
-        define 'cmp', func(NumberType.Int32, NumberType.Number, NumberType.Number), new Function() {
-            IKismetObject call(IKismetObject... a) {
-                new KInt32(((KismetNumber) a[0]).compareTo((KismetNumber) a[1]))
-            }
-        }
-        define 'positive', func(NumberType.Number, NumberType.Number), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KismetNumber) args[0]).unaryPlus()
-            }
-        }
-        define 'positive', func(NumberType.Float, NumberType.Float), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KFloat) args[0]).unaryPlus()
-            }
-        }
-        define 'positive', func(NumberType.Float64, NumberType.Float64), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KFloat64) args[0]).unaryPlus()
-            }
-        }
-        define 'positive', func(NumberType.Float32, NumberType.Float32), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KFloat32) args[0]).unaryPlus()
-            }
-        }
-        define 'positive', func(NumberType.Int, NumberType.Int), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt) args[0]).unaryPlus()
-            }
-        }
-        define 'positive', func(NumberType.Int64, NumberType.Int64), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt64) args[0]).unaryPlus()
-            }
-        }
-        define 'positive', func(NumberType.Int32, NumberType.Int32), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt32) args[0]).unaryPlus()
-            }
-        }
-        define 'positive', func(NumberType.Int16, NumberType.Int16), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt16) args[0]).unaryPlus()
-            }
-        }
-        define 'positive', func(NumberType.Int8, NumberType.Int8), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt8) args[0]).unaryPlus()
-            }
-        }
-        define 'negative', func(NumberType.Number, NumberType.Number), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KismetNumber) args[0]).unaryMinus()
-            }
-        }
-        define 'negative', func(NumberType.Float, NumberType.Float), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KFloat) args[0]).unaryMinus()
-            }
-        }
-        define 'negative', func(NumberType.Float64, NumberType.Float64), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KFloat64) args[0]).unaryMinus()
-            }
-        }
-        define 'negative', func(NumberType.Float32, NumberType.Float32), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KFloat32) args[0]).unaryMinus()
-            }
-        }
-        define 'negative', func(NumberType.Int, NumberType.Int), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt) args[0]).unaryMinus()
-            }
-        }
-        define 'negative', func(NumberType.Int64, NumberType.Int64), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt64) args[0]).unaryMinus()
-            }
-        }
-        define 'negative', func(NumberType.Int32, NumberType.Int32), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt32) args[0]).unaryMinus()
-            }
-        }
-        define 'negative', func(NumberType.Int16, NumberType.Int16), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt16) args[0]).unaryMinus()
-            }
-        }
-        define 'negative', func(NumberType.Int8, NumberType.Int8), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt8) args[0]).unaryMinus()
-            }
-        }
-        define 'positive?', func(Logic.BOOLEAN_TYPE, NumberType.Number), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                KismetBoolean.from(((KismetNumber) args[0]).compareTo(KInt32.ZERO) > 0)
-            }
-        }
-        define 'negative?', func(Logic.BOOLEAN_TYPE, NumberType.Number), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                KismetBoolean.from(((KismetNumber) args[0]).compareTo(KInt32.ZERO) < 0)
-            }
-        }
-        define 'zero?', func(Logic.BOOLEAN_TYPE, NumberType.Number), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                KismetBoolean.from(((KismetNumber) args[0]).compareTo(KInt32.ZERO) == 0)
-            }
-        }
-        define 'one?', func(Logic.BOOLEAN_TYPE, NumberType.Number), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                KismetBoolean.from(((KismetNumber) args[0]).compareTo(KInt32.ONE) == 0)
-            }
-        }
-        define 'even?', func(Logic.BOOLEAN_TYPE, NumberType.Number), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                KismetBoolean.from(((KismetNumber) args[0]).divisibleBy(KInt32.TWO))
-            }
-        }
-        negated 'even?', 'odd?'
-        define 'divisible_by?', func(Logic.BOOLEAN_TYPE, NumberType.Number, NumberType.Number), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                KismetBoolean.from(((KismetNumber) args[0]).divisibleBy((KismetNumber) args[1]))
-            }
-        }
-        define 'integer?', func(Logic.BOOLEAN_TYPE, new UnionType(NumberType.Number, NumberType.Float32, NumberType.Float64, NumberType.Float)), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                KismetBoolean.from(((KismetNumber) args[0]).divisibleBy(KInt32.ONE))
-            }
-        }
-        define 'integer?', func(Logic.BOOLEAN_TYPE, new UnionType(NumberType.Int8, NumberType.Int16, NumberType.Int32, NumberType.Int64, NumberType.Int)), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                KismetBoolean.TRUE
-            }
-        }
-        negated 'integer?', 'decimal?'
         define 'natural?', TEMPLATE_TYPE, new Template() {
             Expression transform(Parser parser, Expression... args) {
                 def onc = new OnceExpression(args[0])
@@ -376,13 +50,8 @@ class Numbers extends NativeModule {
                         call(name('positive?'), onc))
             }
         }
-        define 'absolute',  funcc(true) { ... a -> a[0].invokeMethod('abs', null) }
-        alias 'absolute', 'abs'
-        define 'squared',  funcc(true) { ... a -> a[0].invokeMethod('multiply', [a[0]] as Object[]) }
         define 'square_root',  funcc(true) { ... args -> ((Object) Math).invokeMethod('sqrt', [args[0]] as Object[]) }
-        alias 'square_root', 'sqrt'
         define 'cube_root',  funcc(true) { ... args -> ((Object) Math).invokeMethod('cbrt', [args[0]] as Object[]) }
-        alias 'cube_root', 'cbrt'
         define 'sin',  funcc(true) { ... args -> ((Object) Math).invokeMethod('sin', [args[0]] as Object[]) }
         define 'cos',  funcc(true) { ... args -> ((Object) Math).invokeMethod('cos', [args[0]] as Object[]) }
         define 'tan',  funcc(true) { ... args -> ((Object) Math).invokeMethod('tan', [args[0]] as Object[]) }
@@ -449,244 +118,246 @@ class Numbers extends NativeModule {
                 new KFloat64(Math.log(((KFloat64) args[0]).inner))
             }
         }
-        define 'plus', func(NumberType.Number, NumberType.Number, NumberType.Number), new Function() {
+        define '<', func(Logic.BOOLEAN_TYPE, NumberType.Number, NumberType.Number), new Function() {
             IKismetObject call(IKismetObject... args) {
-                ((KismetNumber) args[0]).plus((KismetNumber) args[1])
+                KismetBoolean.from(((KismetNumber) args[0]).compareTo((KismetNumber) args[1]) < 0)
             }
         }
-        define 'plus', func(NumberType.Float, NumberType.Float, NumberType.Float), new Function() {
+        define '>', func(Logic.BOOLEAN_TYPE, NumberType.Number, NumberType.Number), new Function() {
             IKismetObject call(IKismetObject... args) {
-                ((KFloat) args[0]).plus((KFloat) args[1])
+                KismetBoolean.from(((KismetNumber) args[0]).compareTo((KismetNumber) args[1]) > 0)
             }
         }
-        define 'plus', func(NumberType.Float64, NumberType.Float64, NumberType.Float64), new Function() {
+        define '<=', func(Logic.BOOLEAN_TYPE, NumberType.Number, NumberType.Number), new Function() {
             IKismetObject call(IKismetObject... args) {
-                ((KFloat64) args[0]).plus((KFloat64) args[1])
+                KismetBoolean.from(((KismetNumber) args[0]).compareTo((KismetNumber) args[1]) <= 0)
             }
         }
-        define 'plus', func(NumberType.Float32, NumberType.Float32, NumberType.Float32), new Function() {
+        define '>=', func(Logic.BOOLEAN_TYPE, NumberType.Number, NumberType.Number), new Function() {
             IKismetObject call(IKismetObject... args) {
-                ((KFloat32) args[0]).plus((KFloat32) args[1])
+                KismetBoolean.from(((KismetNumber) args[0]).compareTo((KismetNumber) args[1]) >= 0)
             }
         }
-        define 'plus', func(NumberType.Int, NumberType.Int, NumberType.Int), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt) args[0]).plus((KInt) args[1])
+        define 'cmp', func(NumberType.Int32, NumberType.Number, NumberType.Number), new Function() {
+            IKismetObject call(IKismetObject... a) {
+                new KInt32(((KismetNumber) a[0]).compareTo((KismetNumber) a[1]))
             }
         }
-        define 'plus', func(NumberType.Int64, NumberType.Int64, NumberType.Int64), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt64) args[0]).plus((KInt64) args[1])
+        for (nt in NumberType.values()) {
+            /*define 'plus', typedTmpl(nt, nt, nt), new TypedTemplate() {
+                @Override
+                TypedExpression transform(TypedContext tc, TypedExpression... args) {
+                    def leftInstr = args[0].instruction
+                    def rightInstr = args[1].instruction
+                    new BasicTypedExpression(nt, new Instruction() {
+                        @Override
+                        IKismetObject evaluate(Memory mem) {
+                            ((KismetNumber) leftInstr.evaluate(mem))
+                                .plus((KismetNumber) rightInstr.evaluate(mem))
+                        }
+                    })
+                }
+            }*/
+            define 'plus', func(nt, nt, nt), new Function() {
+                IKismetObject call(IKismetObject... args) {
+                    ((KismetNumber) args[0]).plus((KismetNumber) args[1])
+                }
+            }
+            define 'minus', func(nt, nt, nt), new Function() {
+                IKismetObject call(IKismetObject... args) {
+                    ((KismetNumber) args[0]).minus((KismetNumber) args[1])
+                }
+            }
+            define 'multiply', func(nt, nt, nt), new Function() {
+                IKismetObject call(IKismetObject... args) {
+                    ((KismetNumber) args[0]).multiply((KismetNumber) args[1])
+                }
+            }
+            define 'divide', func(nt, nt, nt), new Function() {
+                IKismetObject call(IKismetObject... args) {
+                    ((KismetNumber) args[0]).div((KismetNumber) args[1])
+                }
+            }
+            define 'div', func(nt, nt, nt), new Function() {
+                IKismetObject call(IKismetObject... args) {
+                    ((KismetNumber) args[0]).intdiv((KismetNumber) args[1])
+                }
+            }
+            define 'rem', func(nt, nt, nt), new Function() {
+                IKismetObject call(IKismetObject... args) {
+                    ((KismetNumber) args[0]).abs().mod((KismetNumber) args[1])
+                }
+            }
+            define 'mod', func(nt, nt, nt), new Function() {
+                IKismetObject call(IKismetObject... args) {
+                    ((KismetNumber) args[0]).mod((KismetNumber) args[1])
+                }
+            }
+            define 'pow', func(nt, nt, nt), new Function() {
+                IKismetObject call(IKismetObject... args) {
+                    ((KismetNumber) args[0]).power((KismetNumber) args[1])
+                }
+            }
+            define 'gcd', func(nt, nt, nt), new Function() {
+                IKismetObject call(IKismetObject... args) {
+                    KismetNumber.from gcd(((KismetNumber) args[0]).inner(), ((KismetNumber) args[1]).inner())
+                }
+            }
+            define 'lcm', func(nt, nt, nt), new Function() {
+                IKismetObject call(IKismetObject... args) {
+                    KismetNumber.from lcm(((KismetNumber) args[0]).inner(), ((KismetNumber) args[1]).inner())
+                }
+            }
+            define 'next', func(nt, nt), new Function() {
+                @Override
+                IKismetObject call(IKismetObject... args) {
+                    ((KismetNumber) args[0]).plus(new KInt32(1))
+                }
+            }
+            define 'prev', func(nt, nt), new Function() {
+                @Override
+                IKismetObject call(IKismetObject... args) {
+                    ((KismetNumber) args[0]).minus(new KInt32(1))
+                }
+            }
+            define 'first_half', func(nt, nt), new Function() {
+                @Override
+                IKismetObject call(IKismetObject... args) {
+                    ((KismetNumber) args[0]).intdiv(new KInt32(2))
+                }
+            }
+            define 'second_half', func(nt, nt), new Function() {
+                @Override
+                IKismetObject call(IKismetObject... args) {
+                    ((KismetNumber) args[0]).minus(((KismetNumber) args[0]).intdiv(new KInt32(2)))
+                }
+            }
+            define 'call', func(nt, nt, new TupleType().withVarargs(nt)), new Function() {
+                @Override
+                IKismetObject call(IKismetObject... args) {
+                    def result = (KismetNumber) args[0]
+                    def tup = (KismetTuple) args[1]
+                    for (x in tup) {
+                        result *= (KismetNumber) x
+                    }
+                    KismetNumber.from(result)
+                }
+            }
+            if (((NumberType) nt).isInteger()) {
+                define 'bit_not', func(nt, nt), new Function() {
+                    IKismetObject call(IKismetObject... args) {
+                        KismetNumber.from(((KismetNumber) args[0]).inner().bitwiseNegate())
+                    }
+                }
+                define 'bit_xor', func(nt, nt, nt), new Function() {
+                    IKismetObject call(IKismetObject... args) {
+                        ((KismetNumber) args[0]).xor((KismetNumber) args[1])
+                    }
+                }
+                define 'bit_or', func(nt, nt, nt), new Function() {
+                    IKismetObject call(IKismetObject... args) {
+                        ((KismetNumber) args[0]).or((KismetNumber) args[1])
+                    }
+                }
+                define 'bit_and', func(nt, nt, nt), new Function() {
+                    IKismetObject call(IKismetObject... args) {
+                        ((KismetNumber) args[0]).and((KismetNumber) args[1])
+                    }
+                }
+                define 'left_shift', func(nt, nt, nt), new Function() {
+                    IKismetObject call(IKismetObject... args) {
+                        ((KismetNumber) args[0]).leftShift((KismetNumber) args[1])
+                    }
+                }
+                define 'right_shift', func(nt, nt, nt), new Function() {
+                    IKismetObject call(IKismetObject... args) {
+                        ((KismetNumber) args[0]).rightShift((KismetNumber) args[1])
+                    }
+                }
+                define 'unsigned_right_shift', func(nt, nt, nt), new Function() {
+                    IKismetObject call(IKismetObject... args) {
+                        ((KismetNumber) args[0]).rightShiftUnsigned((KismetNumber) args[1])
+                    }
+                }
+            }
+            define 'positive', func(nt, nt), new Function() {
+                IKismetObject call(IKismetObject... args) {
+                    ((KismetNumber) args[0]).unaryPlus()
+                }
+            }
+            define 'negative', func(nt, nt), new Function() {
+                IKismetObject call(IKismetObject... args) {
+                    ((KismetNumber) args[0]).unaryMinus()
+                }
+            }
+            define 'positive?', func(Logic.BOOLEAN_TYPE, nt), new Function() {
+                IKismetObject call(IKismetObject... args) {
+                    KismetBoolean.from(((KismetNumber) args[0]).compareTo(KInt32.ZERO) > 0)
+                }
+            }
+            define 'negative?', func(Logic.BOOLEAN_TYPE, nt), new Function() {
+                IKismetObject call(IKismetObject... args) {
+                    KismetBoolean.from(((KismetNumber) args[0]).compareTo(KInt32.ZERO) < 0)
+                }
+            }
+            define 'zero?', func(Logic.BOOLEAN_TYPE, nt), new Function() {
+                IKismetObject call(IKismetObject... args) {
+                    KismetBoolean.from(((KismetNumber) args[0]).compareTo(KInt32.ZERO) == 0)
+                }
+            }
+            define 'one?', func(Logic.BOOLEAN_TYPE, nt), new Function() {
+                IKismetObject call(IKismetObject... args) {
+                    KismetBoolean.from(((KismetNumber) args[0]).compareTo(KInt32.ONE) == 0)
+                }
+            }
+            define 'even?', func(Logic.BOOLEAN_TYPE, nt), new Function() {
+                IKismetObject call(IKismetObject... args) {
+                    KismetBoolean.from(((KismetNumber) args[0]).divisibleBy(KInt32.TWO))
+                }
+            }
+            define 'divisible_by?', func(Logic.BOOLEAN_TYPE, nt, nt), new Function() {
+                IKismetObject call(IKismetObject... args) {
+                    KismetBoolean.from(((KismetNumber) args[0]).divisibleBy((KismetNumber) args[1]))
+                }
+            }
+            define 'absolute', func(nt, nt), new Function() {
+                @Override
+                IKismetObject call(IKismetObject... args) {
+                    ((KismetNumber) args[0]).abs()
+                }
+            }
+            define 'squared', func(nt, nt), new Function() {
+                @Override
+                IKismetObject call(IKismetObject... args) {
+                    ((KismetNumber) args[0]).multiply((KismetNumber) args[0])
+                }
             }
         }
-        define 'plus', func(NumberType.Int32, NumberType.Int32, NumberType.Int32), new Function() {
+        define 'integer?', func(Logic.BOOLEAN_TYPE, new UnionType(NumberType.Number, NumberType.Float32, NumberType.Float64, NumberType.Float)), new Function() {
             IKismetObject call(IKismetObject... args) {
-                ((KInt32) args[0]).plus((KInt32) args[1])
+                KismetBoolean.from(((KismetNumber) args[0]).divisibleBy(KInt32.ONE))
             }
         }
-        define 'plus', func(NumberType.Int16, NumberType.Int16, NumberType.Int16), new Function() {
+        define 'integer?', func(Logic.BOOLEAN_TYPE, new UnionType(NumberType.Int8, NumberType.Int16, NumberType.Int32, NumberType.Int64, NumberType.Int)), new Function() {
             IKismetObject call(IKismetObject... args) {
-                ((KInt16) args[0]).plus((KInt16) args[1])
-            }
-        }
-        define 'plus', func(NumberType.Int8, NumberType.Int8, NumberType.Int8), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt8) args[0]).plus((KInt8) args[1])
-            }
-        }
-        define 'minus', func(NumberType.Number, NumberType.Number, NumberType.Number), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KismetNumber) args[0]).minus((KismetNumber) args[1])
-            }
-        }
-        define 'minus', func(NumberType.Float, NumberType.Float, NumberType.Float), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KFloat) args[0]).minus((KFloat) args[1])
-            }
-        }
-        define 'minus', func(NumberType.Float64, NumberType.Float64, NumberType.Float64), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KFloat64) args[0]).minus((KFloat64) args[1])
-            }
-        }
-        define 'minus', func(NumberType.Float32, NumberType.Float32, NumberType.Float32), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KFloat32) args[0]).minus((KFloat32) args[1])
-            }
-        }
-        define 'minus', func(NumberType.Int, NumberType.Int, NumberType.Int), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt) args[0]).minus((KInt) args[1])
-            }
-        }
-        define 'minus', func(NumberType.Int64, NumberType.Int64, NumberType.Int64), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt64) args[0]).minus((KInt64) args[1])
-            }
-        }
-        define 'minus', func(NumberType.Int32, NumberType.Int32, NumberType.Int32), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt32) args[0]).minus((KInt32) args[1])
-            }
-        }
-        define 'minus', func(NumberType.Int16, NumberType.Int16, NumberType.Int16), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt16) args[0]).minus((KInt16) args[1])
-            }
-        }
-        define 'minus', func(NumberType.Int8, NumberType.Int8, NumberType.Int8), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt8) args[0]).minus((KInt8) args[1])
-            }
-        }
-        define 'multiply', func(NumberType.Number, NumberType.Number, NumberType.Number), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KismetNumber) args[0]).multiply((KismetNumber) args[1])
-            }
-        }
-        define 'multiply', func(NumberType.Float, NumberType.Float, NumberType.Float), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KFloat) args[0]).multiply((KFloat) args[1])
-            }
-        }
-        define 'multiply', func(NumberType.Float64, NumberType.Float64, NumberType.Float64), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KFloat64) args[0]).multiply((KFloat64) args[1])
-            }
-        }
-        define 'multiply', func(NumberType.Float32, NumberType.Float32, NumberType.Float32), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KFloat32) args[0]).multiply((KFloat32) args[1])
-            }
-        }
-        define 'multiply', func(NumberType.Int, NumberType.Int, NumberType.Int), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt) args[0]).multiply((KInt) args[1])
-            }
-        }
-        define 'multiply', func(NumberType.Int64, NumberType.Int64, NumberType.Int64), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt64) args[0]).multiply((KInt64) args[1])
-            }
-        }
-        define 'multiply', func(NumberType.Int32, NumberType.Int32, NumberType.Int32), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt32) args[0]).multiply((KInt32) args[1])
-            }
-        }
-        define 'multiply', func(NumberType.Int16, NumberType.Int16, NumberType.Int16), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt16) args[0]).multiply((KInt16) args[1])
-            }
-        }
-        define 'multiply', func(NumberType.Int8, NumberType.Int8, NumberType.Int8), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt8) args[0]).multiply((KInt8) args[1])
-            }
-        }
-        define 'divide', func(NumberType.Number, NumberType.Number, NumberType.Number), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KismetNumber) args[0]).div((KismetNumber) args[1])
-            }
-        }
-        define 'divide', func(NumberType.Float, NumberType.Float, NumberType.Float), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KFloat) args[0]).div((KFloat) args[1])
-            }
-        }
-        define 'divide', func(NumberType.Float64, NumberType.Float64, NumberType.Float64), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KFloat64) args[0]).div((KFloat64) args[1])
-            }
-        }
-        define 'divide', func(NumberType.Float32, NumberType.Float32, NumberType.Float32), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KFloat32) args[0]).div((KFloat32) args[1])
-            }
-        }
-        define 'divide', func(NumberType.Int, NumberType.Int, NumberType.Int), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt) args[0]).div((KInt) args[1])
-            }
-        }
-        define 'divide', func(NumberType.Int64, NumberType.Int64, NumberType.Int64), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt64) args[0]).div((KInt64) args[1])
-            }
-        }
-        define 'divide', func(NumberType.Int32, NumberType.Int32, NumberType.Int32), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt32) args[0]).div((KInt32) args[1])
-            }
-        }
-        define 'divide', func(NumberType.Int16, NumberType.Int16, NumberType.Int16), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt16) args[0]).div((KInt16) args[1])
-            }
-        }
-        define 'divide', func(NumberType.Int8, NumberType.Int8, NumberType.Int8), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt8) args[0]).div((KInt8) args[1])
-            }
-        }
-        define 'div', func(NumberType.Number, NumberType.Number, NumberType.Number), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KismetNumber) args[0]).intdiv((KismetNumber) args[1])
-            }
-        }
-        define 'div', func(NumberType.Float, NumberType.Float, NumberType.Float), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KFloat) args[0]).intdiv((KFloat) args[1])
-            }
-        }
-        define 'div', func(NumberType.Float64, NumberType.Float64, NumberType.Float64), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KFloat64) args[0]).intdiv((KFloat64) args[1])
-            }
-        }
-        define 'div', func(NumberType.Float32, NumberType.Float32, NumberType.Float32), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KFloat32) args[0]).intdiv((KFloat32) args[1])
-            }
-        }
-        define 'div', func(NumberType.Int, NumberType.Int, NumberType.Int), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt) args[0]).intdiv((KInt) args[1])
-            }
-        }
-        define 'div', func(NumberType.Int64, NumberType.Int64, NumberType.Int64), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt64) args[0]).intdiv((KInt64) args[1])
-            }
-        }
-        define 'div', func(NumberType.Int32, NumberType.Int32, NumberType.Int32), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt32) args[0]).intdiv((KInt32) args[1])
-            }
-        }
-        define 'div', func(NumberType.Int16, NumberType.Int16, NumberType.Int16), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt16) args[0]).intdiv((KInt16) args[1])
-            }
-        }
-        define 'div', func(NumberType.Int8, NumberType.Int8, NumberType.Int8), new Function() {
-            IKismetObject call(IKismetObject... args) {
-                ((KInt8) args[0]).intdiv((KInt8) args[1])
+                KismetBoolean.TRUE
             }
         }
         alias 'plus', '+'
         alias 'minus', '-'
         alias 'multiply', '*'
         alias 'divide', '/'
-        define 'rem',  funcc(true) { ... args -> args.inject { a, b -> a.invokeMethod('mod', [b] as Object[]) } }
-        define 'mod',  funcc(true) { ... args -> args.inject { a, b -> a.invokeMethod('abs', null).invokeMethod('mod', [b] as Object[]) } }
-        define 'pow',  funcc(true) { ... args -> args.inject { a, b -> a.invokeMethod('power', [b] as Object[]) } }
+        alias 'first_half', 'half'
+        alias 'divisible_by?', 'divides?', 'divs?'
+        alias 'absolute', 'abs'
+        alias 'square_root', 'sqrt'
+        alias 'cube_root', 'cbrt'
+        negated 'integer?', 'decimal?'
+        negated 'even?', 'odd?'
         define 'reciprocal',  funcc(true) { ... args -> 1.div(args[0] as Number) }
         define 'integer_from_int8_list',  funcc(true) { ... args -> new BigInteger(args[0] as byte[]) }
         define 'integer_to_int8_list',  funcc(true) { ... args -> (args[0] as BigInteger).toByteArray() as List<Byte> }
         define 'number?',  funcc { ... args -> args[0] instanceof Number }
-        define 'gcd',  funcc { ... args -> gcd(args[0] as Number, args[1] as Number) }
-        define 'lcm',  funcc { ... args -> lcm(args[0] as Number, args[1] as Number) }
         define 'reduce_ratio', func(new TupleType(NumberType.Number, NumberType.Number), new TupleType(NumberType.Number, NumberType.Number)), new Function() {
             @Override
             IKismetObject call(IKismetObject... args) {
@@ -739,43 +410,6 @@ class Numbers extends NativeModule {
                 } else throw new UnexpectedSyntaxException('Expression after octal was not a octal number literal.'
                         + ' To convert octal strings to integers do [from_base str 8], '
                         + ' and to convert integers to octal strings do [to_base i 8].')
-            }
-        }
-        alias 'divisible_by?', 'divides?', 'divs?'
-        define 'next', func(NumberType.Number, NumberType.Number), new Function() {
-            @Override
-            IKismetObject call(IKismetObject... args) {
-                ((KismetNumber) args[0]).plus(new KInt32(1))
-            }
-        }
-        define 'prev', func(NumberType.Number, NumberType.Number), new Function() {
-            @Override
-            IKismetObject call(IKismetObject... args) {
-                ((KismetNumber) args[0]).minus(new KInt32(1))
-            }
-        }
-        define 'call', func(NumberType.Number, NumberType.Number, new TupleType().withVarargs(NumberType.Number)), new Function() {
-            @Override
-            IKismetObject call(IKismetObject... args) {
-                def result = (KismetNumber) args[0]
-                def tup = (KismetTuple) args[1]
-                for (x in tup) {
-                    result *= (KismetNumber) x
-                }
-                KismetNumber.from(result)
-            }
-        }
-        define 'first_half', func(NumberType.Number, NumberType.Number), new Function() {
-            @Override
-            IKismetObject call(IKismetObject... args) {
-                ((KismetNumber) args[0]).intdiv(new KInt32(2))
-            }
-        }
-        alias 'first_half', 'half'
-        define 'second_half', func(NumberType.Number, NumberType.Number), new Function() {
-            @Override
-            IKismetObject call(IKismetObject... args) {
-                ((KismetNumber) args[0]).minus(((KismetNumber) args[0]).intdiv(new KInt32(2)))
             }
         }
     }

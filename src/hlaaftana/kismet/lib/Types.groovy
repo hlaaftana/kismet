@@ -13,16 +13,19 @@ import static hlaaftana.kismet.lib.Functions.*
 
 @CompileStatic
 class Types extends NativeModule {
-    static final SingleType META_TYPE = new SingleType('Meta', +Type.ANY),
+    static final SingleType META_TYPE = new SingleType('Meta', +Type.ANY)  {
+        boolean check(IKismetObject obj) { obj instanceof Type }
+        boolean checkGenerics(IKismetObject obj, Type... args) { args[0].relation((Type) obj).assignableFrom }
+    },
         TYPE_BOUND_TYPE = new SingleType('TypeBound', +META_TYPE)
 
     static Type inferType(IKismetObject value) {
         if (value instanceof KismetNumber) value.type
-        else if (value instanceof Function) Functions.FUNCTION_TYPE//func(Type.NONE, new TupleType(new Type[0]).withVarargs(Type.ANY))
-        else if (value instanceof Template) Functions.TEMPLATE_TYPE
-        else if (value instanceof TypeChecker) Functions.TYPE_CHECKER_TYPE
-        else if (value instanceof Instructor) Functions.INSTRUCTOR_TYPE
-        else if (value instanceof TypedTemplate) Functions.TYPED_TEMPLATE_TYPE
+        else if (value instanceof Function) FUNCTION_TYPE//func(Type.NONE, new TupleType(new Type[0]).withVarargs(Type.ANY))
+        else if (value instanceof Template) TEMPLATE_TYPE
+        else if (value instanceof TypeChecker) TYPE_CHECKER_TYPE
+        else if (value instanceof Instructor) INSTRUCTOR_TYPE
+        else if (value instanceof TypedTemplate) TYPED_TEMPLATE_TYPE
         else if (value instanceof Type) new GenericType(Types.META_TYPE, value)
         else throw new UnsupportedOperationException("Cannot infer type for kismet object $value")
     }
@@ -31,7 +34,7 @@ class Types extends NativeModule {
         super("types")
         define 'Any', new GenericType(META_TYPE, Type.ANY), Type.ANY
         define 'None', new GenericType(META_TYPE, Type.NONE), Type.NONE
-        define 'cast', Functions.TYPE_CHECKER_TYPE, new TypeChecker() {
+        define 'cast', TYPE_CHECKER_TYPE, new TypeChecker() {
             @CompileStatic
             TypedExpression transform(TypedContext context, Expression... args) {
                 final typ = ((GenericType) args[0].type(context, +META_TYPE).type).arguments[0]

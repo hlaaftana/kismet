@@ -2,6 +2,7 @@ package hlaaftana.kismet.type
 
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.exceptions.UnexpectedTypeException
+import hlaaftana.kismet.vm.IKismetObject
 
 @CompileStatic
 class ParameterType extends AbstractType {
@@ -24,4 +25,6 @@ class ParameterType extends AbstractType {
     TypeRelation weakRelation(Type other) {
         inner.relation(other)
     }
+
+    boolean check(IKismetObject obj) { inner.check(obj) }
 }

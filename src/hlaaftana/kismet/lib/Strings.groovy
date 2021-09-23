@@ -20,8 +20,14 @@ import static hlaaftana.kismet.lib.Functions.*
 @CompileStatic
 @SuppressWarnings("ChangeToOperator")
 class Strings extends NativeModule {
-    static final SingleType STRING_TYPE = new SingleType('String'),
-            REGEX_TYPE = new SingleType('Regex')
+    static final SingleType STRING_TYPE = new SingleType('String') {
+        boolean check(IKismetObject obj) { obj instanceof KismetString }
+        boolean checkGenerics(IKismetObject obj, Type... args) { true }
+    },
+            REGEX_TYPE = new SingleType('Regex')  {
+                boolean check(IKismetObject obj) { obj.inner() instanceof Pattern }
+                boolean checkGenerics(IKismetObject obj, Type... args) { true }
+            }
 
     static boolean isAlphaNum(char ch) {
         (ch >= ((char) 'a') && ch <= ((char) 'z')) ||

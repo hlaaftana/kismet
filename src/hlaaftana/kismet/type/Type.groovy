@@ -8,6 +8,7 @@ interface Type extends IKismetObject<Type> {
 	static final AnyType ANY = AnyType.INSTANCE
 	static final NoType NONE = NoType.INSTANCE
 	TypeRelation relation(Type other)
+	boolean check(IKismetObject obj)
 }
 
 @CompileStatic

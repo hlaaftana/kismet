@@ -18,9 +18,35 @@ import static hlaaftana.kismet.lib.Functions.funcc
 @SuppressWarnings("ChangeToOperator")
 class CollectionsIterators extends NativeModule {
     static final SingleType LIST_TYPE =
-        new SingleType('List', [+Type.ANY] as TypeBound[]),
-        SET_TYPE = new SingleType('Set', [+Type.ANY] as TypeBound[]),
-        MAP_TYPE = new SingleType('Map', [+Type.ANY, +Type.ANY] as TypeBound[]),
+        new SingleType('List', [+Type.ANY] as TypeBound[]) {
+            boolean check(IKismetObject obj) { obj.inner() instanceof List }
+
+            boolean checkGenerics(IKismetObject obj, Type... args) {
+                def l = (List) obj.inner()
+                for (int i = 0; i < l.size(); ++i) {
+                    if (!args[0].check(Kismet.model(l.get(i)))) return false
+                }
+                true
+            }
+        },
+        SET_TYPE = new SingleType('Set', [+Type.ANY] as TypeBound[]) {
+            boolean check(IKismetObject obj) { obj.inner() instanceof Set }
+
+            boolean checkGenerics(IKismetObject obj, Type... args) {
+                for (m in (Set) obj.inner())
+                    if (!args[0].check(Kismet.model(m))) return false
+                true
+            }
+        },
+        MAP_TYPE = new SingleType('Map', [+Type.ANY, +Type.ANY] as TypeBound[]) {
+            boolean check(IKismetObject obj) { obj.inner() instanceof Map }
+
+            boolean checkGenerics(IKismetObject obj, Type... args) {
+                for (e in (Map) obj.inner())
+                    if (!args[0].check(Kismet.model(e.key)) || !args[1].check(Kismet.model(e.value))) return false
+                true
+            }
+        },
 
         // unused
         CLOSURE_ITERATOR_TYPE = new SingleType('ClosureIterator')

@@ -143,6 +143,19 @@ class TypedContext extends Memory {
 		winner.v1
 	}
 
+	List<VariableReference> findOverloads(String name, TypeBound expected, boolean doParents = true) {
+		def rels = new HashMap<VariableReference, TypeRelation>()
+		def match = new ArrayList<VariableReference>()
+		for (d in getAll(name, doParents)) {
+			def rel = expected.relation(d.variable.type)
+			if (rel.assignableFrom) {
+				match.add(d)
+				rels.put(d, rel)
+			}
+		}
+		match.sort { -rels.get(it).toSome() }
+	}
+
 	VariableReference findThrow(String name, TypeBound expected, boolean doParents = true) {
 		def var = find(name, expected, doParents)
 		if (null == var) {

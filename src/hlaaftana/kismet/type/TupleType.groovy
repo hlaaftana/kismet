@@ -2,11 +2,16 @@ package hlaaftana.kismet.type
 
 import groovy.transform.CompileStatic
 import groovy.transform.EqualsAndHashCode
+import hlaaftana.kismet.call.TypedTemplate
+import hlaaftana.kismet.vm.IKismetObject
+import hlaaftana.kismet.vm.KismetTuple
 
 @CompileStatic
 @EqualsAndHashCode
 class TupleType extends GenericType {
-	static final SingleType BASE = new SingleType('Tuple')
+	static final SingleType BASE = new SingleType('Tuple') {
+		boolean check(IKismetObject obj) { obj instanceof KismetTuple }
+	}
 	Type varargs
 
 	TupleType() { super(BASE) }
@@ -18,6 +23,15 @@ class TupleType extends GenericType {
 	String toString() { "Tuple[${arguments.join(', ')}" + (null == varargs ? "]" : ", $varargs...]") }
 
 	boolean isIndefinite() { null != varargs }
+
+	boolean check(IKismetObject obj) {
+		if (obj instanceof KismetTuple && (null == varargs ? obj.size() == arguments.length : obj.size() >= arguments.length)) {
+			for (int i = 0; i < obj.size(); ++i) {
+				if (!getAt(i).check(obj)) return false
+			}
+			true
+		} else false
+	}
 
 	TypeBound.Variance varianceAt(int i) {
 		TypeBound.Variance.COVARIANT

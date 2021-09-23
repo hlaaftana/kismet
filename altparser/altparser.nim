@@ -1,7 +1,3 @@
-# TODO:
-# make colons parse a single expression instead of line (unlike regular kismet)
-# make a actual new syntax
-
 import tokenizer
 
 type
@@ -12,6 +8,7 @@ type
     ekParenList, ekBrackList, ekCurlyList
   
   ExprObj* = object
+    wrapped*: bool
     case kind*: ExprKind
     of ekNone: discard
     of ekNumber:
@@ -94,7 +91,7 @@ iterator nextTokens*(p: var Parser): Token =
 
 proc recordLine*(p: var Parser, ignoreNewline = false): Expr
 
-proc recordWideLine*(p: var Parser, ignoreNewline = true): Expr =
+proc recordWideLine*(p: var Parser, ignoreNewline = true, open = false): Expr =
   var s: seq[Expr]
   var semicoloned = false
   for t in p.nextTokens:
@@ -172,9 +169,11 @@ proc recordParen*(p: var Parser): Expr =
     else:
       s.add(recordWideLine(p))
   if commad:
-    Expr(kind: ekParenList, exprs: s)
-  elif s.len == 0: Expr(kind: ekParenList, exprs: @[])
-  else: s[0]
+    Expr(kind: ekParenList, exprs: s, wrapped: true)
+  elif s.len == 0: Expr(kind: ekParenList, exprs: @[], wrapped: true)
+  else:
+    s[0].wrapped = true
+    s[0]
 
 proc recordBrack*(p: var Parser): Expr =
   var commad = false
@@ -191,10 +190,10 @@ proc recordBrack*(p: var Parser): Expr =
     else:
       s.add(recordWideLine(p))
   if commad:
-    Expr(kind: ekBrackList, exprs: s)
-  elif s.len == 0: Expr(kind: ekBrackList, exprs: @[])
-  elif s[0].kind == ekCall: s[0]
-  else: Expr(kind: ekCall, exprs: @[s[0]])
+    Expr(kind: ekBrackList, exprs: s, wrapped: true)
+  elif s.len == 0: Expr(kind: ekBrackList, exprs: @[], wrapped: true)
+  elif s[0].kind == ekCall and not s[0].wrapped: s[0]
+  else: Expr(kind: ekCall, exprs: @[s[0]], wrapped: true)
 
 proc recordCurly*(p: var Parser): Expr =
   var commad = false
@@ -211,8 +210,8 @@ proc recordCurly*(p: var Parser): Expr =
     else:
       s.add(recordWideLine(p, commad))
   if commad:
-    Expr(kind: ekCurlyList, exprs: s)
-  else: Expr(kind: ekBlock, exprs: s)
+    Expr(kind: ekCurlyList, exprs: s, wrapped: true)
+  else: Expr(kind: ekBlock, exprs: s, wrapped: true)
 
 proc recordDot*(p: var Parser, previous: Expr): Expr =
   template finish(val: Expr, k = ekProperty) =
@@ -230,13 +229,15 @@ proc recordDot*(p: var Parser, previous: Expr): Expr =
         exprs.add(p.exprs)
       else:
         exprs.add(p)
-      return Expr(kind: ekCall, exprs: exprs)
+      return Expr(kind: ekCall, exprs: exprs, wrapped: true)
     of tkOpenBrack:
       inc p.pos
       var rec = recordBrack(p)
       case rec.kind
-      of ekCall: rec = if rec.exprs.len > 1: rec else: rec.exprs[0]
-      of ekBrackList: rec = Expr(kind: ekParenList, exprs: rec.exprs)
+      of ekCall:
+        rec = if rec.exprs.len > 1: rec else: rec.exprs[0]
+        rec.wrapped = true
+      of ekBrackList: rec = Expr(kind: ekParenList, exprs: rec.exprs, wrapped: true)
       else: discard
       finish(rec, ekSubscript)
     of tkOpenCurly:
@@ -304,7 +305,7 @@ proc recordOpenBlock*(p: var Parser): Expr =
     of tkComma, tkCloseCurly, tkCloseParen, tkCloseBrack:
       error "wrong tokens at: " & $p.pos
     else:
-      s.add(recordWideLine(p, false))
+      s.add(recordWideLine(p, ignoreNewline = false, open = true))
   if s.len == 1: s[0]
   else: Expr(kind: ekBlock, exprs: s)
 

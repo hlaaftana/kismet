@@ -46,6 +46,14 @@ abstract class KismetNumber<T extends Number> extends Number implements IKismetO
 		mod(obj).compareTo(KInt32.ZERO) == 0
 	}
 
+	KismetNumber abs() {
+		compareTo(KInt32.ZERO) < 0 ? unaryMinus() : this
+	}
+
+	KismetNumber power(KismetNumber other) {
+		from(inner().power(other.inner()))
+	}
+
 	int hashCode() { inner().hashCode() }
 
 	boolean equals(obj) {
