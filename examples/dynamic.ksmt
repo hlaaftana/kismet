@@ -1,0 +1,29 @@
+;; test for dynamic dispatch
+
+defn [mean l] [/ [sum l] l.size]
+defn [median l] [
+  let (d: half l.size) [if [odd? l.size] l[d] [half [+ l[d] l[prev d]]]]]
+defn [standard_deviation l] [square_root [/
+  [let (result s: 0, m: mean l, each a: l) [incr s [squared [- a m]]]]
+  [prev l.size]]]
+defn [skewness l] [/ [* [- [mean l] [median l]] 3] [standard_deviation l]]
+
+assert_is 5 [median [1, 2, 3, 4, 5, 6, 7, 8, 9]] [mean [1, 2, 3, 4, 5, 6, 7, 8, 9]]
+assert_is 5 [median [range 1 9]] [mean [range 1 9]]
+
+defn [concat (a: String) (b: String) (returns String)] [string a b]
+defn [concat (a: List) (b: List) (returns c: List)] {
+  c: new_list [+ a.size b.size]
+  add_all c a
+  add_all c b
+}
+
+x1: cast Any "abc"
+y1: cast Any "def"
+
+assert_is [concat x1 y1] "abcdef"
+
+x2: cast Any [1, 2, 3]
+y2: cast Any [4, 5, 6]
+
+assert_is [concat x2 y2] [1, 2, 3, 4, 5, 6]

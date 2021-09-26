@@ -2,11 +2,15 @@ package hlaaftana.kismet.call
 
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.Kismet
+import hlaaftana.kismet.exceptions.UndefinedSymbolException
 import hlaaftana.kismet.exceptions.UnexpectedValueException
+import hlaaftana.kismet.lib.Functions
 import hlaaftana.kismet.lib.Strings
 import hlaaftana.kismet.scope.TypedContext
+import hlaaftana.kismet.type.GenericType
 import hlaaftana.kismet.type.NumberType
 import hlaaftana.kismet.type.Type
+import hlaaftana.kismet.type.UnionType
 import hlaaftana.kismet.vm.*
 
 import java.nio.ByteBuffer
@@ -496,6 +500,51 @@ class InstructorCallExpression extends TypedExpression {
 	}
 
 	String toString() { "instructor call($type) $value(${arguments.join(', ')})" }
+}
+
+@CompileStatic
+class OverloadResolverInstruction extends Instruction {
+	Instruction[] overloads
+
+	OverloadResolverInstruction(Instruction[] overloads) {
+		this.overloads = overloads
+	}
+
+	IKismetObject evaluate(Memory context) {
+		def funcs = new Function[overloads.length]
+		for (int i = 0; i < funcs.length; ++i) {
+			funcs[i] = (Function) overloads[i].evaluate(context)
+		}
+		new OverloadDispatchFunction(funcs)
+	}
+}
+
+@CompileStatic
+class OverloadResolverExpression extends TypedExpression {
+	TypedExpression[] overloads
+	Type type
+
+	OverloadResolverExpression(TypedExpression[] overloads) {
+		this.overloads = overloads
+		List<Type> argumentTypes = []
+		List<Type> returnTypes = []
+		for (int i = 0; i < overloads.length; ++i) {
+			if (type instanceof GenericType) {
+				if (null != type.arguments) {
+					argumentTypes.add(type.arguments[0])
+					returnTypes.add(type.arguments[1])
+				}
+			}
+		}
+		this.type = argumentTypes.empty ? Functions.FUNCTION_TYPE :
+			Functions.FUNCTION_TYPE.generic(new UnionType(argumentTypes).reduced(), new UnionType(returnTypes).reduced())
+	}
+
+	Instruction getInstruction() {
+		def overloadInstrs = new Instruction[overloads.length]
+		for (int i = 0; i < overloadInstrs.length; ++i) overloadInstrs[i] = overloads[i].instruction
+		new OverloadResolverInstruction(overloadInstrs)
+	}
 }
 
 @CompileStatic

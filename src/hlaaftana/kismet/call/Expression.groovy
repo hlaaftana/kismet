@@ -81,6 +81,8 @@ class PathExpression extends Expression {
 		IKismetObject call(IKismetObject... args) {
 			applySteps(context, args[0], steps)
 		}
+
+		boolean checkArgumentTypes(IKismetObject... args) { true }
 	}
 
 	static IKismetObject applySteps(Memory c, IKismetObject object, List<Step> steps) {
@@ -321,8 +323,20 @@ class NameExpression extends Expression {
 
 	String repr() { text }
 
-	VariableExpression type(TypedContext tc, TypeBound preferred) {
-		new VariableExpression(tc.findThrow(text, preferred)).<VariableExpression>withOriginal(this)
+	TypedExpression type(TypedContext tc, TypeBound preferred) {
+		try {
+			new VariableExpression(tc.findThrow(text, preferred)).<VariableExpression>withOriginal(this)
+		} catch (UndefinedSymbolException ex) {
+			if (preferred.type.relation(Functions.FUNCTION_TYPE).assignableTo) {
+				def overloads = tc.findOverloads(text, +preferred)
+				if (!overloads.empty) {
+					//println name + ": " + argtypes + ", " + overloads*.variable*.type
+					def os = new TypedExpression[overloads.size()]
+					for (int i = 0; i < os.length; ++i) os[i] = new VariableExpression(overloads.get(i))
+					new OverloadResolverExpression(os)
+				} else throw ex
+			} else throw ex
+		}
 	}
 }
 
@@ -501,7 +515,11 @@ class CallExpression extends Expression {
 		} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {}
 		if (null != cv && cv.type == Functions.TEMPLATE_TYPE)
 			return ((Template) cv.instruction.evaluate(tc))
-					.transform(null, arguments.<Expression>toArray(new Expression[arguments.size()])).type(tc, preferred).withOriginal(this)
+					.transform(null,
+						arguments.<Expression>toArray(
+							new Expression[arguments.size()]))
+					.type(tc, preferred)
+					.withOriginal(this)
 
 		// type checker
 		try {
@@ -544,10 +562,6 @@ class CallExpression extends Expression {
 		} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {}
 		if (null != cv) return new TypedCallExpression(cv, args, cv.type instanceof SingleType ?
 			Type.ANY : ((GenericType) cv.type)[1]).withOriginal(this)
-
-		if (callValue instanceof NameExpression) {
-			// TODO: dynamic dispatch
-		}
 
 		cv = callValue.type(tc)
 		// TODO: change the 'call' signature in Prelude after all untyped functions are typedContext (held back by generics)
@@ -607,13 +621,12 @@ class ListExpression extends CollectionExpression {
 		}
 
 		Type getType() {
-			def bound = Type.NONE
+			def types = new ArrayList<Type>(members.length)
 			for (final m : members) {
-				def rel = bound.relation(m.type)
-				if (rel.sub) bound = m.type
-				else if (rel.none) throw new UnexpectedTypeException('Type ' + m.type + ' is incompatible with list with bound ' + bound)
+				types.add(m.type)
+				//throw new UnexpectedTypeException('Type ' + m.type + ' is incompatible with list with bound ' + bound)
 			}
-			new GenericType(CollectionsIterators.LIST_TYPE, bound)
+			new GenericType(CollectionsIterators.LIST_TYPE, new UnionType(types).reduced())
 		}
 
 		Instruction getInstruction() { new Instr(members) }
@@ -756,13 +769,12 @@ class SetExpression extends CollectionExpression {
 		}
 
 		Type getType() {
-			def bound = Type.NONE
+			def types = new ArrayList<Type>(members.length)
 			for (final m : members) {
-				def rel = bound.relation(m.type)
-				if (rel.sub) bound = m.type
-				else if (rel.none) throw new UnexpectedTypeException('Type ' + m.type + ' is incompatible with set with bound ' + bound)
+				types.add(m.type)
+				//throw new UnexpectedTypeException('Type ' + m.type + ' is incompatible with list with bound ' + bound)
 			}
-			new GenericType(CollectionsIterators.SET_TYPE, bound)
+			new GenericType(CollectionsIterators.SET_TYPE, new UnionType(types).reduced())
 		}
 
 		Instruction getInstruction() { new Instr(members) }
@@ -844,16 +856,16 @@ class MapExpression extends CollectionExpression {
 		}
 
 		Type getType() {
-			def key = Type.NONE, value = Type.NONE
+			def keyTypes = new ArrayList<Type>(keys.length)
+			def valueTypes = new ArrayList<Type>(values.length)
 			for (int i = 0; i < keys.length; ++i) {
-				def krel = key.relation(keys[i].type)
-				if (krel.sub) key = keys[i].type
-				else if (krel.none) throw new UnexpectedTypeException('Type ' + keys[i].type + ' is incompatible with map with key bound ' + key)
-				def vrel = value.relation(values[i].type)
-				if (vrel.sub) value = values[i].type
-				else if (vrel.none) throw new UnexpectedTypeException('Type ' + values[i].type + ' is incompatible with map with value bound ' + value)
+				keyTypes.add(keys[i].type)
+				valueTypes.add(values[i].type)
+				//throw new UnexpectedTypeException('Type ' + m.type + ' is incompatible with list with bound ' + bound)
 			}
-			new GenericType(CollectionsIterators.MAP_TYPE, key, value)
+			new GenericType(CollectionsIterators.MAP_TYPE,
+				new UnionType(keyTypes).reduced(),
+				new UnionType(valueTypes).reduced())
 		}
 
 		Instruction getInstruction() { new Instr(keys, values) }

@@ -7,9 +7,12 @@ import hlaaftana.kismet.scope.TypedContext
 import hlaaftana.kismet.type.*
 import hlaaftana.kismet.vm.IKismetObject
 import hlaaftana.kismet.vm.KismetBoolean
+import hlaaftana.kismet.vm.KismetDistinct
 import hlaaftana.kismet.vm.KismetNumber
+import hlaaftana.kismet.vm.Memory
 
 import static hlaaftana.kismet.lib.Functions.*
+import static hlaaftana.kismet.lib.Functions.TYPE_CHECKER_TYPE
 
 @CompileStatic
 class Types extends NativeModule {
@@ -44,6 +47,13 @@ class Types extends NativeModule {
 
                     Instruction getInstruction() { expr.instruction }
                 }
+            }
+        }
+        define 'prefer_type', TYPE_CHECKER_TYPE, new TypeChecker() {
+            @Override
+            TypedExpression transform(TypedContext context, Expression... args) {
+                def typ = args[0].type(context, +new UnionType(TYPE_BOUND_TYPE, META_TYPE)).instruction.evaluate(context)
+                args[1].type(context, typ instanceof TypeBound ? typ : new TypeBound((Type) typ))
             }
         }
         define 'null', Type.NONE, Kismet.NULL
@@ -97,6 +107,38 @@ class Types extends NativeModule {
             TypedExpression transform(TypedContext context, TypedExpression... args) {
                 final base = (Type) args[0].instruction.evaluate(context)
                 final typ = new DistinctType(base)
+                new TypedConstantExpression<Type>(new GenericType(META_TYPE, typ), typ)
+            }
+        }
+        define 'instantiate', typedTmpl(Type.NONE, META_TYPE/*.generic(AnyDistinctType.ANY)*/, Type.ANY), new TypedTemplate() {
+            @Override
+            TypedExpression transform(TypedContext context, TypedExpression... args) {
+                final typ = (DistinctType) args[0].instruction.evaluate(context)
+                final inst = args[1].instruction
+                new BasicTypedExpression(typ, new Instruction() {
+                    IKismetObject evaluate(Memory c) {
+                        new KismetDistinct(typ, inst.evaluate(c))
+                    }
+                })
+            }
+        }
+        define 'undistinct', typedTmpl(Type.NONE, AnyDistinctType.ANY), new TypedTemplate() {
+            @Override
+            TypedExpression transform(TypedContext context, TypedExpression... args) {
+                final base = ((DistinctType) args[0].type).inner
+                final inst = args[0].instruction
+                new BasicTypedExpression(base, new Instruction() {
+                    IKismetObject evaluate(Memory c) {
+                        ((KismetDistinct) inst.evaluate(c)).inner
+                    }
+                })
+            }
+        }
+        define 'undistinct', typedTmpl(META_TYPE, META_TYPE.generic(AnyDistinctType.ANY)), new TypedTemplate() {
+            @Override
+            TypedExpression transform(TypedContext context, TypedExpression... args) {
+                final base = (DistinctType) args[0].instruction.evaluate(context)
+                final typ = base.inner
                 new TypedConstantExpression<Type>(new GenericType(META_TYPE, typ), typ)
             }
         }

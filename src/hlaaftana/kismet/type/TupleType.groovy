@@ -25,9 +25,13 @@ class TupleType extends GenericType {
 	boolean isIndefinite() { null != varargs }
 
 	boolean check(IKismetObject obj) {
-		if (obj instanceof KismetTuple && (null == varargs ? obj.size() == arguments.length : obj.size() >= arguments.length)) {
-			for (int i = 0; i < obj.size(); ++i) {
-				if (!getAt(i).check(obj)) return false
+		obj instanceof KismetTuple && check(((KismetTuple) obj).inner)
+	}
+
+	boolean check(IKismetObject... values) {
+		if (null == varargs ? values.length == arguments.length : values.length >= arguments.length) {
+			for (int i = 0; i < values.length; ++i) {
+				if (!getAt(i).check(values[i])) return false
 			}
 			true
 		} else false

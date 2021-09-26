@@ -12,8 +12,7 @@ defn [memoized (f: Function)] {
 ;;}
 
 static our_memoize: tmpl {
-  fun: cast Expression exprs[0]
-  call_expr [name_expr "set_to", fun, call_expr [name_expr "memoized", fun]]
+  call_expr [name_expr "set_to", exprs[0], call_expr [name_expr "memoized", exprs[0]]]
 }
 
 defn [nth_fibonacci (n: Int) (returns Int)] {

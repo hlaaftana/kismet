@@ -22,17 +22,34 @@ class UnionType extends AbstractType {
 		false
 	}
 
-	UnionType reduced() {
+	UnionType flatten() {
 		def newMems = new ArrayList<Type>()
-		outer: for (mem in members) {
-			for (newMem in newMems) {
-				if (mem.relation(newMem).assignableTo) {
-					break outer
-				}
-			}
-			newMems.add(mem)
+		for (m in members) {
+			if (m instanceof UnionType) newMems.addAll(m.flatten())
+			else newMems.add(m)
 		}
 		new UnionType(newMems)
+	}
+
+	Type reduced() {
+		def flattened = flatten()
+		def newMems = new ArrayList<Type>()
+		outer: for (mem in flattened.members) {
+			for (int i = 0; i < newMems.size(); ++i) {
+				final newMem = newMems.get(i)
+				def rel = mem.relation(newMem)
+				if (rel.assignableTo) {
+					break outer
+				} else if (rel.super) {
+					newMems.remove(i)
+					--i
+				}
+			}
+			if (mem instanceof UnionType) mem = ((UnionType) mem).reduced()
+			mem instanceof UnionType ? newMems.addAll(mem.members) : newMems.add(mem)
+		}
+		newMems.size() == 0 ? NONE : newMems.size() == 1 ? newMems.get(0) :
+			new UnionType(newMems)
 	}
 
 	String toString() {

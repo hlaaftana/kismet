@@ -3,7 +3,7 @@ import "examples/struct.ksmt"
 john: initPerson()
 john.age: 40
 john.name: "Not John"
-assert_is john ("Not John", 40)
+assert_is [undistinct john] ("Not John", 40)
 assert_is john.age 40
 assert_is john.name "Not John"
 
@@ -19,3 +19,5 @@ message.content: "this message is sent by john"
 message.author: john
 
 assert_is [to_string message] "Not John said: this message is sent by john"
+
+assert_is [undistinct [type_of message]] Tuple[String, Person]

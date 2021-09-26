@@ -90,28 +90,12 @@ class Context extends Memory {
 		new Block(expr, child())
 	}
 
-	Block childBlock(Expression[] expr) {
-		new Block(ExprBuilder.block(expr), child())
-	}
-
 	Block child(List<Expression> expr) {
 		new Block(new BlockExpression(expr), child())
 	}
 
 	Context child() {
 		new Context(this)
-	}
-
-	IKismetObject childEval(Expression expr) {
-		expr.evaluate(child())
-	}
-
-	IKismetObject childEval(Expression[] expr) {
-		ExprBuilder.block(expr).evaluate(child())
-	}
-
-	IKismetObject childEval(List<Expression> expr) {
-		new BlockExpression(expr).evaluate(child())
 	}
 
 	IKismetObject eval(Expression expr) {

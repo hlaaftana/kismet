@@ -22,17 +22,33 @@ class IntersectionType extends AbstractType {
 		true
 	}
 
-	IntersectionType reduced() {
+	IntersectionType flatten() {
 		def newMems = new ArrayList<Type>()
-		outer: for (mem in members) {
-			for (newMem in newMems) {
-				if (mem.relation(newMem).assignableFrom) {
+		for (m in members) {
+			if (m instanceof IntersectionType) newMems.addAll(m.flatten())
+			else newMems.add(m)
+		}
+		new IntersectionType(newMems)
+	}
+
+	Type reduced() {
+		def flattened = flatten()
+		def newMems = new ArrayList<Type>()
+		outer: for (mem in flattened.members) {
+			for (int i = 0; i < newMems.size(); ++i) {
+				final newMem = newMems.get(i)
+				def rel = mem.relation(newMem)
+				if (rel.assignableFrom) {
 					break outer
+				} else if (rel.sub) {
+					newMems.remove(i)
+					--i
 				}
 			}
 			newMems.add(mem)
 		}
-		new IntersectionType(newMems)
+		newMems.size() == 0 ? ANY : newMems.size() == 1 ? newMems.get(0) :
+			new IntersectionType(newMems)
 	}
 
 	String toString() {

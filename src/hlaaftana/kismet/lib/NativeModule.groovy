@@ -2,6 +2,8 @@ package hlaaftana.kismet.lib
 
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.call.Expression
+import hlaaftana.kismet.call.Function
+import hlaaftana.kismet.call.Instructor
 import hlaaftana.kismet.call.Template
 import hlaaftana.kismet.parser.Parser
 import hlaaftana.kismet.scope.Context
@@ -9,12 +11,15 @@ import hlaaftana.kismet.scope.Module
 import hlaaftana.kismet.scope.TypedContext
 import hlaaftana.kismet.type.GenericType
 import hlaaftana.kismet.type.SingleType
+import hlaaftana.kismet.type.TupleType
 import hlaaftana.kismet.type.Type
 import hlaaftana.kismet.vm.IKismetObject
 import hlaaftana.kismet.vm.Memory
 
 import static hlaaftana.kismet.call.ExprBuilder.call
 import static hlaaftana.kismet.call.ExprBuilder.name
+import static hlaaftana.kismet.lib.Functions.FUNCTION_TYPE
+import static hlaaftana.kismet.lib.Functions.INSTRUCTOR_TYPE
 import static hlaaftana.kismet.lib.Functions.TEMPLATE_TYPE
 import static hlaaftana.kismet.lib.Types.inferType
 
@@ -53,6 +58,14 @@ class NativeModule extends Module {
     }
 
     void typed(String name, Type type, IKismetObject object) {
+        if (object instanceof Function && null == object.name) ((Function) object).name = name
+        if (object instanceof Function && type instanceof GenericType && type.base == FUNCTION_TYPE) {
+            object.argumentTypes = type.arguments[0]
+            object.returnType = type.arguments[1]
+        } else if (object instanceof Instructor && type instanceof GenericType && type.base == INSTRUCTOR_TYPE) {
+            object.argumentTypes = type.arguments[0]
+            object.returnType = type.arguments[1]
+        }
         typedContext.addVariable(name, object, type)
     }
 

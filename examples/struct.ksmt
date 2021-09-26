@@ -1,28 +1,29 @@
 static struct: tmpl {
-  name: cast Expression exprs[0]
-  props: (cast Expression exprs[1]).members
-  type_args: cast List[Expression] [collect props [fn (prop: Expression) prop[1]]]
+  name: exprs[0]
+  props: exprs[1].members
+  type_args: collect props [fn prop prop[1]]
   type: subscript_expr [name_expr "Tuple"] [tuple_expr type_args]
-  stmts: cast List[Expression] [new_list [+ [* props.size 2] 2]]
+  stmts: new_list [+ [* props.size 2] 2]
   add stmts [call_expr (&
     [name_expr "static"]
     [colon_expr name
       [call_expr (& [name_expr "distinct"] type)]])]
   let (each i: range< 0 props.size) {
-    prop: (cast Expression props[i]).members
+    prop: props[i].members
     add stmts [call_expr (&
       [name_expr "defn"]
       [call_expr (&
         [name_expr string(".", prop[0])]
         [colon_expr [name_expr "it"] name]
-        [call_expr (& [name_expr "returns"] [cast Expression prop[1]])])]
+        [call_expr (& [name_expr "returns"] prop[1])])]
       [call_expr (&
         [name_expr "cast"]
-        [cast Expression type_args[i]]
+        type_args[i]
         [subscript_expr
           [call_expr (&
-            [name_expr "cast"]
-            type
+            ;;[name_expr "cast"]
+            ;;type
+            [name_expr "undistinct"]
             [name_expr "it"])]
           [number_expr i]])])]
     add stmts [call_expr (&
@@ -30,13 +31,14 @@ static struct: tmpl {
       [call_expr (&
         [name_expr string(".", prop[0], "=")]
         [colon_expr [name_expr "it"] name]
-        [colon_expr [name_expr "val"] [cast Expression type_args[i]]]
-        [call_expr (& [name_expr "returns"] [cast Expression prop[1]])])]
+        [colon_expr [name_expr "val"] type_args[i]]
+        [call_expr (& [name_expr "returns"] prop[1])])]
       [colon_expr
         [subscript_expr
           [call_expr (&
-            [name_expr "cast"]
-            type
+            ;;[name_expr "cast"]
+            ;;type
+            [name_expr "undistinct"]
             [name_expr "it"])] [number_expr i]]
         [name_expr "val"]])]
   }
@@ -46,12 +48,11 @@ static struct: tmpl {
       [name_expr string("init", name)]
       [call_expr (& [name_expr "returns"] name)])]
     [call_expr (&
-      [name_expr "cast"]
+      ;;[name_expr "cast"]
+      [name_expr "instantiate"]
       name
       [tuple_expr
-        [cast
-          List[Expression]
-          [collect [range 1 props.size] [fn [name_expr "null"]]]]])])]
+        [collect [range 1 props.size] [fn [name_expr "null"]]]])])]
   block_expr stmts
 }
 
@@ -63,6 +64,6 @@ struct Person {
 john: initPerson()
 john.age: 30
 john.name: "John"
-assert_is john ("John", 30)
+assert_is [undistinct john] ("John", 30)
 assert_is john.age 30
 assert_is john.name "John"

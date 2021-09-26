@@ -3,6 +3,7 @@ package hlaaftana.kismet.call
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.Kismet
 import hlaaftana.kismet.exceptions.CheckFailedException
+import hlaaftana.kismet.exceptions.UndefinedSymbolException
 import hlaaftana.kismet.exceptions.UnexpectedSyntaxException
 import hlaaftana.kismet.lib.CollectionsIterators
 import hlaaftana.kismet.lib.Functions
@@ -14,6 +15,7 @@ import hlaaftana.kismet.type.GenericType
 import hlaaftana.kismet.type.TupleType
 import hlaaftana.kismet.type.Type
 import hlaaftana.kismet.type.TypeBound
+import hlaaftana.kismet.type.TypeRelation
 import hlaaftana.kismet.vm.IKismetObject
 import hlaaftana.kismet.vm.KismetTuple
 import hlaaftana.kismet.vm.Memory
@@ -23,9 +25,15 @@ import static hlaaftana.kismet.call.ExprBuilder.block
 import static hlaaftana.kismet.call.ExprBuilder.name
 
 @CompileStatic
-abstract class Function implements KismetCallable, IKismetObject<Function> {
+abstract class Function implements KismetCallable, IKismetObject<Function>, Nameable {
 	boolean pure
-	int precedence
+	Type argumentTypes
+	Type returnType
+	String name
+
+	boolean checkArgumentTypes(IKismetObject... args) {
+		null == argumentTypes || argumentTypes.check(new KismetTuple(args))
+	}
 
 	static IKismetObject tryCall(Memory c, String name, IKismetObject[] args) {
 		final v = c.get(name)
@@ -160,6 +168,8 @@ abstract class Function implements KismetCallable, IKismetObject<Function> {
 			this.call(a)
 		}
 	}
+
+	String toString() { name ?: super.toString() }
 }
 
 @CompileStatic
@@ -285,7 +295,7 @@ class Arguments {
 }
 
 @CompileStatic
-class KismetFunction extends Function implements Nameable {
+class KismetFunction extends Function {
 	Block block
 	Arguments arguments = Arguments.EMPTY
 	String name = 'anonymous'
@@ -294,6 +304,10 @@ class KismetFunction extends Function implements Nameable {
 		Block c = block.child()
 		arguments.setArgs(c.context, args)
 		c()
+	}
+
+	TypeRelation checkType(Type result, Type... args) {
+		TypeRelation.equal()
 	}
 }
 
@@ -351,7 +365,10 @@ class FunctionDefineExpression extends Expression {
 			final int stackSize = fnb.size()
 
 			IKismetObject evaluate(Memory context) {
-				new TypedFunction([context] as Memory[], inner, stackSize, name)
+				def res = new TypedFunction([context] as Memory[], inner, stackSize, name)
+				res.argumentTypes = typ.arguments[0]
+				res.returnType = typ.arguments[1]
+				res
 			}
 
 			String toString() { "func $stackSize:\n  $inner" }
@@ -424,19 +441,21 @@ class FunctionExpression extends Expression {
 			final int stackSize = fnbSize
 
 			IKismetObject evaluate(Memory context) {
-				new TypedFunction([context] as Memory[], inner, stackSize, name, nullArgs)
+				def res = new TypedFunction([context] as Memory[], inner, stackSize, name, nullArgs)
+				res.argumentTypes = typ.arguments[0]
+				res.returnType = typ.arguments[1]
+				res
 			}
 		}, false)
 	}
 }
 
 @CompileStatic
-class TypedFunction extends Function implements Nameable {
+class TypedFunction extends Function {
 	Memory[] context
 	Instruction instruction
 	boolean noArgs
 	int stackSize
-	String name
 
 	TypedFunction(Memory[] context, Instruction instruction, int stackSize, String name, boolean noArgs = false) {
 		this.context = context
@@ -453,7 +472,7 @@ class TypedFunction extends Function implements Nameable {
 		instruction.evaluate(mem)
 	}
 
-	String toString() { "typedContext function $name" }
+	String toString() { "typed function $name" }
 }
 
 @CompileStatic
@@ -472,5 +491,23 @@ class GroovyFunction extends Function {
 
 	def cc(... args) {
 		null == args ? x.call() : x.invokeMethod('call', args)
+	}
+}
+
+@CompileStatic
+class OverloadDispatchFunction extends Function {
+	Function[] overloads
+
+	OverloadDispatchFunction(Function[] overloads) {
+		this.overloads = overloads
+	}
+
+	IKismetObject call(IKismetObject... args) {
+		/*println overloads
+		println args*/
+		for (final o : overloads) {
+			if (o.checkArgumentTypes(args)) return o.call(args)
+		}
+		throw new UndefinedSymbolException('no overloads accept arguments ' + args)
 	}
 }

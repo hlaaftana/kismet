@@ -261,7 +261,7 @@ class Syntax extends NativeModule {
                 c.label = "anonymous template"
                 c.addVariable('exprs', CollectionsIterators.LIST_TYPE.generic(Reflection.EXPRESSION_TYPE))
                 def typ = args[0].type(c)
-                if (typ.type != Reflection.EXPRESSION_TYPE) throw new UnexpectedTypeException('Expected type of template to be expression but was ' + typ.type)
+                //if (typ.type != Reflection.EXPRESSION_TYPE) throw new UnexpectedTypeException('Expected type of template to be expression but was ' + typ.type)
                 if (typ.runtimeOnly) throw new UnexpectedSyntaxException('Template must be able to run at compile time')
                 new TypedConstantExpression(TEMPLATE_TYPE, new Template() {
                     @Override
@@ -328,27 +328,43 @@ class Syntax extends NativeModule {
             }
         }
         define 'let', TEMPLATE_TYPE, new Template() {
+            static boolean assignmentExpression(Expression expr) {
+                expr instanceof ColonExpression || (
+                    expr instanceof CallExpression &&
+                    expr.size() == 3 &&
+                    expr[0] instanceof NameExpression &&
+                    ['=', ':=', '::=', ':::=', 'in'].contains(expr[0].toString()))
+            }
+
             @CompileStatic
             Expression transform(Parser parser, Expression... args) {
                 if (args.length == 0) throw new UnexpectedSyntaxException('Empty let expression not allowed')
-                final mems = args[0] instanceof CallExpression || args[0] instanceof ColonExpression ?
-                        Collections.singletonList(args[0]) : args[0].members
+                def mems = new ArrayList<Expression>()
+                for (int i = 0; i < Math.max(args.length - 1, 1); ++i) {
+                    def a = args[i]
+                    if (a instanceof CallExpression || a instanceof ColonExpression)
+                        mems.add((Expression) a)
+                    else
+                        mems.addAll(a.members)
+                }
                 Expression resultVar = null
                 def result = new ArrayList<Expression>(mems.size())
                 def eaches = new ArrayList<Tuple2<Expression, Expression>>()
                 for (set in mems) {
-                    if (set instanceof ColonExpression) {
-                        result.add((Expression) set)
+                    if (assignmentExpression(set)) {
+                        result.add(set)
                     } else if (set instanceof CallExpression) {
-                        if (set.size() == 2 && set[1] instanceof ColonExpression) {
+                        if (set.size() == 2 && assignmentExpression(set[1])) {
                             def n = toAtom(set[0])
-                            final c = (ColonExpression) set[1]
+                            final c = set[1]
                             if ('result' == n) {
-                                result.add(set[1])
-                                resultVar = c.left
+                                result.add(c)
+                                resultVar = c instanceof ColonExpression ? c.left : c[1]
                                 continue
                             } else if ('each' == n) {
-                                eaches.add(new Tuple2(c.left, c.right))
+                                eaches.add(c instanceof ColonExpression ?
+                                    new Tuple2(c.left, c.right) :
+                                    new Tuple2(c[1], c[2]))
                                 continue
                             }
                         } else if (set.size() == 3) {
@@ -387,12 +403,13 @@ class Syntax extends NativeModule {
                     for (int i = eaches.size() - 1; i >= 0; i--) {
                         final vari = eaches[i].v1
                         final val = eaches[i].v2
-                        final popped = lastAdded == 0 ? Arrays.asList(args).tail() : result[-lastAdded..-1]
+                        final popped = lastAdded == 0 ? Arrays.asList(args[args.length - 1]) : result[-lastAdded..-1]
                         for (int la = 0; la < lastAdded; ++la) {
                             result.remove(result.size() - 1)
                         }
                         String atom1 = null
-                        if (val instanceof CallExpression && 'range' == (atom1 = toAtom(val[0]))) {
+                        if (val instanceof CallExpression &&
+                            ('range' == (atom1 = toAtom(val[0])) || '..' == atom1)) {
                             result.add(colon(vari, val[1]))
                             def b = new ArrayList<Expression>(lastAdded + 1)
                             b.addAll(popped)
@@ -401,7 +418,8 @@ class Syntax extends NativeModule {
                                     call(name('<='), vari, val[2]),
                                     block(b)))
                             lastAdded = 2
-                        } else if ('range<' == atom1) {
+                        } else if (val instanceof CallExpression &&
+                            ('range<' == atom1 || '..<' == atom1)) {
                             result.add(colon(vari, val[1]))
                             def b = new ArrayList<Expression>(lastAdded + 1)
                             b.addAll(popped)
@@ -424,12 +442,13 @@ class Syntax extends NativeModule {
                             lastAdded = 2
                         }
                     }
-                } else result.addAll(args.tail())
+                } else result.addAll(args[args.length - 1])
                 if (null != resultVar) result.add(resultVar)
                 final r = block(result)
                 args.length == 1 ? r : new DiveExpression(r)
             }
         }
+        alias 'let', 'for'
         define 'get_or_set', TEMPLATE_TYPE, new Template() {
             @Override
             Expression transform(Parser parser, Expression... args) {
@@ -447,7 +466,12 @@ class Syntax extends NativeModule {
             @Override
             TypedExpression transform(TypedContext context, Expression... args) {
                 new IfElseExpression(args[0].type(context, +BOOLEAN_TYPE), args[1].type(context),
-                        args.length > 2 ? args[2].type(context) : TypedNoExpression.INSTANCE)
+                        args.length > 2 ?
+                            (args[2] instanceof ColonExpression &&
+                                ((ColonExpression) args[2]).left instanceof NameExpression &&
+                                ((ColonExpression) args[2]).left.toString() == 'else' ?
+                                ((ColonExpression) args[2]).left : args[2]).type(context) :
+                            TypedNoExpression.INSTANCE)
             }
         }
         define 'unless', TEMPLATE_TYPE, new Template() {
