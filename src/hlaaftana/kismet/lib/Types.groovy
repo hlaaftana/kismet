@@ -52,8 +52,8 @@ class Types extends NativeModule {
         define 'prefer_type', TYPE_CHECKER_TYPE, new TypeChecker() {
             @Override
             TypedExpression transform(TypedContext context, Expression... args) {
-                def typ = args[0].type(context, +new UnionType(TYPE_BOUND_TYPE, META_TYPE)).instruction.evaluate(context)
-                args[1].type(context, typ instanceof TypeBound ? typ : new TypeBound((Type) typ))
+                def typ = args[1].type(context, +new UnionType(TYPE_BOUND_TYPE, META_TYPE)).instruction.evaluate(context)
+                args[0].type(context, typ instanceof TypeBound ? typ : new TypeBound((Type) typ))
             }
         }
         define 'null', Type.NONE, Kismet.NULL
@@ -152,6 +152,24 @@ class Types extends NativeModule {
             TypedExpression transform(TypedContext context, TypedExpression... args) {
                 new TypedConstantExpression<KismetBoolean>(Logic.BOOLEAN_TYPE,
                         KismetBoolean.from(unmeta(args[0].type).relation(unmeta(args[1].type)).assignableTo))
+            }
+        }
+        define 'assignable_from?', typedTmpl(Logic.BOOLEAN_TYPE, META_TYPE, META_TYPE), new TypedTemplate() {
+            TypedExpression transform(TypedContext context, TypedExpression... args) {
+                new TypedConstantExpression<KismetBoolean>(Logic.BOOLEAN_TYPE,
+                    KismetBoolean.from(unmeta(args[0].type).relation(unmeta(args[1].type)).assignableFrom))
+            }
+        }
+        define 'subtype?', typedTmpl(Logic.BOOLEAN_TYPE, META_TYPE, META_TYPE), new TypedTemplate() {
+            TypedExpression transform(TypedContext context, TypedExpression... args) {
+                new TypedConstantExpression<KismetBoolean>(Logic.BOOLEAN_TYPE,
+                    KismetBoolean.from(unmeta(args[0].type).relation(unmeta(args[1].type)).sub))
+            }
+        }
+        define 'supertype?', typedTmpl(Logic.BOOLEAN_TYPE, META_TYPE, META_TYPE), new TypedTemplate() {
+            TypedExpression transform(TypedContext context, TypedExpression... args) {
+                new TypedConstantExpression<KismetBoolean>(Logic.BOOLEAN_TYPE,
+                    KismetBoolean.from(unmeta(args[0].type).relation(unmeta(args[1].type)).super))
             }
         }
         define 'covariant', func(TYPE_BOUND_TYPE, META_TYPE), new Function() {

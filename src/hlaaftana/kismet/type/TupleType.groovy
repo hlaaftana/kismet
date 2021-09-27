@@ -29,7 +29,8 @@ class TupleType extends GenericType {
 	}
 
 	boolean check(IKismetObject... values) {
-		if (null == varargs ? values.length == arguments.length : values.length >= arguments.length) {
+		if (null == arguments) true
+		else if (null == varargs ? values.length == arguments.length : values.length >= arguments.length) {
 			for (int i = 0; i < values.length; ++i) {
 				if (!getAt(i).check(values[i])) return false
 			}

@@ -467,10 +467,7 @@ class Syntax extends NativeModule {
             TypedExpression transform(TypedContext context, Expression... args) {
                 new IfElseExpression(args[0].type(context, +BOOLEAN_TYPE), args[1].type(context),
                         args.length > 2 ?
-                            (args[2] instanceof ColonExpression &&
-                                ((ColonExpression) args[2]).left instanceof NameExpression &&
-                                ((ColonExpression) args[2]).left.toString() == 'else' ?
-                                ((ColonExpression) args[2]).left : args[2]).type(context) :
+                            skipElseColon(args[2]).type(context) :
                             TypedNoExpression.INSTANCE)
             }
         }
@@ -484,12 +481,50 @@ class Syntax extends NativeModule {
             @Override
             TypedExpression transform(TypedContext context, Expression... args) {
                 def up = args.length - 1
-                def res = up % 2 == 0 ? args[up--].type(context) : TypedNoExpression.INSTANCE
-                for (int i = up; i >= 0; i -= 2) {
-                    res = new IfElseExpression(args[i - 1].type(context, +BOOLEAN_TYPE),
-                        args[i].type(context), res)
+                if (up >= 0 && args[0] instanceof TupleExpression) {
+                    def res = args[up] instanceof TupleExpression ?
+                        TypedNoExpression.INSTANCE :
+                        skipElseColon(args[up--]).type(context)
+                    for (int i = up; i >= 0; --i) {
+                        if (args[i] !instanceof TupleExpression)
+                            throw new UnexpectedSyntaxException('Non-tuple expression passed to case with tuple cases')
+                        def a = (TupleExpression) args[i]
+                        TypedExpression cond, body
+                        if (a.size() == 0) cond = body = TypedNoExpression.INSTANCE
+                        else if (a.size() == 1) {
+                            cond = TypedNoExpression.INSTANCE
+                            body = a[0].type(context)
+                        } else if (a.size() == 2) {
+                            cond = a[0].type(context, +BOOLEAN_TYPE)
+                            body = a[1].type(context)
+                        } else {
+                            def size = a.size()
+                            def orArgs = new TypedExpression[size - 1]
+                            def boolTypes = new Type[size - 1]
+                            for (int j = 1; j < size; ++j) {
+                                orArgs[j - 1] = a[j].type(context, +BOOLEAN_TYPE)
+                                boolTypes[j - 1] = BOOLEAN_TYPE
+                            }
+                            cond = new InstructorCallExpression(
+                                name('or').type(context, -instr(BOOLEAN_TYPE, boolTypes)),
+                                orArgs, BOOLEAN_TYPE)
+                            body = a[size - 1].type(context)
+                        }
+                        res = new IfElseExpression(cond, body, res)
+                    }
+                    res
+                } else {
+                    def res = up % 2 == 0 ?
+                        skipElseColon(args[up--]).type(context) :
+                        TypedNoExpression.INSTANCE
+                    for (int i = up; i >= 0; i -= 2) {
+                        res = new IfElseExpression(
+                            args[i - 1].type(context, +BOOLEAN_TYPE),
+                            args[i].type(context),
+                            res)
+                    }
+                    res
                 }
-                res
             }
         }
         /*define 'if', TYPE_CHECKER_TYPE, new TypeChecker() {
@@ -607,6 +642,11 @@ class Syntax extends NativeModule {
                 }
             }
         }
+    }
+
+    static Expression skipElseColon(Expression expr) {
+        expr instanceof ColonExpression && expr.left instanceof NameExpression &&
+            expr.left.toString() == 'else' ? expr.right : expr
     }
 
     // unused:

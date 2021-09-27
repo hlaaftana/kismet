@@ -31,25 +31,9 @@ class Comparison extends NativeModule {
         define '>', func(Logic.BOOLEAN_TYPE, Type.ANY, Type.ANY), funcc { ...args -> args[0].invokeMethod('compareTo', args[1]) as int > 0 }
         define '<=', func(Logic.BOOLEAN_TYPE, Type.ANY, Type.ANY), funcc { ...args -> args[0].invokeMethod('compareTo', args[1]) as int <= 0 }
         define '>=', func(Logic.BOOLEAN_TYPE, Type.ANY, Type.ANY), funcc { ...args -> args[0].invokeMethod('compareTo', args[1]) as int >= 0 }
-        define 'less?', Functions.TEMPLATE_TYPE, new Template() {
-            Expression transform(Parser parser, Expression... args) {
-                new CallExpression(new NameExpression('<'), args[0], args[1])
-            }
-        }
-        define 'greater?', Functions.TEMPLATE_TYPE, new Template() {
-            Expression transform(Parser parser, Expression... args) {
-                new CallExpression(new NameExpression('>'), args[0], args[1])
-            }
-        }
-        define 'less_equal?', Functions.TEMPLATE_TYPE, new Template() {
-            Expression transform(Parser parser, Expression... args) {
-                new CallExpression(new NameExpression('<='), args[0], args[1])
-            }
-        }
-        define 'greater_equal?', Functions.TEMPLATE_TYPE, new Template() {
-            Expression transform(Parser parser, Expression... args) {
-                new CallExpression(new NameExpression('>='), args[0], args[1])
-            }
-        }
+        alias '<', 'less?'
+        alias '>', 'greater?'
+        alias '<=', 'less_equal?'
+        alias '>=', 'greater_equal?'
     }
 }

@@ -333,6 +333,9 @@ class Numbers extends NativeModule {
                 }
             }
         }
+        alias 'bit_or', 'or'
+        alias 'bit_and', 'and'
+        alias 'bit_xor', 'xor'
         define 'integer?', func(Logic.BOOLEAN_TYPE, new UnionType(NumberType.Number, NumberType.Float32, NumberType.Float64, NumberType.Float)), new Function() {
             IKismetObject call(IKismetObject... args) {
                 KismetBoolean.from(((KismetNumber) args[0]).divisibleBy(KInt32.ONE))
@@ -382,10 +385,14 @@ class Numbers extends NativeModule {
         define 'from_base',  funcc { ... a -> new BigInteger(a[0].toString(), a[1] as int) }
         define 'hex', TEMPLATE_TYPE, new Template() {
             Expression transform(Parser parser, Expression... args) {
-                if (args[0] instanceof NumberExpression || args[0] instanceof NameExpression) {
+                if (args[0] instanceof NumberExpression ||
+                    args[0] instanceof NameExpression ||
+                    args[0] instanceof StringExpression) {
                     String t = args[0] instanceof NumberExpression ?
                             ((NumberExpression) args[0]).value.inner().toString() :
-                            ((NameExpression) args[0]).text
+                            args[0] instanceof NameExpression ?
+                            ((NameExpression) args[0]).text :
+                                ((StringExpression) args[0]).value
                     number(new BigInteger(t, 16))
                 } else throw new UnexpectedSyntaxException('Expression after hex was not a hexadecimal number literal.'
                         + ' To convert hex strings to integers do [from_base str 16], '

@@ -3,14 +3,25 @@ package hlaaftana.kismet.vm
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.Kismet
 import hlaaftana.kismet.call.Function
+import hlaaftana.kismet.lib.CollectionsIterators
+import hlaaftana.kismet.type.Type
 
 @CompileStatic
 class WrapperKismetObject<T> implements IKismetObject<T> {
 	T inner
+	Type type
 
 	T inner() { this.@inner }
 
-	WrapperKismetObject(T i) { this.@inner = i }
+	WrapperKismetObject(T i, Type type = null) {
+		this.@inner = i
+		if (null == type) {
+			if (i instanceof List) this.type = CollectionsIterators.LIST_TYPE
+			else if (i instanceof Map) this.type = CollectionsIterators.MAP_TYPE
+			else if (i instanceof Set) this.type = CollectionsIterators.SET_TYPE
+			else this.type = Type.ANY
+		} else this.type = type
+	}
 
 	IKismetObject propertyGet(String name) {
 		Kismet.model(inner().invokeMethod('getProperty', [name] as Object[]))
