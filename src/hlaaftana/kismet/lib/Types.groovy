@@ -5,14 +5,9 @@ import hlaaftana.kismet.Kismet
 import hlaaftana.kismet.call.*
 import hlaaftana.kismet.scope.TypedContext
 import hlaaftana.kismet.type.*
-import hlaaftana.kismet.vm.IKismetObject
-import hlaaftana.kismet.vm.KismetBoolean
-import hlaaftana.kismet.vm.KismetDistinct
-import hlaaftana.kismet.vm.KismetNumber
-import hlaaftana.kismet.vm.Memory
+import hlaaftana.kismet.vm.*
 
 import static hlaaftana.kismet.lib.Functions.*
-import static hlaaftana.kismet.lib.Functions.TYPE_CHECKER_TYPE
 
 @CompileStatic
 class Types extends NativeModule {

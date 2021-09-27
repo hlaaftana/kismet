@@ -10,6 +10,7 @@ class NoType extends AbstractType {
 		other == this ? TypeRelation.equal() : TypeRelation.subtype(Integer.MAX_VALUE)
 	}
 
+	boolean equals(other) { other instanceof NoType }
 	String toString() { 'None' }
 
 	boolean check(IKismetObject obj) { null == obj || null == obj.inner() }

@@ -51,213 +51,194 @@ abstract class Expression implements IKismetObject<Expression> {
 }
 
 @CompileStatic
-class PathExpression extends Expression {
+abstract class PathStepExpression extends Expression {
 	Expression root
-	List<Step> steps
+	abstract Expression getRight()
+	int size() { 2 }
+	List<Expression> getMembers() { [root, right] }
+	abstract IKismetObject evaluateSet(Memory c, IKismetObject value)
+	abstract TypedExpression type(TypedContext ctx, TypeBound preferred)
+	abstract TypedExpression typeSet(TypedContext ctx, TypedExpression value, TypeBound preferred)
+	TypedExpression typeSet(TypedContext tc, TypedExpression value) {
+		typeSet(tc, value, +Type.ANY)
+	}
+}
 
-	PathExpression(Expression root, List<Step> steps) {
-		this.root = root
-		if (steps.empty) throw new UnexpectedSyntaxException("Path without steps? Root is $root")
-		this.steps = steps
+@CompileStatic
+class PathStepSetExpression extends Expression {
+	PathStepExpression step
+	Expression value
+
+	PathStepSetExpression(PathStepExpression step, Expression value) {
+		this.step = step
+		this.value = value
 	}
 
 	IKismetObject evaluate(Memory c) {
-		if (null == root || root instanceof NoExpression) {
-			new PathFunction(c, steps)
-		} else {
-			applySteps(c, root.evaluate(c), steps)
-		}
+		step.evaluateSet(c, value.evaluate(c))
 	}
-
-	static class PathFunction extends Function {
-		Memory context
-		List<Step> steps
-
-		PathFunction(Memory context, List<Step> steps) {
-			this.context = context
-			this.steps = steps
-		}
-
-		IKismetObject call(IKismetObject... args) {
-			applySteps(context, args[0], steps)
-		}
-
-		boolean checkArgumentTypes(IKismetObject... args) { true }
-	}
-
-	static IKismetObject applySteps(Memory c, IKismetObject object, List<Step> steps) {
-		for (step in steps) object = step.get(c, object)
-		object
-	}
-
-	String repr() { root.repr() + steps.join('') }
-
-	List<Expression> getMembers() {
-		def result = new ArrayList<Expression>(steps.size() + 1)
-		result.add(root)
-		for (def s: steps) result.add(s.asExpr())
-		result
-	}
-
-	Expression join(List<Expression> m) {
-		if (m.size() == 1) return m.get(0)
-		def result = new ArrayList<Step>(m.size() - 1)
-		final s = steps
-		assert s.size() + 1 == m.size(), "Members must be same size as joined expressions"
-		for (int i = 1; i < m.size(); ++i) {
-			result.add(s.get(i - 1).borrow(m.get(i)))
-		}
-		new PathExpression(m[0], result)
-	}
-
-	interface Step {
-		IKismetObject get(Memory c, IKismetObject object)
-		IKismetObject set(Memory c, IKismetObject object, IKismetObject value)
-		Expression asExpr()
-		Step borrow(Expression expr)
-		TypedExpression type(TypedContext ctx, TypedExpression before)
-		TypedExpression typeSet(TypedContext ctx, TypedExpression before, TypedExpression value)
-	}
-
-	static class PropertyStep implements Step {
-		String name
-
-		PropertyStep(String name) {
-			this.name = name
-		}
-
-		IKismetObject get(Memory c, IKismetObject object) {
-			final n = Function.callOrNull(c, getterName(name), object)
-			if (null != n) return n
-			Function.tryCall(c, '.property', object, new KismetString(name))
-		}
-
-		IKismetObject set(Memory c, IKismetObject object, IKismetObject value) {
-			final n = Function.callOrNull(c, setterName(name), object, value)
-			if (null != n) return n
-			Function.tryCall(c, '.property=', object, new KismetString(name), value)
-		}
-
-		static String getterName(String prop) {
-			def res = new char[prop.length() + 1]
-			res[0] = (char) '.'
-			prop.getChars(0, prop.length(), res, 1)
-			String.valueOf(res)
-		}
-
-		static String setterName(String prop) {
-			def res = new char[prop.length() + 2]
-			res[0] = (char) '.'
-			prop.getChars(0, prop.length(), res, 1)
-			res[res.length - 1] = (char) '='
-			String.valueOf(res)
-		}
-
-		String toString() { getterName(name) }
-		Expression asExpr() { name(name) }
-		PropertyStep borrow(Expression expr) { new PropertyStep(expr.toString()) }
-
-		TypedExpression type(TypedContext ctx, TypedExpression before) {
-			try {
-				return call(name(getterName(name)), new TypedWrapperExpression(before)).type(ctx)
-			} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {}
-			call(name('.property'), new TypedWrapperExpression(before), string(name)).type(ctx)
-		}
-
-		TypedExpression typeSet(TypedContext ctx, TypedExpression before, TypedExpression value) {
-			try {
-				return call(name(setterName(name)), new TypedWrapperExpression(before), new TypedWrapperExpression(value)).type(ctx)
-			} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {}
-			call(name('.property='), new TypedWrapperExpression(before), string(name), new TypedWrapperExpression(value)).type(ctx)
-		}
-	}
-
-	static class SubscriptStep implements Step {
-		Expression expression
-
-		SubscriptStep(Expression expression) {
-			this.expression = expression
-		}
-
-		IKismetObject get(Memory c, IKismetObject object) {
-			Function.tryCall(c, '.[]', object, expression.evaluate(c))
-		}
-
-		IKismetObject set(Memory c, IKismetObject object, IKismetObject value) {
-			Function.tryCall(c, '.[]=', object, expression.evaluate(c), value)
-		}
-
-		String toString() { ".[$expression]" }
-		Expression asExpr() { expression }
-		SubscriptStep borrow(Expression expr) { new SubscriptStep(expr) }
-
-		TypedExpression type(TypedContext ctx, TypedExpression before) {
-			def key = expression.type(ctx)
-			call(name('.[]'), new TypedWrapperExpression(before), new TypedWrapperExpression(key)).type(ctx)
-		}
-
-		TypedExpression typeSet(TypedContext ctx, TypedExpression before, TypedExpression value) {
-			def key = expression.type(ctx)
-			call(name('.[]='), new TypedWrapperExpression(before), new TypedWrapperExpression(key),
-					new TypedWrapperExpression(value)).type(ctx)
-		}
-	}
-
-	static class EnterStep implements Step {
-		Expression expression
-
-		EnterStep(Expression expression) {
-			this.expression = expression
-		}
-
-		IKismetObject get(Memory c, IKismetObject object) {
-			def ec = new EnterContext((Context) c)
-			ec.set('it', ec.object = object)
-			expression.evaluate(ec)
-		}
-
-		IKismetObject set(Memory c, IKismetObject object, IKismetObject value) {
-			throw new UnsupportedOperationException('unsupported curly dots')
-		}
-
-		String toString() { ".{$expression}" }
-
-		@InheritConstructors
-		static class EnterContext extends Context {
-			IKismetObject object
-
-			IKismetObject get(String name) {
-				try {
-					super.get(name)
-				} catch (UndefinedVariableException ignored) {
-					Function.tryCall(this, '.property', object, new KismetString(name))
-				}
-			}
-		}
-		Expression asExpr() { expression }
-		EnterStep borrow(Expression expr) { new EnterStep(expr) }
-
-		TypedExpression type(TypedContext ctx, TypedExpression before) {
-			throw new UnsupportedOperationException('unsupported')
-		}
-
-		TypedExpression typeSet(TypedContext ctx, TypedExpression before, TypedExpression value) {
-			throw new UnsupportedOperationException('unsupported')
-		}
-	}
-
-	int size() { 1 + steps.size() }
 
 	TypedExpression type(TypedContext tc, TypeBound preferred) {
-		TypedExpression result = root.type(tc)
-		def newSteps = new ArrayList<Step>(steps.size())
-		for (s in steps) {
-			newSteps.add(s)
-			result = s.type(tc, result).withOriginal(new PathExpression(root, newSteps))
+		step.typeSet(tc, value.type(tc, preferred), preferred)
+	}
+
+	String toString() { "$step = $value" }
+}
+
+@CompileStatic
+class PropertyExpression extends PathStepExpression {
+	String name
+
+	PropertyExpression(Expression root, String name) {
+		this.root = root
+		this.name = name
+	}
+
+	Expression getRight() { name(name) }
+	Expression join(List<Expression> exprs) { new PropertyExpression(exprs[0], exprs[1].toString()) }
+
+	IKismetObject evaluate(Memory c) {
+		def val = root.evaluate(c)
+		final n = Function.callOrNull(c, getterName(name), val)
+		if (null != n) return n
+		final n2 = Function.callOrNull(c, name, val)
+		if (null != n2) return n2
+		Function.tryCall(c, '.property', val, new KismetString(name))
+	}
+
+	IKismetObject evaluateSet(Memory c, IKismetObject value) {
+		def val = root.evaluate(c)
+		final n = Function.callOrNull(c, setterName(name), val, value)
+		if (null != n) return n
+		Function.tryCall(c, '.property=', val, new KismetString(name), value)
+	}
+
+	TypedExpression type(TypedContext ctx, TypeBound preferred) {
+		def val = root.type(ctx)
+		try {
+			return call(name(getterName(name)), new TypedWrapperExpression(val)).type(ctx, preferred)
+		} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {}
+		try {
+			return call(name(name), new TypedWrapperExpression(val)).type(ctx, preferred)
+		} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {}
+		try {
+			return call(name('.property'), new TypedWrapperExpression(val), string(name)).type(ctx, preferred)
+		} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {
+			throw new UndefinedSymbolException('No property ' + name +
+				' fitting type bound ' + preferred +
+				' for value ' + root + ' with type ' + val.type)
 		}
-		if (!preferred.relation(result.type).assignableFrom)
-			throw new UnexpectedTypeException("path expression $this is not $preferred")
-		result.withOriginal(this)
+	}
+
+	TypedExpression typeSet(TypedContext ctx, TypedExpression value, TypeBound preferred) {
+		def val = root.type(ctx)
+		try {
+			return call(name(setterName(name)), new TypedWrapperExpression(val),
+				new TypedWrapperExpression(value)).type(ctx, preferred)
+		} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {}
+		try {
+			return call(name('.property='), new TypedWrapperExpression(val), string(name),
+				new TypedWrapperExpression(value)).type(ctx, preferred)
+		} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {
+			throw new UndefinedSymbolException('No property ' + name +
+				' fitting type bound ' + preferred +
+				' for value ' + root + ' with type ' + val.type)
+		}
+	}
+
+	static String getterName(String prop) {
+		def res = new char[prop.length() + 1]
+		res[0] = (char) '.'
+		prop.getChars(0, prop.length(), res, 1)
+		String.valueOf(res)
+	}
+
+	static String setterName(String prop) {
+		def res = new char[prop.length() + 2]
+		res[0] = (char) '.'
+		prop.getChars(0, prop.length(), res, 1)
+		res[res.length - 1] = (char) '='
+		String.valueOf(res)
+	}
+
+	String toString() { root.toString() + '.' + name }
+}
+
+@CompileStatic
+class SubscriptExpression extends PathStepExpression {
+	Expression expression
+
+	SubscriptExpression(Expression root, Expression expression) {
+		this.root = root
+		this.expression = expression
+	}
+
+	Expression getRight() { expression }
+	Expression join(List<Expression> exprs) { new SubscriptExpression(exprs[0], exprs[1]) }
+
+	IKismetObject evaluate(Memory c) {
+		Function.tryCall(c, '.[]', root.evaluate(c), expression.evaluate(c))
+	}
+
+	IKismetObject evaluateSet(Memory c, IKismetObject value) {
+		Function.tryCall(c, '.[]=', root.evaluate(c), expression.evaluate(c), value)
+	}
+
+	String toString() { root.toString() + ".[$expression]" }
+
+	TypedExpression type(TypedContext ctx, TypeBound preferred) {
+		call(name('.[]'), root, expression).type(ctx, preferred)
+	}
+
+	TypedExpression typeSet(TypedContext ctx, TypedExpression value, TypeBound preferred) {
+		call(name('.[]='), root, expression, new TypedWrapperExpression(value))
+			.type(ctx, preferred)
+	}
+}
+
+@CompileStatic
+class EnterExpression extends PathStepExpression {
+	Expression expression
+
+	EnterExpression(Expression root, Expression expression) {
+		this.root = root
+		this.expression = expression
+	}
+
+	Expression getRight() { expression }
+	Expression join(List<Expression> exprs) { new EnterExpression(exprs[0], exprs[1]) }
+
+	IKismetObject evaluate(Memory c) {
+		def ec = new EnterContext((Context) c)
+		ec.set('it', ec.object = root.evaluate(c))
+		expression.evaluate(ec)
+	}
+
+	IKismetObject evaluateSet(Memory c, IKismetObject value) {
+		throw new UnsupportedOperationException('unsupported curly dots')
+	}
+
+	String toString() { ".{$expression}" }
+
+	@InheritConstructors
+	static class EnterContext extends Context {
+		IKismetObject object
+
+		IKismetObject get(String name) {
+			try {
+				super.get(name)
+			} catch (UndefinedVariableException ignored) {
+				Function.tryCall(this, '.property', object, new KismetString(name))
+			}
+		}
+	}
+
+	TypedExpression type(TypedContext ctx, TypeBound preferred) {
+		throw new UnsupportedOperationException('unsupported')
+	}
+
+	TypedExpression typeSet(TypedContext ctx, TypedExpression value, TypeBound preferred) {
+		throw new UnsupportedOperationException('unsupported')
 	}
 }
 
@@ -330,7 +311,6 @@ class NameExpression extends Expression {
 			if (preferred.type.relation(Functions.FUNCTION_TYPE).assignableTo) {
 				def overloads = tc.findOverloads(text, +preferred)
 				if (!overloads.empty) {
-					//println name + ": " + argtypes + ", " + overloads*.variable*.type
 					def os = new TypedExpression[overloads.size()]
 					for (int i = 0; i < os.length; ++i) os[i] = new VariableExpression(overloads.get(i))
 					new OverloadResolverExpression(os)
@@ -480,33 +460,6 @@ class CallExpression extends Expression {
 	}
 
 	TypedExpression type(TypedContext tc, TypeBound preferred) {
-		/*TypedContext.VariableReference m
-		if (callValue instanceof NameExpression && null != (m = tc.findStatic(callValue.text, Prelude.TEMPLATE_TYPE))) {
-			return ((Template) m.variable.value)
-					.transform(null, arguments.toArray(new Expression[0])).type(tc, preferred)
-		} else if (callValue instanceof NameExpression && null != (m = tc.findStatic(callValue.text, Prelude.TYPE_CHECKER_TYPE))) {
-			return ((TypeChecker) m.variable.value)
-					.transform(tc, arguments.toArray(new Expression[0]))
-		}
-		def args = new TypedExpression[arguments.size()]
-		def argtypes = new Type[args.length]
-		for (int i = 0; i < args.length; ++i) argtypes[i] = (args[i] = arguments.get(i).type(tc)).type
-		def fn = Prelude.func(preferred, argtypes)
-		if (callValue instanceof NameExpression && null != (m = tc.find(callValue.text, fn))) {
-			new TypedCallExpression(new VariableExpression(m), args, ((GenericType) m.variable.type)[1])
-		} else {
-			def calltyped = callValue.type(tc)
-			if (calltyped.type.relation(fn).assignableTo) {
-				new TypedCallExpression(calltyped, args, ((GenericType) calltyped.type)[1])
-			} else {
-				def typs = new Type[args.length + 1]
-				typs[0] = calltyped.type
-				System.arraycopy(argtypes, 0, typs, 1, argtypes.length)
-				def cc = tc.findThrow('call', Prelude.func(preferred, new TupleType(typs)))
-				new TypedCallExpression(new VariableExpression(cc), args, ((GenericType) cc.variable.type)[1])
-			}
-		}*/
-
 		TypedExpression cv
 
 		// template
@@ -544,7 +497,9 @@ class CallExpression extends Expression {
 		}
 		if (null != cv) {
 			def x = ((TypedTemplate) cv.instruction.evaluate(tc))
-			return x.transform(tc, args).withOriginal(this)
+			return x
+				.transform(tc, args)
+				.withOriginal(this)
 		}
 
 		// instructor
@@ -620,6 +575,8 @@ class ListExpression extends CollectionExpression {
 			this.members = members
 		}
 
+		String toString() { "[" + members.join(', ') + "]" }
+
 		Type getType() {
 			def types = new ArrayList<Type>(members.length)
 			for (final m : members) {
@@ -642,6 +599,8 @@ class ListExpression extends CollectionExpression {
 				members = new Instruction[zro.length]
 				for (int i = 0; i < zro.length; ++i) members[i] = zro[i].instruction
 			}
+
+			String toString() { "[" + members.join(', ') + "]" }
 
 			IKismetObject evaluate(Memory context) {
 				def arr = new ArrayList<Object>(members.length)
@@ -698,6 +657,8 @@ class TupleExpression extends CollectionExpression {
 			this.members = members
 		}
 
+		String toString() { "tuple(${members.join(', ')})" }
+
 		Type getType() {
 			def arr = new Type[members.length]
 			for (int i = 0; i < arr.length; ++i) arr[i] = members[i].type
@@ -717,6 +678,8 @@ class TupleExpression extends CollectionExpression {
 				members = new Instruction[zro.length]
 				for (int i = 0; i < zro.length; ++i) members[i] = zro[i].instruction
 			}
+
+			String toString() { "tuple(${members.join(', ')})" }
 
 			IKismetObject evaluate(Memory context) {
 				def arr = new IKismetObject[members.length]
@@ -768,6 +731,8 @@ class SetExpression extends CollectionExpression {
 			this.members = members
 		}
 
+		String toString() { "{${members.join(', ')}}" }
+
 		Type getType() {
 			def types = new ArrayList<Type>(members.length)
 			for (final m : members) {
@@ -790,6 +755,8 @@ class SetExpression extends CollectionExpression {
 				members = new Instruction[zro.length]
 				for (int i = 0; i < zro.length; ++i) members[i] = zro[i].instruction
 			}
+
+			String toString() { "{${members.join(', ')}}" }
 
 			IKismetObject evaluate(Memory context) {
 				def arr = new HashSet<Object>(members.size())
@@ -913,12 +880,8 @@ class ColonExpression extends Expression {
 			AssignmentType.ASSIGN.set((Context) c, ((StringExpression) left).value.inner(), value)
 		else if (left instanceof NameExpression)
 			AssignmentType.ASSIGN.set((Context) c, ((NameExpression) left).text, value)
-		else if (left instanceof PathExpression) {
-			def steps = ((PathExpression) left).steps
-			def toApply = steps.init()
-			def toSet = steps.last()
-			IKismetObject val = PathExpression.applySteps(c, ((PathExpression) left).root.evaluate(c), toApply)
-			toSet.set(c, val, value)
+		else if (left instanceof PathStepExpression) {
+			left.evaluateSet(c, right.evaluate(c))
 		} else throw new UnexpectedSyntaxException("Left hand side of colon $left")
 		value
 	}
@@ -929,11 +892,8 @@ class ColonExpression extends Expression {
 		if (null != atom) {
 			def var = AssignmentType.ASSIGN.set(tc, atom, val.type)
 			new VariableSetExpression(var, val).withOriginal(this)
-		} else if (left instanceof PathExpression) {
-			final p = (PathExpression) left
-			def rh = p.steps.last()
-			rh.typeSet(tc, (p.steps.size() == 1 ? p.root : new PathExpression(p.root, p.steps.init())).type(tc), val)
-				.withOriginal(this)
+		} else if (left instanceof PathStepExpression) {
+			left.typeSet(tc, val).withOriginal(this)
 		} else if (left instanceof NumberExpression) {
 			// TODO: ranges with this syntax
 			def b = left.value.inner().intValue()

@@ -15,7 +15,6 @@ import hlaaftana.kismet.type.GenericType
 import hlaaftana.kismet.type.TupleType
 import hlaaftana.kismet.type.Type
 import hlaaftana.kismet.type.TypeBound
-import hlaaftana.kismet.type.TypeRelation
 import hlaaftana.kismet.vm.IKismetObject
 import hlaaftana.kismet.vm.KismetTuple
 import hlaaftana.kismet.vm.Memory
@@ -291,6 +290,8 @@ class Arguments {
 		}
 
 		Parameter clone() { new Parameter(name, typeExpression) }
+
+		String toString() { null == typeExpression ? name : "$name: $typeExpression" }
 	}
 }
 
@@ -304,10 +305,6 @@ class KismetFunction extends Function {
 		Block c = block.child()
 		arguments.setArgs(c.context, args)
 		c()
-	}
-
-	TypeRelation checkType(Type result, Type... args) {
-		TypeRelation.equal()
 	}
 }
 
@@ -503,8 +500,6 @@ class OverloadDispatchFunction extends Function {
 	}
 
 	IKismetObject call(IKismetObject... args) {
-		/*println overloads
-		println args*/
 		for (final o : overloads) {
 			if (o.checkArgumentTypes(args)) return o.call(args)
 		}

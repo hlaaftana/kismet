@@ -40,7 +40,7 @@ class Functions extends NativeModule {
         define INSTRUCTOR_TYPE
         define TYPE_CHECKER_TYPE
         define TYPED_TEMPLATE_TYPE
-        define 'call', FUNCTION_TYPE.generic(new TupleType(FUNCTION_TYPE).withVarargs(Type.ANY), Type.NONE), func { IKismetObject... args ->
+        define 'call', FUNCTION_TYPE.generic(new TupleType(FUNCTION_TYPE).withVarargs(Type.ANY), Type.ANY), func { IKismetObject... args ->
             def x = args[1].inner() as Object[]
             def ar = new IKismetObject[x.length]
             for (int i = 0; i < ar.length; ++i) {

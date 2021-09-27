@@ -70,22 +70,6 @@ class Optimizer {
 		String repr() { "fake" + super }
 	}
 
-	static class PathStepSetExpression extends Expression {
-		Expression value
-		PathExpression.Step step
-		Expression toSet
-
-		PathStepSetExpression(PathExpression path, Expression set) {
-			value = new PathExpression(path.root, path.steps.init())
-			step = path.steps.last()
-			toSet = set
-		}
-
-		IKismetObject evaluate(Memory c) {
-			step.set(c, toSet.evaluate(c), value.evaluate(c))
-		}
-	}
-
 	static class ClosureCallExpression extends FakeCallExpression {
 		GroovyFunction function
 

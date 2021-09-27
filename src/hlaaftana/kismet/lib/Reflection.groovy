@@ -133,8 +133,7 @@ class Reflection extends NativeModule {
         }
         define 'property_expr?', func(BOOLEAN_TYPE, EXPRESSION_TYPE), new Function() {
             IKismetObject call(IKismetObject... args) {
-                KismetBoolean.from(args[0] instanceof PathExpression &&
-                        ((PathExpression) args[0]).steps.last() instanceof PathExpression.PropertyStep)
+                KismetBoolean.from(args[0] instanceof PropertyExpression)
             }
         }
         define 'subscript_expr', func(EXPRESSION_TYPE, EXPRESSION_TYPE, EXPRESSION_TYPE), new Function() {
@@ -144,8 +143,7 @@ class Reflection extends NativeModule {
         }
         define 'subscript_expr?', func(BOOLEAN_TYPE, EXPRESSION_TYPE), new Function() {
             IKismetObject call(IKismetObject... args) {
-                KismetBoolean.from(args[0] instanceof PathExpression &&
-                        ((PathExpression) args[0]).steps.last() instanceof PathExpression.SubscriptStep)
+                KismetBoolean.from(args[0] instanceof SubscriptExpression)
             }
         }
         define 'set_expr', func(EXPRESSION_TYPE, CollectionsIterators.LIST_TYPE.generic(EXPRESSION_TYPE)), new Function() {

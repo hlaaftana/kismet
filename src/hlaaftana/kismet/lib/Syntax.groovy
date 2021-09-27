@@ -5,7 +5,6 @@ import hlaaftana.kismet.Kismet
 import hlaaftana.kismet.call.*
 import hlaaftana.kismet.exceptions.UnexpectedSyntaxException
 import hlaaftana.kismet.exceptions.UnexpectedTypeException
-import hlaaftana.kismet.parser.Optimizer
 import hlaaftana.kismet.parser.Parser
 import hlaaftana.kismet.scope.AssignmentType
 import hlaaftana.kismet.scope.TypedContext
@@ -133,8 +132,8 @@ class Syntax extends NativeModule {
                     last = var(type, atom, last)
                 else if (name instanceof CallExpression)
                     last = new FunctionDefineExpression(args)
-                else if (name instanceof PathExpression)
-                    last = new Optimizer.PathStepSetExpression((PathExpression) name, last)
+                else if (name instanceof PathStepExpression)
+                    last = new PathStepSetExpression(name, last)
                 else throw new UnexpectedSyntaxException("Cannot perform assignment $type $name, value expression is $last")
             }
             if (last instanceof NameExpression)
@@ -234,8 +233,8 @@ class Syntax extends NativeModule {
 
             @CompileStatic
             Expression transform(Parser parser, Expression... a) {
-                final String name
-                final Arguments args
+                String name
+                Arguments args
 
                 def f = a[0]
                 if (f instanceof NameExpression) {
@@ -245,8 +244,6 @@ class Syntax extends NativeModule {
                     name = ((NameExpression) ((CallExpression) f).callValue).text
                     args = new Arguments(((CallExpression) f).arguments)
                 } else {
-                    name = ""
-                    args = null
                     throw new UnexpectedSyntaxException("Can't define function with declaration " + f)
                 }
                 def exprs = new ArrayList<Expression>(a.length - 1)
@@ -621,24 +618,27 @@ class Syntax extends NativeModule {
         }
         define '??', TEMPLATE_TYPE, new Template() {
             Expression transform(Parser parser, Expression... args) {
-                def p = (PathExpression) args[0]
-                if (null == p.root) {
-                    call([name('fn'),
-                          call([
-                              name('??'), new PathExpression(name('$0'),
-                              p.steps)])])
-                } else {
+                // TODO pathstep
+                if (args[0] instanceof PathStepExpression) {
+                    def last = (Expression) args[0]
                     def temp = name('_temp_??')
-                    def expr = temp
-                    for (int i = 0; i < p.steps.size(); ++i) {
-                        def step = p.steps.get(p.steps.size() - i - 1)
-                        expr = call(name('if'),
-                            call(name('null?'), new ColonExpression(temp, new PathExpression(temp, [step]))),
-                                name('null'), expr)
+                    def exprs = new ArrayList<Expression>()
+                    while (last instanceof PathStepExpression) {
+                        def p = (PathStepExpression) last
+                        exprs.add(p.join([temp, p.right]))
+                        last = p.root
                     }
-                    call(name('if'),
-                        call(name('null?'), new ColonExpression(temp, p.root)),
-                            name('null'), expr)
+                    exprs.add(last)
+                    def exprsSize = exprs.size()
+                    def newExprs = new ArrayList<Expression>(exprsSize + 1)
+                    newExprs.add(name('or'))
+                    for (int i = 0; i < exprsSize; ++i) {
+                        newExprs.add(call(name('null?'),
+                            colon(temp, exprs.get(exprsSize - 1 - i))))
+                    }
+                    call(name('if'), call(newExprs), name('null'), temp)
+                } else {
+                    args[0]
                 }
             }
         }
@@ -651,7 +651,7 @@ class Syntax extends NativeModule {
 
     // unused:
 
-    static void putPathExpression(Memory c, Map map, PathExpression path, value) {
+    /*static void putPathExpression(Memory c, Map map, PathExpression path, value) {
         final exprs = path.steps
         final key = path.root instanceof NameExpression ? ((NameExpression) path.root).text : path.root.evaluate(c)
         for (ps in exprs.reverse()) {
@@ -724,5 +724,5 @@ class Syntax extends NativeModule {
         } else if (exp instanceof NumberExpression) {
             val.inner() == exp.value.inner()
         } else throw new UnexpectedSyntaxException('Did not expect ' + exp.class + ' in check')
-    }
+    }*/
 }

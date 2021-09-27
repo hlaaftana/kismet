@@ -1,11 +1,6 @@
 package hlaaftana.kismet.lib
 
 import groovy.transform.CompileStatic
-import hlaaftana.kismet.call.CallExpression
-import hlaaftana.kismet.call.Expression
-import hlaaftana.kismet.call.NameExpression
-import hlaaftana.kismet.call.Template
-import hlaaftana.kismet.parser.Parser
 import hlaaftana.kismet.type.NumberType
 import hlaaftana.kismet.type.Type
 

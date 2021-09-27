@@ -2,7 +2,6 @@ package hlaaftana.kismet.call
 
 import groovy.transform.CompileStatic
 import hlaaftana.kismet.Kismet
-import hlaaftana.kismet.exceptions.UndefinedSymbolException
 import hlaaftana.kismet.exceptions.UnexpectedValueException
 import hlaaftana.kismet.lib.Functions
 import hlaaftana.kismet.lib.Strings

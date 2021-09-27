@@ -3,7 +3,6 @@ package hlaaftana.kismet.parser
 import groovy.transform.CompileStatic
 import groovy.transform.InheritConstructors
 import hlaaftana.kismet.call.*
-import hlaaftana.kismet.call.PathExpression.Step
 import hlaaftana.kismet.exceptions.ParseException
 import hlaaftana.kismet.exceptions.UnexpectedSyntaxException
 import hlaaftana.kismet.vm.Memory
@@ -554,15 +553,14 @@ class Parser {
 	}
 
 	static class PathBuilder extends RecorderBuilder {
-		Expression root
-		List<Step> steps = []
+		Expression result
 		Kind kind
 		ExprBuilder last = null
 		boolean inPropertyQueue, colonWaitingWhitespace
 
 		PathBuilder(Parser p, Expression root) {
 			super(p)
-			this.root = root
+			this.result = root
 		}
 
 		@Override
@@ -590,7 +588,7 @@ class Parser {
 					last = new NameBuilder(parser)
 				} else {
 					inPropertyQueue = true
-					return (PathExpression) null
+					return (Expression) null
 				}
 			}
 			if (colonWaitingWhitespace) {
@@ -624,7 +622,7 @@ class Parser {
 					colonWaitingWhitespace = true
 				} else {
 					goBack = true
-					return steps.empty ? root : new PathExpression(root, steps)
+					return result
 				}
 			}
 			null
@@ -633,23 +631,18 @@ class Parser {
 		void add(Expression e) {
 			if (kind == Kind.CALL) {
 				def mems = e instanceof TupleExpression ? e.members : Collections.singletonList(e)
-				final ss = steps.size(), ss0 = ss == 0
-				def list = new ArrayList<Expression>((ss0 ? 0 : 1) + 1 + mems.size())
-				if (ss0) {
-					list.add(root)
-				} else {
-					list.add(steps.get(ss - 1).asExpr())
-					list.add(ss == 1 ? root : new PathExpression(root, steps.init()))
-				}
+				def list = new ArrayList<Expression>(2 + mems.size())
+				if (result instanceof PropertyExpression) {
+					list.add(result.right)
+					list.add(result.root)
+				} else list.add(result)
 				list.addAll(mems)
-				root = new CallExpression(list)
-				steps.clear()
+				result = new CallExpression(list)
 			} else if (kind == Kind.COLON) {
-				final ss = steps.size()
-				def lhs = ss == 0 ? root : new PathExpression(root, new ArrayList<>(steps))
-				root = new ColonExpression(lhs, e)
-				steps.clear()
-			} else steps.add(kind.toStep(e))
+				result = new ColonExpression(result, e)
+			} else {
+				result = kind.toExpression(result, e)
+			}
 		}
 
 		boolean isReady() { !colonWaitingWhitespace && !inPropertyQueue && (null == last || last.ready) }
@@ -659,27 +652,27 @@ class Parser {
 				add last.finish()
 				last = null
 			}
-			steps.empty ? root : new PathExpression(root, steps)
+			result
 		}
 
 		enum Kind {
 			PROPERTY {
-				Step toStep(Expression expr) {
-					new PathExpression.PropertyStep(((NameExpression) expr).text)
+				PathStepExpression toExpression(Expression root, Expression expr) {
+					new PropertyExpression(root, expr.toString())
 				}
 			}, SUBSCRIPT {
-				Step toStep(Expression expr) {
-					new PathExpression.SubscriptStep(expr instanceof CallExpression &&
-							expr.arguments.empty ? expr.callValue : expr instanceof ListExpression ?
-							new TupleExpression(expr.members) : expr)
+				PathStepExpression toExpression(Expression root, Expression expr) {
+					new SubscriptExpression(root, expr instanceof CallExpression &&
+						expr.arguments.empty ? expr.callValue : expr instanceof ListExpression ?
+						new TupleExpression(expr.members) : expr)
 				}
 			}, CALL, BLOCK {
-				Step toStep(Expression expr) {
-					new PathExpression.EnterStep(expr)
+				PathStepExpression toExpression(Expression root, Expression expr) {
+					new EnterExpression(root, expr)
 				}
 			}, COLON
 
-			Step toStep(Expression expr) { throw new UnsupportedOperationException('Cannot convert to step path step kind ' + this) }
+			PathStepExpression toExpression(Expression root, Expression expr) { throw new UnsupportedOperationException('Cannot convert to step path step kind ' + this) }
 		}
 	}
 

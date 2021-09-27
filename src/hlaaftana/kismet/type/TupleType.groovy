@@ -2,7 +2,6 @@ package hlaaftana.kismet.type
 
 import groovy.transform.CompileStatic
 import groovy.transform.EqualsAndHashCode
-import hlaaftana.kismet.call.TypedTemplate
 import hlaaftana.kismet.vm.IKismetObject
 import hlaaftana.kismet.vm.KismetTuple
 

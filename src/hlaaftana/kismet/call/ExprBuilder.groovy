@@ -37,12 +37,12 @@ class ExprBuilder {
 		new ColonExpression(left, right)
 	}
 
-	static PathExpression property(Expression left, String right) {
-		new PathExpression(left, [(PathExpression.Step) new PathExpression.PropertyStep(right)])
+	static PropertyExpression property(Expression left, String right) {
+		new PropertyExpression(left, right)
 	}
 
-	static PathExpression subscript(Expression left, Expression right) {
-		new PathExpression(left, [(PathExpression.Step) new PathExpression.SubscriptStep(right)])
+	static SubscriptExpression subscript(Expression left, Expression right) {
+		new SubscriptExpression(left, right)
 	}
 
 	static ListExpression list(Expression... args) {
@@ -55,6 +55,18 @@ class ExprBuilder {
 
 	static TupleExpression tuple(Expression... args) {
 		new TupleExpression(Arrays.asList(args))
+	}
+
+	static ListExpression list(List<Expression> args) {
+		new ListExpression(args)
+	}
+
+	static SetExpression set(List<Expression> args) {
+		new SetExpression(args)
+	}
+
+	static TupleExpression tuple(List<Expression> args) {
+		new TupleExpression(args)
 	}
 
 	static VariableModifyExpression var(AssignmentType type, String name, Expression value) {

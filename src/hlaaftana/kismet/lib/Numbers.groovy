@@ -5,7 +5,6 @@ import hlaaftana.kismet.call.*
 import hlaaftana.kismet.exceptions.UnexpectedSyntaxException
 import hlaaftana.kismet.exceptions.UnexpectedValueException
 import hlaaftana.kismet.parser.Parser
-import hlaaftana.kismet.scope.TypedContext
 import hlaaftana.kismet.type.*
 import hlaaftana.kismet.vm.*
 

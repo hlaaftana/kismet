@@ -102,7 +102,7 @@ class Strings extends NativeModule {
         define 'call', func(STRING_TYPE, STRING_TYPE, new TupleType().withVarargs(Type.ANY)), new Function() {
             @Override
             IKismetObject call(IKismetObject... args) {
-                def result = (KismetString) args[0]
+                def result = new KismetString((KismetString) args[0])
                 def tup = (KismetTuple) args[1]
                 for (x in tup) {
                     result.add(x.toString())
