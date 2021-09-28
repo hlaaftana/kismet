@@ -19,9 +19,10 @@ class TupleType extends GenericType {
 		super(BASE, bounds)
 	}
 
-	String toString() { "Tuple[${arguments.join(', ')}" + (null == varargs ? "]" : ", $varargs...]") }
+	String toString() { "Tuple[${arguments.join(', ')}" + (null == varargs ? "]" : ", varargs $varargs]") }
 
 	boolean isIndefinite() { null != varargs }
+	int size() { null == varargs ? super.size() : super.size() + 1 }
 
 	boolean check(IKismetObject obj) {
 		obj instanceof KismetTuple && check(((KismetTuple) obj).inner)

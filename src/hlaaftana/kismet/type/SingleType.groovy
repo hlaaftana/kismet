@@ -4,7 +4,7 @@ import groovy.transform.CompileStatic
 import hlaaftana.kismet.vm.IKismetObject
 
 @CompileStatic
-class SingleType extends AbstractType {
+class SingleType extends AbstractType implements ConcreteType {
 	String name
 	TypeBound[] bounds
 

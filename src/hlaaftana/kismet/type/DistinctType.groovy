@@ -5,7 +5,7 @@ import hlaaftana.kismet.vm.IKismetObject
 import hlaaftana.kismet.vm.KismetDistinct
 
 @CompileStatic
-class DistinctType extends AbstractType {
+class DistinctType extends AbstractType implements ConcreteType {
     String name
     Type inner
 

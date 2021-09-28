@@ -4,7 +4,7 @@ import groovy.transform.CompileStatic
 import hlaaftana.kismet.vm.*
 
 @CompileStatic
-enum NumberType implements WeakableType {
+enum NumberType implements WeakableType, ConcreteType {
 	Number {
 		KNonPrimitiveNum instantiate(Number num) {
 			new KNonPrimitiveNum(num)

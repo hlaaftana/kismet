@@ -7,7 +7,7 @@ import hlaaftana.kismet.vm.IKismetObject
 
 @CompileStatic
 @EqualsAndHashCode
-class GenericType extends AbstractType {
+class GenericType extends AbstractType implements ConcreteType {
 	SingleType base
 	Type[] arguments
 
@@ -47,7 +47,8 @@ class GenericType extends AbstractType {
 				def rel = variance.apply(this[0].relation(((GenericType) other)[0]))
 				if (rel.none) return TypeRelation.none()
 				min = rel
-				for (int i = 1; i < size(); ++i) {
+				def s = Math.max(size(), other.size())
+				for (int i = 1; i < s; ++i) {
 					variance = varianceAt(1)
 					rel = variance.apply(this[i].relation(((GenericType) other)[i]))
 					if (rel.none) return TypeRelation.none()
