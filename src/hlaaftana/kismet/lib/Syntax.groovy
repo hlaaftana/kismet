@@ -583,7 +583,7 @@ class Syntax extends NativeModule {
             }
         }
         define 'do', func(Type.NONE), Function.NOP
-        define 'don\'t', TEMPLATE_TYPE, new Template() {
+        define 'discard', TEMPLATE_TYPE, new Template() {
             @CompileStatic
             Expression transform(Parser parser, Expression... args) {
                 NoExpression.INSTANCE
@@ -618,7 +618,6 @@ class Syntax extends NativeModule {
         }
         define '??', TEMPLATE_TYPE, new Template() {
             Expression transform(Parser parser, Expression... args) {
-                // TODO pathstep
                 if (args[0] instanceof PathStepExpression) {
                     def last = (Expression) args[0]
                     def temp = name('_temp_??')

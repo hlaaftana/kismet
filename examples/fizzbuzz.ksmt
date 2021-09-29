@@ -22,8 +22,8 @@ defn [fizzbuzz_functional (n: Int)] {
 
 (defn fizzbuzz_weirdo(n: Int)
   (join (let (result l: [], each i: range 1 100)
-    (add l [i, "Fizz", "Buzz", "FizzBuzz"].[
-      (reduce (0, 5, 3) (fn [a b]
+    (add l (i, "Fizz", "Buzz", "FizzBuzz").[
+      (reduce (0, 5, 3) (fn (a, b)
         (bit_or
           (left_shift a 1)
           (if (divs? i b) 1 0))))])) "\n"))

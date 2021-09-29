@@ -15,6 +15,7 @@ import java.util.regex.Pattern
 
 import static hlaaftana.kismet.call.ExprBuilder.call
 import static hlaaftana.kismet.call.ExprBuilder.name
+import static hlaaftana.kismet.lib.CollectionsIterators.LIST_TYPE
 import static hlaaftana.kismet.lib.Functions.*
 
 @CompileStatic
@@ -208,6 +209,7 @@ class Strings extends NativeModule {
                 args[0]
             }
         }
+        define REGEX_TYPE
         define 'do_regex', func(REGEX_TYPE, Type.ANY), func(true) { IKismetObject... args -> ~(args[0].toString()) }
         define 'regex', new Template() {
             Expression transform(Parser parser, Expression... args) {
@@ -215,7 +217,22 @@ class Strings extends NativeModule {
                         new StaticExpression(((StringExpression) args[0]).raw) : args[0])
             }
         }
-        define REGEX_TYPE
+        define 'match?', func(Logic.BOOLEAN_TYPE, STRING_TYPE, REGEX_TYPE), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                KismetBoolean.from(args[0].toString() ==~ (Pattern) args[1].inner())
+            }
+        }
+        define 'match', func(LIST_TYPE.generic(new TupleType(STRING_TYPE, LIST_TYPE.generic(STRING_TYPE))), STRING_TYPE, REGEX_TYPE), new Function() {
+            @Override
+            IKismetObject call(IKismetObject... args) {
+                Kismet.model((args[0].toString() =~ (Pattern) args[1].inner()).collect {
+                    it instanceof String ? new KismetTuple(new KismetString(it), Kismet.NULL) :
+                        new KismetTuple(new KismetString(((List<String>) it)[0]),
+                            Kismet.model(((List<String>) it).tail()))
+                })
+            }
+        }
         define 'replace_all_regex',  func { IKismetObject... args ->
             def replacement = args.length > 2 ?
                     (args[2].inner() instanceof String ? args[2].inner() : ((Function) args[2]).toClosure()) : ''
@@ -258,21 +275,21 @@ class Strings extends NativeModule {
                 args[0]
             }
         }
-        define 'replace', func(STRING_TYPE, REGEX_TYPE, func(STRING_TYPE, CollectionsIterators.LIST_TYPE.generic(STRING_TYPE))), new Function() {
+        define 'replace', func(STRING_TYPE, REGEX_TYPE, func(STRING_TYPE, LIST_TYPE.generic(STRING_TYPE))), new Function() {
             @Override
             IKismetObject call(IKismetObject... args) {
                 def f = (Function) args[2]
                 new KismetString(args[0].toString().replaceAll((Pattern) args[1].inner()) { List<String> it -> f.call(Kismet.model(it)) })
             }
         }
-        define 'replace_first', func(STRING_TYPE, REGEX_TYPE, func(STRING_TYPE, CollectionsIterators.LIST_TYPE.generic(STRING_TYPE))), new Function() {
+        define 'replace_first', func(STRING_TYPE, REGEX_TYPE, func(STRING_TYPE, LIST_TYPE.generic(STRING_TYPE))), new Function() {
             @Override
             IKismetObject call(IKismetObject... args) {
                 def f = (Function) args[2]
                 new KismetString(args[0].toString().replaceFirst((Pattern) args[1].inner()) { List<String> it -> f.call(Kismet.model(it)) })
             }
         }
-        define 'replace!', func(STRING_TYPE, REGEX_TYPE, func(STRING_TYPE, CollectionsIterators.LIST_TYPE.generic(STRING_TYPE))), new Function() {
+        define 'replace!', func(STRING_TYPE, REGEX_TYPE, func(STRING_TYPE, LIST_TYPE.generic(STRING_TYPE))), new Function() {
             @Override
             IKismetObject call(IKismetObject... args) {
                 def f = (Function) args[2]
@@ -281,7 +298,7 @@ class Strings extends NativeModule {
                 args[0]
             }
         }
-        define 'replace_first!', func(STRING_TYPE, REGEX_TYPE, func(STRING_TYPE, CollectionsIterators.LIST_TYPE.generic(STRING_TYPE))), new Function() {
+        define 'replace_first!', func(STRING_TYPE, REGEX_TYPE, func(STRING_TYPE, LIST_TYPE.generic(STRING_TYPE))), new Function() {
             @Override
             IKismetObject call(IKismetObject... args) {
                 def f = (Function) args[2]
@@ -306,7 +323,7 @@ class Strings extends NativeModule {
         define 'codepoints~', func(Type.ANY, STRING_TYPE), func { IKismetObject... args -> ((CharSequence) args[0].inner()).codePoints().iterator() }
         define 'chars~',  func { IKismetObject... args -> ((CharSequence) args[0].inner()).chars().iterator() }
         define 'chars',  func { IKismetObject... args -> ((CharSequence) args[0].inner()).chars.toList() }
-        define 'codepoint_to_chars', func(CollectionsIterators.LIST_TYPE.generic(NumberType.Char), NumberType.Rune), new Function() {
+        define 'codepoint_to_chars', func(LIST_TYPE.generic(NumberType.Char), NumberType.Rune), new Function() {
             @Override
             IKismetObject call(IKismetObject... args) {
                 Kismet.model(Character.toChars(((KismetNumber) args[0]).intValue()).toList())

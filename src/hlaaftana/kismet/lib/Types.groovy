@@ -51,6 +51,7 @@ class Types extends NativeModule {
                 args[0].type(context, typ instanceof TypeBound ? typ : new TypeBound((Type) typ))
             }
         }
+        alias 'prefer_type', 'as'
         define 'null', Type.NONE, Kismet.NULL
         define 'null?', func(Logic.BOOLEAN_TYPE, Type.ANY), new Function() {
             IKismetObject call(IKismetObject... args) {
@@ -142,7 +143,7 @@ class Types extends NativeModule {
                 new TypedConstantExpression<Type>(new GenericType(META_TYPE, args[0].type), args[0].type)
             }
         }
-        define 'as',  func { IKismetObject... a -> a[0].invokeMethod('as', [a[1].inner()] as Object[]) }
+        define 'convert',  func { IKismetObject... a -> a[0].invokeMethod('as', [a[1].inner()] as Object[]) }
         define 'assignable_to?', typedTmpl(Logic.BOOLEAN_TYPE, META_TYPE, META_TYPE), new TypedTemplate() {
             TypedExpression transform(TypedContext context, TypedExpression... args) {
                 new TypedConstantExpression<KismetBoolean>(Logic.BOOLEAN_TYPE,

@@ -59,3 +59,16 @@ dive {
   a: 10
   assert_is (3a) 30
 }
+
+;; raw strings
+dive {
+  assert_is [match "a.b.c.d.e.f" regex"(.)\.(.)"] [("a.b", ["a", "b"]), ("c.d", ["c", "d"]), ("e.f", ["e", "f"])]
+}
+
+;; overloading over any type
+dive {
+  a: 3
+  a: true
+  incr a
+  assert_is (prefer_type a Boolean, prefer_type a Int) (true, 4)
+}

@@ -1073,11 +1073,16 @@ class StringExpression extends ConstantExpression<String> {
 
 	String toString() { "\"${StringEscaper.escape(raw)}\"" }
 
-	StringExpression(String v) {
-		try {
-			super.@value = new KismetString(StringEscaper.unescape(raw = v))
-		} catch (ex) {
-			exception = ex
+	StringExpression(String v, boolean escape = false) {
+		raw = v
+		if (escape) {
+			try {
+				super.@value = new KismetString(StringEscaper.unescape(raw))
+			} catch (ex) {
+				exception = ex
+			}
+		} else {
+			setValue(v)
 		}
 	}
 

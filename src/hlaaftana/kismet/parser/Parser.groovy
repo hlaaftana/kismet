@@ -345,6 +345,7 @@ class Parser {
 		boolean lastPercent = false
 		boolean eagerEnd = false
 		boolean ignoreNewline = false
+		boolean lastWhitespace = true
 
 		LineBuilder(Parser p, boolean ignoreNewline = false) {
 			super(p)
@@ -353,6 +354,8 @@ class Parser {
 
 		@Override
 		Expression doPush(int cp) {
+			def oldLastWhitespace = lastWhitespace
+			lastWhitespace = Character.isWhitespace(cp)
 			if (!ignoreNewline && (cp == 10 || cp == 13) && ready) {
 				return doFinish()
 			} else if (null == last) {
@@ -365,10 +368,12 @@ class Parser {
 				else if (cp == ((char) '[')) last = new BracketBuilder(parser)
 				else if (cp == ((char) '{')) last = new CurlyBuilder(parser)
 				else if (cp > 47 && cp < 58) (last = new NumberBuilder(parser)).push(cp)
-				else if (cp == ((char) '"') || cp == ((char) '\'')) last = new StringExprBuilder(parser, cp)
-				else if (cp == ((char) '`')) last = new QuoteAtomBuilder(parser)
+				else if (cp == ((char) '"') || cp == ((char) '\'')){
+					if (oldLastWhitespace || whitespaced.empty) last = new StringExprBuilder(parser, cp)
+					else (last = new PathBuilder(parser, whitespaced.removeLast())).push(cp)
+				} else if (cp == ((char) '`')) last = new QuoteAtomBuilder(parser)
 				else if (cp == ((char) '.') || cp == ((char) ':')) {
-					(last = new PathBuilder(parser, whitespaced.removeLast())).push(cp)
+					(last = new PathBuilder(parser, whitespaced.empty ? null : whitespaced.removeLast())).push(cp)
 				} else if (parser.signedNumbers && cp == ((char) '-')) {
 					last = new MinusBuilder(parser)
 				} else if (!NameBuilder.isNotIdentifier(cp)) (last = new NameBuilder(parser)).push(cp)
@@ -532,7 +537,8 @@ class Parser {
 			Character.isWhitespace(cp) || cp == ((char) '.') || cp == ((char) '[') ||
 					cp == ((char) '(') || cp == ((char) '{') || cp == ((char) ']') ||
 					cp == ((char) ')') || cp == ((char) '}') || cp == ((char) ',') ||
-					cp == ((char) ':') || cp == ((char) ';')
+					cp == ((char) ':') || cp == ((char) ';') ||
+					cp == ((char) '\'') || cp == ((char) '"')
 		}
 
 		@Override
@@ -611,7 +617,11 @@ class Parser {
 				}
 			} else {
 				if (cp == ((char) '.')) inPropertyQueue = true
-				else if (cp == ((char) '[')) {
+				else if (cp == ((char) '\'') || cp == ((char) '"')) {
+					kind = Kind.RAW_STRING
+					last = new StringExprBuilder(parser, cp)
+					((StringExprBuilder) last).raw = true
+				} else if (cp == ((char) '[')) {
 					kind = Kind.SUBSCRIPT
 					last = new BracketBuilder(parser)
 				} else if (cp == ((char) '(')) {
@@ -629,20 +639,7 @@ class Parser {
 		}
 
 		void add(Expression e) {
-			if (kind == Kind.CALL) {
-				def mems = e instanceof TupleExpression ? e.members : Collections.singletonList(e)
-				def list = new ArrayList<Expression>(2 + mems.size())
-				if (result instanceof PropertyExpression) {
-					list.add(result.right)
-					list.add(result.root)
-				} else list.add(result)
-				list.addAll(mems)
-				result = new CallExpression(list)
-			} else if (kind == Kind.COLON) {
-				result = new ColonExpression(result, e)
-			} else {
-				result = kind.toExpression(result, e)
-			}
+			result = kind.toExpression(result, e)
 		}
 
 		boolean isReady() { !colonWaitingWhitespace && !inPropertyQueue && (null == last || last.ready) }
@@ -666,19 +663,38 @@ class Parser {
 						expr.arguments.empty ? expr.callValue : expr instanceof ListExpression ?
 						new TupleExpression(expr.members) : expr)
 				}
-			}, CALL, BLOCK {
+			}, CALL {
+				Expression toExpression(Expression root, Expression expr) {
+					def mems = expr instanceof TupleExpression ? expr.members : Collections.singletonList(expr)
+					def list = new ArrayList<Expression>(2 + mems.size())
+					if (root instanceof PropertyExpression) {
+						list.add(root.right)
+						list.add(root.root)
+					} else list.add(root)
+					list.addAll(mems)
+					new CallExpression(list)
+				}
+			}, BLOCK {
 				PathStepExpression toExpression(Expression root, Expression expr) {
 					new EnterExpression(root, expr)
 				}
-			}, COLON
+			}, COLON {
+				Expression toExpression(Expression root, Expression expr) {
+					new ColonExpression(root, expr)
+				}
+			}, RAW_STRING {
+				Expression toExpression(Expression root, Expression expr) {
+					new CallExpression([root, expr])
+				}
+			}
 
-			PathStepExpression toExpression(Expression root, Expression expr) { throw new UnsupportedOperationException('Cannot convert to step path step kind ' + this) }
+			abstract Expression toExpression(Expression root, Expression expr)
 		}
 	}
 
 	static class StringExprBuilder extends ExprBuilder<StringExpression> {
 		StringBuilder last = new StringBuilder()
-		boolean escaped = false
+		boolean escaped = false, raw = false
 		int quote
 
 		StringExprBuilder(Parser p, int q) {
@@ -688,7 +704,7 @@ class Parser {
 
 		StringExpression doPush(int cp) {
 			if (!escaped && cp == quote)
-				return string(last.toString())
+				return doFinish()
 			escaped = !escaped && cp == ((char) '\\')
 			last.appendCodePoint(cp)
 			(StringExpression) null
@@ -765,7 +781,7 @@ class Parser {
 		}
 
 		StringExpression doFinish() {
-			new StringExpression(last.toString())
+			new StringExpression(last.toString(), !raw)
 		}
 
 		boolean isReady() { false }
