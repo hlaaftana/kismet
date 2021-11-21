@@ -52,12 +52,16 @@ class Functions extends NativeModule {
         define 'consume',  func { IKismetObject... args -> ((Function) args[1]).call(args[0]) }
         define 'tap',  func { IKismetObject... args -> ((Function) args[1]).call(args[0]); args[0] }
         define 'compose',  func { IKismetObject... args ->
-            funcc { ... a ->
-                def r = args[0]
-                for (int i = args.length - 1; i >= 0; --i) {
-                    r = ((Function) args[i]).call(r)
+            new Function() {
+                IKismetObject call(IKismetObject... a) {
+                    def r = a[0]
+                    for (
+                    int i = args.length - 1;
+                    i >= 0; -- i ) {
+                        r = ((Function) args[i]).call(r)
+                    }
+                    r
                 }
-                r
             }
         }
         define 'memoize',  func { IKismetObject... args ->

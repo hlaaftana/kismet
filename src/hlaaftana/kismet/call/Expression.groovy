@@ -460,72 +460,97 @@ class CallExpression extends Expression {
 	}
 
 	TypedExpression type(TypedContext tc, TypeBound preferred) {
+		Expression callValue = this.callValue
+		List<Expression> arguments = this.arguments
 		TypedExpression cv
+		TypedExpression[] args
+		Type[] argtypes
+		int level = 0
 
-		// template
-		try {
-			cv = callValue.type(tc, -Functions.TEMPLATE_TYPE)
-		} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {}
-		if (null != cv && cv.type == Functions.TEMPLATE_TYPE)
-			return ((Template) cv.instruction.evaluate(tc))
+		while (level++ < 2) {
+			if (level > 1) {
+				arguments = [callValue, new TupleExpression(arguments)]
+				callValue = new NameExpression('call')
+			}
+			cv = null
+
+			// template
+			try {
+				cv = callValue.type(tc, -Functions.TEMPLATE_TYPE)
+			} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {}
+			if (null != cv && cv.type == Functions.TEMPLATE_TYPE)
+				return ((Template) cv.instruction.evaluate(tc))
 					.transform(null,
-						arguments.<Expression>toArray(
+						arguments.<Expression> toArray(
 							new Expression[arguments.size()]))
 					.type(tc, preferred)
 					.withOriginal(this)
 
-		// type checker
-		try {
-			cv = callValue.type(tc, -Functions.TYPE_CHECKER_TYPE)
-		} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {}
-		if (null != cv && cv.type == Functions.TYPE_CHECKER_TYPE)
-			return ((TypeChecker) cv.instruction.evaluate(tc))
-					.transform(tc, arguments.<Expression>toArray(new Expression[arguments.size()])).withOriginal(this)
+			// type checker
+			try {
+				cv = callValue.type(tc, -Functions.TYPE_CHECKER_TYPE)
+			} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {}
+			if (null != cv && cv.type == Functions.TYPE_CHECKER_TYPE)
+				return ((TypeChecker) cv.instruction.evaluate(tc))
+					.transform(tc, arguments.<Expression> toArray(new Expression[arguments.size()])).withOriginal(this)
 
-		// runtime args
-		def args = new TypedExpression[arguments.size()]
-		def argtypes = new Type[args.length]
-		for (int i = 0; i < args.length; ++i) argtypes[i] = (args[i] = arguments.get(i).type(tc)).type
+			// runtime args
+			if (level < 2) {
+				args = new TypedExpression[arguments.size()]
+				argtypes = new Type[args.length]
+				for (int i = 0; i < args.length; ++i) argtypes[i] = (args[i] = arguments.get(i).type(tc)).type
+			} else {
+				def oldargs = args
+				args = new TypedExpression[2]
+				args[0] = arguments[0].type(tc)
+				args[1] = new TupleExpression.Typed(oldargs)
+				argtypes = new Type[2]
+				argtypes[0] = args[0].type; argtypes[1] = args[1].type
+			}
 
-		// typedContext template
-		final typedTmpl = Functions.typedTmpl(preferred.type, argtypes)
-		try {
-			cv = callValue.type(tc, -typedTmpl)
-		} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {
-			if (callValue.repr() == 'parameter_type')
-				((Exception) ignored).printStackTrace()
+			// typed template
+			final typedTmpl = Functions.typedTmpl(preferred.type, argtypes)
+			try {
+				cv = callValue.type(tc, -typedTmpl)
+			} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {}
+			if (null != cv) {
+				def x = ((TypedTemplate) cv.instruction.evaluate(tc))
+				return x
+					.transform(tc, args)
+					.withOriginal(this)
+			}
+
+			// instructor
+			final inr = Functions.instr(preferred.type, argtypes)
+			try {
+				cv = callValue.type(tc, -inr)
+			} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {}
+			if (null != cv) return new InstructorCallExpression(cv, args, cv.type instanceof SingleType ?
+				Type.ANY : ((GenericType) cv.type)[1]).withOriginal(this)
+
+			// function
+			if (level > 1) {
+				// TODO: change the 'call' signature in Prelude after all untyped functions are typedContext (held back by generics)
+				// dont know why this works but the other one doesnt
+				// println "WARNING: $this WILL USE 'call' FUNCTION"
+				def callFnType = Functions.FUNCTION_TYPE.generic(new TupleType(argtypes), preferred.type)
+				def cc = tc.find('call', -callFnType)
+				if (null == cc) throw new UndefinedSymbolException('Could not find overload for ' + repr() + ' as (' + argtypes.join(', ') + ') -> ' + preferred)
+				return new TypedCallExpression(new VariableExpression(cc), args,
+					cc.variable.type instanceof SingleType ? Type.ANY : ((GenericType) cc.variable.type)[1]).withOriginal(this)
+			} else {
+				final fn = Functions.func(preferred.type, argtypes)
+				try {
+					cv = callValue.type(tc, -fn)
+				} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {}
+				if (null != cv) {
+					return new TypedCallExpression(cv, args, cv.type instanceof SingleType ?
+						Type.ANY : ((GenericType) cv.type)[1]).withOriginal(this)
+				}
+			}
 		}
-		if (null != cv) {
-			def x = ((TypedTemplate) cv.instruction.evaluate(tc))
-			return x
-				.transform(tc, args)
-				.withOriginal(this)
-		}
 
-		// instructor
-		final inr = Functions.instr(preferred.type, argtypes)
-		try {
-			cv = callValue.type(tc, -inr)
-		} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {}
-		if (null != cv) return new InstructorCallExpression(cv, args, cv.type instanceof SingleType ?
-			Type.ANY : ((GenericType) cv.type)[1]).withOriginal(this)
-
-		// function
-		final fn = Functions.func(preferred.type, argtypes)
-		try {
-			cv = callValue.type(tc, -fn)
-		} catch (UnexpectedTypeException | UndefinedSymbolException ignored) {}
-		if (null != cv) return new TypedCallExpression(cv, args, cv.type instanceof SingleType ?
-			Type.ANY : ((GenericType) cv.type)[1]).withOriginal(this)
-
-		cv = callValue.type(tc)
-		// TODO: change the 'call' signature in Prelude after all untyped functions are typedContext (held back by generics)
-		// println "WARNING: $this WILL USE 'call' FUNCTION"
-		def callFnType = Functions.FUNCTION_TYPE.generic(new TupleType(cv.type, new TupleType(argtypes)), preferred.type)
-		def cc = tc.find('call', -callFnType)
-		if (null == cc) throw new UndefinedSymbolException('Could not find overload for ' + repr() + ' as (' + argtypes.join(', ') + ') -> ' + preferred)
-		new TypedCallExpression(new VariableExpression(cc), [cv, new TupleExpression.Typed(args)] as TypedExpression[],
-			cc.variable.type instanceof SingleType ? Type.ANY : ((GenericType) cc.variable.type)[1]).withOriginal(this)
+		throw new UndefinedSymbolException('Could not find overload for ' + repr() + ' as (' + argtypes.join(', ') + ') -> ' + preferred)
 	}
 }
 
