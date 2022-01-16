@@ -13,10 +13,9 @@ import hlaaftana.kismet.vm.*
 
 import java.util.regex.Pattern
 
-import static hlaaftana.kismet.call.ExprBuilder.call
-import static hlaaftana.kismet.call.ExprBuilder.name
+import static hlaaftana.kismet.call.ExprBuilder.*
+import static Functions.*
 import static hlaaftana.kismet.lib.CollectionsIterators.LIST_TYPE
-import static hlaaftana.kismet.lib.Functions.*
 
 @CompileStatic
 @SuppressWarnings("ChangeToOperator")

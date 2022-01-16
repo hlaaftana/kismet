@@ -8,10 +8,10 @@ import hlaaftana.kismet.parser.Parser
 import hlaaftana.kismet.type.*
 import hlaaftana.kismet.vm.*
 
-import java.math.RoundingMode
-
 import static hlaaftana.kismet.call.ExprBuilder.*
-import static hlaaftana.kismet.lib.Functions.*
+import static Functions.*
+
+import java.math.RoundingMode
 
 @CompileStatic
 @SuppressWarnings("ChangeToOperator")

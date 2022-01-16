@@ -48,7 +48,7 @@ class KismetValue implements IKismetObject {
             type = FUNCTION_TYPE
         } else if (value instanceof Iterator) {
             if (value !instanceof Iterable)
-                value = new IteratorIterable((Iterator) value)
+                inner = new IteratorIterable((Iterator) value)
             type = CollectionsIterators.CLOSURE_ITERATOR_TYPE
         } else if (value instanceof Function) type = FUNCTION_TYPE//func(Type.NONE, new TupleType(new Type[0]).withVarargs(Type.ANY))
         else if (value instanceof Template) type = TEMPLATE_TYPE

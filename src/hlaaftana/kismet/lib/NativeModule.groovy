@@ -15,10 +15,9 @@ import hlaaftana.kismet.type.Type
 import hlaaftana.kismet.vm.IKismetObject
 import hlaaftana.kismet.vm.Memory
 
-import static hlaaftana.kismet.call.ExprBuilder.call
-import static hlaaftana.kismet.call.ExprBuilder.name
-import static hlaaftana.kismet.lib.Functions.*
+import static hlaaftana.kismet.call.ExprBuilder.*
 import static hlaaftana.kismet.lib.Types.inferType
+import static Functions.*
 
 @CompileStatic
 class NativeModule extends Module {

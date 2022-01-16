@@ -11,10 +11,8 @@ import hlaaftana.kismet.type.NumberType
 import hlaaftana.kismet.type.Type
 import hlaaftana.kismet.vm.*
 
-import static hlaaftana.kismet.call.ExprBuilder.call
-import static hlaaftana.kismet.call.ExprBuilder.name
-import static hlaaftana.kismet.lib.Functions.TYPE_CHECKER_TYPE
-import static hlaaftana.kismet.lib.Functions.func
+import static hlaaftana.kismet.call.ExprBuilder.*
+import static hlaaftana.kismet.lib.Functions.*
 
 @CompileStatic
 class Errors extends NativeModule {

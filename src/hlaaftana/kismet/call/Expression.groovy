@@ -15,8 +15,7 @@ import hlaaftana.kismet.scope.Context
 import hlaaftana.kismet.scope.TypedContext
 import hlaaftana.kismet.type.*
 import hlaaftana.kismet.vm.*
-
-import static hlaaftana.kismet.call.ExprBuilder.*
+import static ExprBuilder.*
 
 @CompileStatic
 abstract class Expression implements IKismetObject<Expression> {

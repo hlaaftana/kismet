@@ -6,8 +6,7 @@ import hlaaftana.kismet.call.*
 import hlaaftana.kismet.scope.TypedContext
 import hlaaftana.kismet.type.*
 import hlaaftana.kismet.vm.*
-
-import static hlaaftana.kismet.lib.Functions.*
+import static Functions.*
 
 @CompileStatic
 class Types extends NativeModule {

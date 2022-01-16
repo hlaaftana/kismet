@@ -17,7 +17,7 @@ import hlaaftana.kismet.type.TypeBound
 import hlaaftana.kismet.vm.*
 
 import static hlaaftana.kismet.call.ExprBuilder.*
-import static hlaaftana.kismet.lib.Functions.*
+import static Functions.*
 import static hlaaftana.kismet.lib.Logic.BOOLEAN_TYPE
 
 @CompileStatic

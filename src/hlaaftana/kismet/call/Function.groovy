@@ -20,8 +20,7 @@ import hlaaftana.kismet.vm.KismetTuple
 import hlaaftana.kismet.vm.Memory
 import hlaaftana.kismet.vm.RuntimeMemory
 
-import static hlaaftana.kismet.call.ExprBuilder.block
-import static hlaaftana.kismet.call.ExprBuilder.name
+import static hlaaftana.kismet.call.ExprBuilder.*
 
 @CompileStatic
 abstract class Function implements KismetCallable, IKismetObject<Function>, Nameable {

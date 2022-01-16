@@ -15,9 +15,9 @@ import hlaaftana.kismet.vm.IKismetObject
 import hlaaftana.kismet.vm.Memory
 import hlaaftana.kismet.vm.WrapperKismetObject
 
-import static hlaaftana.kismet.call.ExprBuilder.*
-import static hlaaftana.kismet.lib.Functions.*
 import static hlaaftana.kismet.lib.Logic.BOOLEAN_TYPE
+import static Functions.*
+import static hlaaftana.kismet.call.ExprBuilder.*
 
 @CompileStatic
 @SuppressWarnings("ChangeToOperator")

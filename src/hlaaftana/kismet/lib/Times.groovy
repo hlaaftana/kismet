@@ -9,9 +9,9 @@ import hlaaftana.kismet.type.NumberType
 import hlaaftana.kismet.type.Type
 import hlaaftana.kismet.vm.*
 
-import java.text.SimpleDateFormat
+import static Functions.*
 
-import static hlaaftana.kismet.lib.Functions.*
+import java.text.SimpleDateFormat
 
 @CompileStatic
 class Times extends NativeModule {
